@@ -23,9 +23,9 @@ import {
   UserPlus,
 } from "lucide-react";
 
-// --- إعدادات الاتصال بـ Supabase ---
-const supabaseUrl = "https://rxeminlotawcfqalxoqy.supabase.co";
-const supabaseKey = "sb_publishable_nExTWl7CRubKfDuiqbX1Sw_EwyMdUoX";
+// --- إعدادات الاتصال بـ Supabase (باستخدام متغيرات البيئة لضمان نجاح الرفع) ---
+const supabaseUrl = process.env.REACT_APP_SUPABASE_URL || "https://rxeminlotawcfqalxoqy.supabase.co";
+const supabaseKey = process.env.REACT_APP_SUPABASE_ANON_KEY || "sb_publishable_nExTWl7CRubKfDuiqbX1Sw_EwyMdUoX";
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 // --- دوال مساعدة للتواريخ ---
@@ -661,7 +661,7 @@ const VacationManagementSystem = () => {
             </div>
           )}
 
-          {/* TAB: HISTORY (قائمة الإجازات المعتمدة) */}
+          {/* TAB: HISTORY */}
           {activeTab === "history" && (
             <div className="space-y-6 animate-in fade-in duration-500">
               <div className="flex justify-between items-center">
@@ -758,7 +758,7 @@ const VacationManagementSystem = () => {
         {/* Add Employee Modal */}
         {showAddEmp && (
           <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-6 z-[100]">
-            <div className="bg-white p-10 rounded-[2.5rem] w-full max-w-lg shadow-2xl animate-in zoom-in duration-200">
+            <div className="bg-white p-10 rounded-[2.5rem] w-full max-w-lg shadow-2xl animate-in zoom-in duration-200 text-right" dir="rtl">
               <div className="flex justify-between mb-8">
                 <h3 className="text-2xl font-black text-slate-800">
                   إضافة زميل جديد
@@ -772,120 +772,46 @@ const VacationManagementSystem = () => {
               </div>
               <div className="space-y-5">
                 <div className="space-y-2">
-                  <label className="text-sm font-black mr-2">
-                    الاسم الثلاثي
-                  </label>
+                  <label className="text-sm font-black mr-2">الاسم الثلاثي</label>
                   <input
                     className="w-full p-4 border border-slate-200 rounded-2xl outline-none focus:border-indigo-500"
-                    placeholder="مثلاً: أحمد محمد علي"
-                    onChange={(e) =>
-                      setNewEmp({ ...newEmp, name: e.target.value })
-                    }
+                    placeholder="مثلاً: محمد علي حسن"
+                    onChange={(e) => setNewEmp({...newEmp, name: e.target.value})}
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <label className="text-sm font-black mr-2">
-                      الكود الوظيفي
-                    </label>
+                    <label className="text-sm font-black mr-2">الكود الوظيفي</label>
                     <input
-                      className="w-full p-4 border border-slate-200 rounded-2xl outline-none focus:border-indigo-500"
-                      placeholder="EMP-001"
-                      onChange={(e) =>
-                        setNewEmp({ ...newEmp, code: e.target.value })
-                      }
+                      className="w-full p-4 border border-slate-200 rounded-2xl outline-none"
+                      placeholder="1001"
+                      onChange={(e) => setNewEmp({...newEmp, code: e.target.value})}
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-black mr-2">
-                      رصيد الأيام
-                    </label>
+                    <label className="text-sm font-black mr-2">رصيد الإجازات</label>
                     <input
                       type="number"
-                      className="w-full p-4 border border-slate-200 rounded-2xl outline-none focus:border-indigo-500"
+                      className="w-full p-4 border border-slate-200 rounded-2xl outline-none"
                       defaultValue={21}
-                      onChange={(e) =>
-                        setNewEmp({
-                          ...newEmp,
-                          balance: Number(e.target.value),
-                        })
-                      }
+                      onChange={(e) => setNewEmp({...newEmp, balance: Number(e.target.value)})}
                     />
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-black mr-2">
-                    المسمى الوظيفي
-                  </label>
+                  <label className="text-sm font-black mr-2">المنصب</label>
                   <input
-                    className="w-full p-4 border border-slate-200 rounded-2xl outline-none focus:border-indigo-500"
-                    placeholder="مثلاً: مطور برمجيات"
-                    onChange={(e) =>
-                      setNewEmp({ ...newEmp, position: e.target.value })
-                    }
+                    className="w-full p-4 border border-slate-200 rounded-2xl outline-none"
+                    placeholder="مثلاً: محاسب"
+                    onChange={(e) => setNewEmp({...newEmp, position: e.target.value})}
                   />
                 </div>
                 <button
                   onClick={handleAddEmployee}
-                  className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-4 rounded-2xl font-black text-lg mt-6 shadow-xl shadow-indigo-100 transition-all"
+                  className="w-full bg-indigo-600 text-white p-5 rounded-2xl font-black text-lg mt-4 shadow-xl shadow-indigo-100"
                 >
-                  تأكيد الإضافة
+                  حفظ البيانات
                 </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Edit Vacation Modal */}
-        {editingVac && (
-          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-6 z-[100]">
-            <div className="bg-white p-10 rounded-[2.5rem] w-full max-w-lg shadow-2xl">
-              <h3 className="text-2xl font-black mb-8 text-slate-800">
-                تعديل بيانات الإجازة
-              </h3>
-              <div className="space-y-6">
-                <div className="space-y-2">
-                  <label className="text-sm font-black">تاريخ البداية</label>
-                  <input
-                    type="date"
-                    className="w-full p-4 border rounded-2xl"
-                    value={editingVac.start_date}
-                    onChange={(e) =>
-                      setEditingVac({
-                        ...editingVac,
-                        start_date: e.target.value,
-                      })
-                    }
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-black">عدد الأيام</label>
-                  <input
-                    type="number"
-                    className="w-full p-4 border rounded-2xl"
-                    value={editingVac.days}
-                    onChange={(e) =>
-                      setEditingVac({
-                        ...editingVac,
-                        days: Number(e.target.value),
-                      })
-                    }
-                  />
-                </div>
-                <div className="pt-6 flex gap-3">
-                  <button
-                    onClick={handleUpdateVacation}
-                    className="flex-1 bg-emerald-600 text-white py-4 rounded-2xl font-black shadow-lg shadow-emerald-50"
-                  >
-                    حفظ التغييرات
-                  </button>
-                  <button
-                    onClick={() => setEditingVac(null)}
-                    className="flex-1 bg-slate-100 text-slate-500 py-4 rounded-2xl font-black"
-                  >
-                    إلغاء
-                  </button>
-                </div>
               </div>
             </div>
           </div>
@@ -894,52 +820,33 @@ const VacationManagementSystem = () => {
         {/* Edit Employee Modal */}
         {editingEmp && (
           <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-6 z-[100]">
-            <div className="bg-white p-10 rounded-[2.5rem] w-full max-w-lg shadow-2xl">
-              <h3 className="text-2xl font-black mb-8 text-slate-800">
-                تحديث بيانات الموظف
-              </h3>
+            <div className="bg-white p-10 rounded-[2.5rem] w-full max-w-lg shadow-2xl text-right" dir="rtl">
+              <div className="flex justify-between mb-8">
+                <h3 className="text-2xl font-black text-slate-800">تعديل بيانات الموظف</h3>
+                <button onClick={() => setEditingEmp(null)}><X /></button>
+              </div>
               <div className="space-y-5">
                 <input
-                  className="w-full p-4 border rounded-2xl"
+                  className="w-full p-4 border border-slate-200 rounded-2xl"
                   value={editingEmp.name}
-                  onChange={(e) =>
-                    setEditingEmp({ ...editingEmp, name: e.target.value })
-                  }
+                  onChange={(e) => setEditingEmp({...editingEmp, name: e.target.value})}
                 />
                 <input
-                  className="w-full p-4 border rounded-2xl"
+                  className="w-full p-4 border border-slate-200 rounded-2xl"
                   value={editingEmp.position}
-                  onChange={(e) =>
-                    setEditingEmp({ ...editingEmp, position: e.target.value })
-                  }
+                  onChange={(e) => setEditingEmp({...editingEmp, position: e.target.value})}
                 />
-                <div className="flex items-center gap-4 bg-slate-50 p-4 rounded-2xl">
-                  <span className="font-bold text-slate-400 text-sm">
-                    تعديل الرصيد:
-                  </span>
-                  <input
-                    type="number"
-                    className="w-24 p-2 border rounded-xl font-black text-center"
-                    value={editingEmp.balance}
-                    onChange={(e) =>
-                      setEditingEmp({
-                        ...editingEmp,
-                        balance: Number(e.target.value),
-                      })
-                    }
-                  />
-                </div>
+                <input
+                  type="number"
+                  className="w-full p-4 border border-slate-200 rounded-2xl"
+                  value={editingEmp.balance}
+                  onChange={(e) => setEditingEmp({...editingEmp, balance: Number(e.target.value)})}
+                />
                 <button
                   onClick={handleUpdateEmployee}
-                  className="w-full bg-blue-600 text-white py-4 rounded-2xl font-black shadow-lg shadow-blue-50 mt-4"
+                  className="w-full bg-indigo-600 text-white p-5 rounded-2xl font-black"
                 >
-                  تحديث الآن
-                </button>
-                <button
-                  onClick={() => setEditingEmp(null)}
-                  className="w-full text-slate-400 font-bold py-2"
-                >
-                  تراجع
+                  تحديث
                 </button>
               </div>
             </div>
@@ -948,187 +855,89 @@ const VacationManagementSystem = () => {
       </div>
     );
 
-  // --- واجهة الموظف (Employee Dashboard) ---
+  // --- واجهة الموظف (Employee View) ---
   if (currentView === "employee")
     return (
-      <div
-        className="min-h-screen bg-slate-50 p-8 flex flex-col items-center text-right font-sans"
-        dir="rtl"
-      >
-        <div className="w-full max-w-3xl space-y-8 animate-in slide-in-from-top-10 duration-700">
-          {/* ملف الموظف */}
-          <div className="bg-white p-10 rounded-[3rem] shadow-xl border border-slate-100 flex justify-between items-center relative overflow-hidden">
-            <div className="absolute top-0 left-0 w-32 h-32 bg-indigo-500/5 rounded-full -translate-x-10 -translate-y-10"></div>
-            <div className="z-10">
-              <p className="text-indigo-600 font-black text-sm mb-2 uppercase tracking-widest">
-                مرحباً بك مجدداً
-              </p>
-              <h1 className="text-4xl font-black text-slate-800">
-                {currentUser.name}
-              </h1>
-              <p className="text-slate-400 mt-2 font-bold">
-                {currentUser.position} | {currentUser.code}
-              </p>
-              <button
-                onClick={() => setCurrentView("login")}
-                className="mt-6 flex items-center gap-2 text-red-500 font-black text-sm hover:translate-x-1 transition-all"
-              >
-                <LogOut size={16} /> تسجيل الخروج
-              </button>
-            </div>
-            <div className="bg-slate-900 text-white p-8 rounded-[2.5rem] text-center shadow-2xl border-4 border-white">
-              <p className="text-slate-400 text-xs font-bold mb-1 uppercase">
-                رصيدك المتاح
-              </p>
-              <p className="text-5xl font-black">
-                {employees.find((e) => e.id === currentUser.id)?.balance || 0}
-              </p>
-              <p className="text-[10px] mt-2 text-slate-500 font-bold">
-                يوم إجازة
-              </p>
-            </div>
+      <div className="min-h-screen bg-slate-50 p-6 text-right font-sans" dir="rtl">
+        <header className="max-w-4xl mx-auto flex justify-between items-center mb-10">
+          <div>
+            <h2 className="text-3xl font-black text-slate-800">أهلاً، {currentUser.name}</h2>
+            <p className="text-slate-500">رصيدك الحالي: <span className="font-black text-indigo-600">{currentUser.balance} يوم</span></p>
           </div>
+          <button onClick={() => setCurrentView("login")} className="text-red-500 font-bold flex items-center gap-2">
+            <LogOut size={20} /> خروج
+          </button>
+        </header>
 
-          {/* تقديم طلب */}
-          <div className="bg-white p-10 rounded-[3rem] shadow-lg border border-slate-100">
-            <h2 className="text-2xl font-black mb-8 flex items-center gap-4 text-slate-800">
-              <Calendar className="text-indigo-600" size={28} /> تقديم طلب إجازة
-              جديد
-            </h2>
-            <div className="grid grid-cols-2 gap-6 mb-8">
-              <div className="space-y-3">
-                <label className="text-sm font-black text-slate-500 mr-2">
-                  تاريخ بداية الإجازة
-                </label>
+        <div className="max-w-4xl mx-auto grid md:grid-cols-2 gap-8">
+          {/* طلب إجازة */}
+          <section className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
+            <h3 className="text-xl font-black mb-6 flex items-center gap-3">
+              <Plus className="text-indigo-600" /> طلب إجازة جديد
+            </h3>
+            <div className="space-y-5">
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-slate-400">تاريخ البدء</label>
                 <input
                   type="date"
-                  className="w-full bg-slate-50 border-none p-5 rounded-2xl outline-none focus:ring-4 ring-indigo-500/10 font-bold"
-                  onChange={(e) =>
-                    setNewRequest({ ...newRequest, start_date: e.target.value })
-                  }
+                  className="w-full p-4 bg-slate-50 border-none rounded-2xl outline-none focus:ring-2 ring-indigo-500"
+                  value={newRequest.start_date}
+                  onChange={(e) => setNewRequest({...newRequest, start_date: e.target.value})}
                 />
               </div>
-              <div className="space-y-3">
-                <label className="text-sm font-black text-slate-500 mr-2">
-                  عدد أيام الإجازة
-                </label>
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-slate-400">عدد الأيام</label>
                 <input
                   type="number"
                   min="1"
-                  className="w-full bg-slate-50 border-none p-5 rounded-2xl outline-none focus:ring-4 ring-indigo-500/10 font-black text-xl text-center"
+                  className="w-full p-4 bg-slate-50 border-none rounded-2xl outline-none"
                   value={newRequest.days}
-                  onChange={(e) =>
-                    setNewRequest({
-                      ...newRequest,
-                      days: Number(e.target.value),
-                    })
-                  }
+                  onChange={(e) => setNewRequest({...newRequest, days: Number(e.target.value)})}
                 />
               </div>
-              <div className="col-span-2 space-y-3 text-indigo-600 bg-indigo-50/50 p-6 rounded-[2rem] border border-indigo-100 border-dashed text-center">
-                <span className="text-sm font-bold">
-                  في حال الموافقة، سيكون موعد عودتك للعمل هو:
-                </span>
-                <p className="text-2xl font-black mt-1">
-                  {newRequest.start_date
-                    ? formatDate(
-                        getCalculatedDates(
-                          newRequest.start_date,
-                          newRequest.days
-                        ).back
-                      )
-                    : "يحدد لاحقاً"}
-                </p>
-              </div>
-              <div className="col-span-2 space-y-3">
-                <label className="text-sm font-black text-slate-500 mr-2">
-                  ملاحظات إضافية (اختياري)
-                </label>
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-slate-400">ملاحظات (اختياري)</label>
                 <textarea
-                  className="w-full bg-slate-50 border-none p-5 rounded-2xl outline-none focus:ring-4 ring-indigo-500/10 font-medium h-24"
-                  placeholder="هل تود إبلاغ الإدارة بشيء؟"
-                  onChange={(e) =>
-                    setNewRequest({ ...newRequest, notes: e.target.value })
-                  }
-                ></textarea>
+                  className="w-full p-4 bg-slate-50 border-none rounded-2xl outline-none h-24"
+                  placeholder="سبب الإجازة..."
+                  value={newRequest.notes}
+                  onChange={(e) => setNewRequest({...newRequest, notes: e.target.value})}
+                />
               </div>
+              <button
+                onClick={submitVacationRequest}
+                disabled={isSubmitting}
+                className="w-full bg-indigo-600 text-white p-5 rounded-2xl font-black text-lg disabled:opacity-50"
+              >
+                {isSubmitting ? <Loader2 className="animate-spin mx-auto" /> : "إرسال الطلب للمراجعة"}
+              </button>
             </div>
-            <button
-              onClick={submitVacationRequest}
-              disabled={isSubmitting}
-              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white p-6 rounded-2xl font-black text-xl shadow-xl shadow-indigo-100 transition-all flex items-center justify-center gap-4 group"
-            >
-              {isSubmitting ? (
-                <Loader2 className="animate-spin" />
-              ) : (
-                <>
-                  <Save
-                    size={24}
-                    className="group-hover:scale-110 transition-all"
-                  />{" "}
-                  إرسال الطلب للمراجعة
-                </>
-              )}
-            </button>
-          </div>
+          </section>
 
-          {/* الطلبات السابقة */}
-          <div className="space-y-5">
-            <h3 className="text-xl font-black text-slate-800 mr-4 flex items-center gap-2">
-              <Clock size={20} /> سجل طلباتك الأخيرة
+          {/* حالة الطلبات */}
+          <section className="space-y-6">
+             <h3 className="text-xl font-black flex items-center gap-3">
+              <Clock className="text-amber-500" /> طلباتي الأخيرة
             </h3>
             {requests
-              .filter((r) => r.employee_id === currentUser.id)
-              .map((req) => (
-                <div
-                  key={req.id}
-                  className="bg-white p-6 rounded-[2rem] border border-slate-100 flex justify-between items-center shadow-sm"
-                >
-                  <div className="flex items-center gap-6">
-                    <div className="bg-slate-50 p-4 rounded-2xl text-center min-w-[80px]">
-                      <p className="text-[10px] text-slate-400 font-bold uppercase">
-                        المدة
-                      </p>
-                      <p className="text-xl font-black text-slate-700">
-                        {req.days} يوم
-                      </p>
-                    </div>
+              .filter(r => r.employee_id === currentUser.id)
+              .map(req => (
+                <div key={req.id} className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
+                  <div className="flex justify-between items-center">
                     <div>
-                      <p className="font-black text-slate-800">
-                        تبدأ من: {formatDate(req.start_date)}
-                      </p>
-                      <p className="text-xs text-slate-400 font-bold">
-                        العودة:{" "}
-                        {formatDate(
-                          getCalculatedDates(req.start_date, req.days).back
-                        )}
-                      </p>
+                      <p className="font-bold text-slate-800">{formatDate(req.start_date)}</p>
+                      <p className="text-xs text-slate-400">{req.days} يوم</p>
                     </div>
-                  </div>
-                  <div
-                    className={`px-6 py-2 rounded-full text-xs font-black shadow-sm ${
-                      req.status === "approved"
-                        ? "bg-emerald-100 text-emerald-700"
-                        : req.status === "rejected"
-                        ? "bg-red-100 text-red-700"
-                        : "bg-amber-100 text-amber-700"
-                    }`}
-                  >
-                    {req.status === "approved"
-                      ? "تمت الموافقة ✓"
-                      : req.status === "rejected"
-                      ? "مرفوض ✕"
-                      : "قيد الانتظار..."}
+                    <span className={`px-4 py-1.5 rounded-full text-xs font-black ${
+                      req.status === 'approved' ? 'bg-emerald-100 text-emerald-700' :
+                      req.status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
+                    }`}>
+                      {req.status === 'approved' ? 'مقبول' : req.status === 'rejected' ? 'مرفوض' : 'قيد الانتظار'}
+                    </span>
                   </div>
                 </div>
               ))}
-            {requests.filter((r) => r.employee_id === currentUser.id).length ===
-              0 && (
-              <div className="p-12 text-center text-slate-400 font-bold bg-white/50 border border-dashed rounded-[2.5rem]">
-                لا يوجد لديك طلبات سابقة حتى الآن.
-              </div>
-            )}
-          </div>
+          </section>
         </div>
       </div>
     );
