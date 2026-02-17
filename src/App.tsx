@@ -308,11 +308,21 @@ const VacationManagementSystem = () => {
   const handleUpdateEmployee = async () => {
     const { error } = await supabase
       .from("employees")
-      .update(editingEmp)
+      .update({
+        name: editingEmp.name,
+        code: editingEmp.code,
+        position: editingEmp.position,
+        balance: editingEmp.balance,
+        monthly_balance: editingEmp.monthly_balance || 0,
+      })
       .eq("id", editingEmp.id);
     if (!error) {
       setEditingEmp(null);
       fetchData();
+      alert("تم تحديث بيانات الموظف بنجاح ✅");
+    } else {
+      console.error("Update Error:", error);
+      alert("حدث خطأ في التحديث. تحقق من البيانات.");
     }
   };
 
@@ -1137,6 +1147,8 @@ const VacationManagementSystem = () => {
                     <label className="text-sm font-black mr-2">رصيد الإجازات</label>
                     <input
                       type="number"
+                      step="0.5"
+                      min="0"
                       className="w-full p-4 border border-slate-200 rounded-2xl outline-none"
                       defaultValue={21}
                       onChange={(e) => setNewEmp({...newEmp, balance: Number(e.target.value)})}
@@ -1149,6 +1161,8 @@ const VacationManagementSystem = () => {
                     </label>
                     <input
                       type="number"
+                      step="0.5"
+                      min="0"
                       className="w-full p-4 border border-slate-200 rounded-2xl outline-none"
                       defaultValue={0}
                       onChange={(e) => setNewEmp({...newEmp, monthly_balance: Number(e.target.value)})}
@@ -1196,6 +1210,8 @@ const VacationManagementSystem = () => {
                     <label className="text-sm font-black mr-2">الرصيد الحالي</label>
                     <input
                       type="number"
+                      step="0.5"
+                      min="0"
                       className="w-full p-4 border border-slate-200 rounded-2xl"
                       value={editingEmp.balance}
                       onChange={(e) => setEditingEmp({...editingEmp, balance: Number(e.target.value)})}
@@ -1208,6 +1224,8 @@ const VacationManagementSystem = () => {
                     </label>
                     <input
                       type="number"
+                      step="0.5"
+                      min="0"
                       className="w-full p-4 border border-slate-200 rounded-2xl"
                       value={editingEmp.monthly_balance || 0}
                       onChange={(e) => setEditingEmp({...editingEmp, monthly_balance: Number(e.target.value)})}
@@ -1251,7 +1269,8 @@ const VacationManagementSystem = () => {
                   <label className="text-sm font-black mr-2">عدد الأيام</label>
                   <input
                     type="number"
-                    min="1"
+                    step="0.5"
+                    min="0.5"
                     className="w-full p-4 border border-slate-200 rounded-2xl"
                     value={editingVac.days}
                     onChange={(e) => setEditingVac({...editingVac, days: Number(e.target.value)})}
@@ -1325,7 +1344,8 @@ const VacationManagementSystem = () => {
                 <label className="text-sm font-bold text-slate-400">عدد الأيام</label>
                 <input
                   type="number"
-                  min="1"
+                  step="0.5"
+                  min="0.5"
                   className="w-full p-4 bg-slate-50 border-none rounded-2xl outline-none"
                   value={newRequest.days}
                   onChange={(e) => setNewRequest({...newRequest, days: Number(e.target.value)})}
