@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
 import * as XLSX from "xlsx";
 import {
@@ -21,6 +21,11 @@ import {
   Save,
   X,
   UserPlus,
+  Upload,
+  Bell,
+  MessageSquare,
+  FileDown,
+  Zap,
 } from "lucide-react";
 
 // --- إعدادات الاتصال بـ Supabase (باستخدام متغيرات البيئة لضمان نجاح الرفع) ---
@@ -68,6 +73,14 @@ const VacationManagementSystem = () => {
   const [showAddEmp, setShowAddEmp] = useState(false);
   const [editingEmp, setEditingEmp] = useState<any>(null);
   const [editingVac, setEditingVac] = useState<any>(null);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [uploadingFile, setUploadingFile] = useState(false);
+  const [showApprovalModal, setShowApprovalModal] = useState(false);
+  const [currentRequest, setCurrentRequest] = useState<any>(null);
+  const [adminNotes, setAdminNotes] = useState("");
+  const [notifications, setNotifications] = useState<any[]>([]);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // New Data Forms
   const [newEmp, setNewEmp] = useState({
@@ -75,6 +88,7 @@ const VacationManagementSystem = () => {
     code: "",
     position: "",
     balance: 21,
+    monthly_balance: 0,
   });
   const [newRequest, setNewRequest] = useState({
     start_date: "",
@@ -97,15 +111,64 @@ const VacationManagementSystem = () => {
         .order("created_at", { ascending: false });
       if (emps) setEmployees(emps);
       if (reqs) setRequests(reqs);
+      
+      // جلب الإشعارات للموظف الحالي
+      if (currentUser && currentView === "employee") {
+        const userNotifications = reqs?.filter(
+          r => r.employee_id === currentUser.id && r.admin_notes && r.status !== "pending"
+        ) || [];
+        setNotifications(userNotifications);
+      }
     } catch (err) {
       console.error("Fetch Error:", err);
     }
     setLoading(false);
-  }, []);
+  }, [currentUser, currentView]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  // --- التحديث الشهري التلقائي للرصيد ---
+  useEffect(() => {
+    const updateMonthlyBalances = async () => {
+      const today = new Date();
+      const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1)
+        .toISOString()
+        .split("T")[0];
+
+      for (const emp of employees) {
+        if (emp.monthly_balance > 0) {
+          // التحقق من آخر تحديث
+          if (!emp.last_balance_update || emp.last_balance_update < firstDayOfMonth) {
+            // إضافة الرصيد الشهري
+            const newBalance = emp.balance + emp.monthly_balance;
+            
+            await supabase
+              .from("employees")
+              .update({
+                balance: newBalance,
+                last_balance_update: firstDayOfMonth,
+              })
+              .eq("id", emp.id);
+
+            // تسجيل التحديث
+            await supabase.from("balance_updates").insert([
+              {
+                employee_id: emp.id,
+                amount: emp.monthly_balance,
+                update_date: firstDayOfMonth,
+              },
+            ]);
+          }
+        }
+      }
+    };
+
+    if (employees.length > 0 && currentView === "admin") {
+      updateMonthlyBalances();
+    }
+  }, [employees, currentView]);
 
   // --- التحليلات (Analytics) ---
   const topBalances = useMemo(() => [...employees].slice(0, 5), [employees]);
@@ -147,6 +210,82 @@ const VacationManagementSystem = () => {
     }
   };
 
+  // --- تحميل نموذج Excel ---
+  const downloadExcelTemplate = () => {
+    const template = [
+      {
+        "الاسم الكامل": "محمد أحمد علي",
+        "الكود الوظيفي": "1001",
+        "المنصب": "محاسب",
+        "الرصيد الحالي": 21,
+        "الرصيد الشهري": 2,
+      },
+      {
+        "الاسم الكامل": "فاطمة حسن",
+        "الكود الوظيفي": "1002",
+        "المنصب": "مهندسة",
+        "الرصيد الحالي": 21,
+        "الرصيد الشهري": 2,
+      },
+    ];
+    const ws = XLSX.utils.json_to_sheet(template);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "نموذج الموظفين");
+    XLSX.writeFile(wb, "نموذج_استيراد_الموظفين.xlsx");
+  };
+
+  // --- استيراد الموظفين من Excel ---
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingFile(true);
+    try {
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data);
+      const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+      const jsonData = XLSX.utils.sheet_to_json(worksheet);
+
+      const employeesToAdd = jsonData.map((row: any) => ({
+        name: row["الاسم الكامل"] || row.name || "",
+        code: String(row["الكود الوظيفي"] || row.code || ""),
+        position: row["المنصب"] || row.position || "",
+        balance: Number(row["الرصيد الحالي"] || row.balance || 21),
+        monthly_balance: Number(row["الرصيد الشهري"] || row.monthly_balance || 0),
+      }));
+
+      // التحقق من البيانات
+      const validEmployees = employeesToAdd.filter(
+        (emp) => emp.name && emp.code
+      );
+
+      if (validEmployees.length === 0) {
+        alert("لم يتم العثور على بيانات صحيحة في الملف!");
+        setUploadingFile(false);
+        return;
+      }
+
+      // إضافة الموظفين
+      const { error } = await supabase
+        .from("employees")
+        .insert(validEmployees);
+
+      if (error) {
+        console.error("Import Error:", error);
+        alert("حدث خطأ أثناء الاستيراد. تأكد من عدم تكرار الأكواد الوظيفية.");
+      } else {
+        alert(`تم إضافة ${validEmployees.length} موظف بنجاح! ✅`);
+        setShowImportModal(false);
+        fetchData();
+      }
+    } catch (err) {
+      console.error("File processing error:", err);
+      alert("حدث خطأ في قراءة الملف. تأكد من صحة التنسيق.");
+    }
+    setUploadingFile(false);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
   // --- عمليات الموظفين (Admin) ---
   const handleAddEmployee = async () => {
     if (!newEmp.name || !newEmp.code)
@@ -154,7 +293,7 @@ const VacationManagementSystem = () => {
     const { error } = await supabase.from("employees").insert([newEmp]);
     if (!error) {
       setShowAddEmp(false);
-      setNewEmp({ name: "", code: "", position: "", balance: 21 });
+      setNewEmp({ name: "", code: "", position: "", balance: 21, monthly_balance: 0 });
       fetchData();
     }
   };
@@ -177,21 +316,42 @@ const VacationManagementSystem = () => {
     }
   };
 
-  // --- عمليات الإجازات (Admin) ---
-  const handleAction = async (id: number, action: "approved" | "rejected") => {
-    const req = requests.find((r) => r.id === id);
+  // --- عمليات الإجازات (Admin) مع الملاحظات ---
+  const openApprovalModal = (req: any, action: "approved" | "rejected") => {
+    setCurrentRequest({ ...req, action });
+    setAdminNotes("");
+    setShowApprovalModal(true);
+  };
+
+  const handleActionWithNotes = async () => {
+    if (!currentRequest) return;
+    
+    const { id, action, employee_id, days } = currentRequest;
+    
     if (action === "approved") {
-      const emp = employees.find((e) => e.id === req.employee_id);
-      if (emp.balance < req.days) return alert("رصيد الموظف غير كافٍ!");
+      const emp = employees.find((e) => e.id === employee_id);
+      if (emp.balance < days) {
+        alert("رصيد الموظف غير كافٍ!");
+        setShowApprovalModal(false);
+        return;
+      }
       await supabase
         .from("employees")
-        .update({ balance: emp.balance - req.days })
+        .update({ balance: emp.balance - days })
         .eq("id", emp.id);
     }
+    
     await supabase
       .from("vacation_requests")
-      .update({ status: action })
+      .update({ 
+        status: action,
+        admin_notes: adminNotes || null
+      })
       .eq("id", id);
+    
+    setShowApprovalModal(false);
+    setCurrentRequest(null);
+    setAdminNotes("");
     fetchData();
   };
 
@@ -508,6 +668,12 @@ const VacationManagementSystem = () => {
                 </div>
                 <div className="flex gap-3">
                   <button
+                    onClick={() => setShowImportModal(true)}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3.5 rounded-2xl flex items-center gap-2 font-black shadow-lg shadow-emerald-200"
+                  >
+                    <Upload size={20} /> استيراد من Excel
+                  </button>
+                  <button
                     onClick={() => setShowAddEmp(true)}
                     className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3.5 rounded-2xl flex items-center gap-2 font-black shadow-lg shadow-indigo-200"
                   >
@@ -530,6 +696,7 @@ const VacationManagementSystem = () => {
                       <th className="p-6">كود الموظف</th>
                       <th className="p-6">المنصب</th>
                       <th className="p-6 text-center">الرصيد الحالي</th>
+                      <th className="p-6 text-center">الرصيد الشهري</th>
                       <th className="p-6 text-center">التحكم</th>
                     </tr>
                   </thead>
@@ -557,6 +724,12 @@ const VacationManagementSystem = () => {
                           <td className="p-6 text-center">
                             <span className="font-black text-indigo-600 text-lg">
                               {emp.balance}
+                            </span>
+                          </td>
+                          <td className="p-6 text-center">
+                            <span className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full font-bold text-sm flex items-center justify-center gap-1 w-fit mx-auto">
+                              <Zap size={14} />
+                              {emp.monthly_balance || 0}
                             </span>
                           </td>
                           <td className="p-6 text-center">
@@ -603,9 +776,18 @@ const VacationManagementSystem = () => {
                             طلب إجازة جديد
                           </p>
                         </div>
-                        <span className="bg-amber-100 text-amber-700 px-4 py-1.5 rounded-full text-xs font-black">
-                          قيد المراجعة
-                        </span>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => setEditingVac(req)}
+                            className="p-2 text-blue-500 hover:bg-blue-50 rounded-xl transition-all"
+                            title="تعديل الطلب"
+                          >
+                            <Edit3 size={18} />
+                          </button>
+                          <span className="bg-amber-100 text-amber-700 px-4 py-1.5 rounded-full text-xs font-black">
+                            قيد المراجعة
+                          </span>
+                        </div>
                       </div>
                       <div className="bg-slate-50 p-6 rounded-2xl space-y-3 mb-8">
                         <div className="flex justify-between text-sm font-bold">
@@ -637,13 +819,13 @@ const VacationManagementSystem = () => {
                     </div>
                     <div className="flex gap-3">
                       <button
-                        onClick={() => handleAction(req.id, "approved")}
+                        onClick={() => openApprovalModal(req, "approved")}
                         className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-4 rounded-2xl font-black transition-all shadow-lg shadow-emerald-100"
                       >
                         قبول الإجازة
                       </button>
                       <button
-                        onClick={() => handleAction(req.id, "rejected")}
+                        onClick={() => openApprovalModal(req, "rejected")}
                         className="flex-1 bg-red-50 text-red-600 hover:bg-red-100 py-4 rounded-2xl font-black transition-all"
                       >
                         رفض
@@ -698,6 +880,7 @@ const VacationManagementSystem = () => {
                       <th className="p-6 text-center">نهاية الإجازة</th>
                       <th className="p-6 text-center">تاريخ العودة</th>
                       <th className="p-6 text-center">المدة</th>
+                      <th className="p-6 text-center">ملاحظات</th>
                       <th className="p-6 text-center">تعديل</th>
                     </tr>
                   </thead>
@@ -736,6 +919,18 @@ const VacationManagementSystem = () => {
                               </span>
                             </td>
                             <td className="p-6 text-center">
+                              {req.admin_notes ? (
+                                <button
+                                  className="text-blue-600 hover:text-blue-700"
+                                  title={req.admin_notes}
+                                >
+                                  <MessageSquare size={18} />
+                                </button>
+                              ) : (
+                                <span className="text-slate-300">-</span>
+                              )}
+                            </td>
+                            <td className="p-6 text-center">
                               <button
                                 onClick={() => setEditingVac(req)}
                                 className="text-slate-300 hover:text-blue-600 transition-all"
@@ -754,6 +949,146 @@ const VacationManagementSystem = () => {
         </main>
 
         {/* --- MODALS --- */}
+
+        {/* Import Excel Modal */}
+        {showImportModal && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-6 z-[100]">
+            <div className="bg-white p-10 rounded-[2.5rem] w-full max-w-2xl shadow-2xl animate-in zoom-in duration-200 text-right" dir="rtl">
+              <div className="flex justify-between mb-8">
+                <h3 className="text-2xl font-black text-slate-800 flex items-center gap-3">
+                  <Upload className="text-emerald-600" />
+                  استيراد الموظفين من Excel
+                </h3>
+                <button
+                  onClick={() => setShowImportModal(false)}
+                  className="text-slate-400 hover:text-red-500"
+                >
+                  <X size={28} />
+                </button>
+              </div>
+
+              <div className="space-y-6">
+                <div className="bg-blue-50 p-6 rounded-2xl border border-blue-100">
+                  <h4 className="font-black text-blue-900 mb-3 flex items-center gap-2">
+                    <FileDown size={20} />
+                    الخطوة 1: تحميل النموذج
+                  </h4>
+                  <p className="text-blue-700 text-sm mb-4">
+                    قم بتحميل ملف Excel النموذجي وملء بيانات الموظفين
+                  </p>
+                  <button
+                    onClick={downloadExcelTemplate}
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2"
+                  >
+                    <FileDown size={18} />
+                    تحميل النموذج
+                  </button>
+                </div>
+
+                <div className="bg-slate-50 p-6 rounded-2xl">
+                  <h4 className="font-black text-slate-800 mb-3 flex items-center gap-2">
+                    <Upload size={20} />
+                    الخطوة 2: رفع الملف
+                  </h4>
+                  <p className="text-slate-600 text-sm mb-4">
+                    اختر ملف Excel المعبأ لاستيراد بيانات الموظفين
+                  </p>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".xlsx,.xls"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                  />
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploadingFile}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 disabled:opacity-50"
+                  >
+                    {uploadingFile ? (
+                      <>
+                        <Loader2 className="animate-spin" size={18} />
+                        جاري الرفع...
+                      </>
+                    ) : (
+                      <>
+                        <Upload size={18} />
+                        اختر ملف Excel
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                <div className="bg-amber-50 p-4 rounded-xl border border-amber-100">
+                  <p className="text-amber-800 text-xs font-bold">
+                    💡 تأكد من أن الملف يحتوي على الأعمدة: الاسم الكامل - الكود الوظيفي - المنصب - الرصيد الحالي - الرصيد الشهري
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Approval Modal with Notes */}
+        {showApprovalModal && currentRequest && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-6 z-[100]">
+            <div className="bg-white p-10 rounded-[2.5rem] w-full max-w-lg shadow-2xl text-right" dir="rtl">
+              <div className="flex justify-between mb-8">
+                <h3 className="text-2xl font-black text-slate-800">
+                  {currentRequest.action === "approved" ? "✅ الموافقة على الطلب" : "❌ رفض الطلب"}
+                </h3>
+                <button
+                  onClick={() => setShowApprovalModal(false)}
+                  className="text-slate-400 hover:text-red-500"
+                >
+                  <X size={28} />
+                </button>
+              </div>
+
+              <div className="bg-slate-50 p-6 rounded-2xl mb-6">
+                <p className="text-sm text-slate-500 mb-2">الموظف</p>
+                <p className="font-black text-lg">{currentRequest.employee_name}</p>
+                <div className="grid grid-cols-2 gap-4 mt-4">
+                  <div>
+                    <p className="text-xs text-slate-500">تاريخ البداية</p>
+                    <p className="font-bold">{formatDate(currentRequest.start_date)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-500">المدة</p>
+                    <p className="font-bold">{currentRequest.days} يوم</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="text-sm font-black text-slate-700 mb-2 flex items-center gap-2">
+                    <MessageSquare size={16} />
+                    ملاحظات للموظف (اختياري)
+                  </label>
+                  <textarea
+                    className="w-full p-4 border border-slate-200 rounded-2xl outline-none focus:border-indigo-500 resize-none"
+                    rows={4}
+                    placeholder="مثال: تم الموافقة على الإجازة. نتمنى لك إجازة سعيدة..."
+                    value={adminNotes}
+                    onChange={(e) => setAdminNotes(e.target.value)}
+                  />
+                </div>
+
+                <button
+                  onClick={handleActionWithNotes}
+                  className={`w-full p-5 rounded-2xl font-black text-lg ${
+                    currentRequest.action === "approved"
+                      ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                      : "bg-red-600 hover:bg-red-700 text-white"
+                  }`}
+                >
+                  {currentRequest.action === "approved" ? "تأكيد الموافقة" : "تأكيد الرفض"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Add Employee Modal */}
         {showAddEmp && (
@@ -789,6 +1124,16 @@ const VacationManagementSystem = () => {
                     />
                   </div>
                   <div className="space-y-2">
+                    <label className="text-sm font-black mr-2">المنصب</label>
+                    <input
+                      className="w-full p-4 border border-slate-200 rounded-2xl outline-none"
+                      placeholder="محاسب"
+                      onChange={(e) => setNewEmp({...newEmp, position: e.target.value})}
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
                     <label className="text-sm font-black mr-2">رصيد الإجازات</label>
                     <input
                       type="number"
@@ -797,14 +1142,18 @@ const VacationManagementSystem = () => {
                       onChange={(e) => setNewEmp({...newEmp, balance: Number(e.target.value)})}
                     />
                   </div>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-black mr-2">المنصب</label>
-                  <input
-                    className="w-full p-4 border border-slate-200 rounded-2xl outline-none"
-                    placeholder="مثلاً: محاسب"
-                    onChange={(e) => setNewEmp({...newEmp, position: e.target.value})}
-                  />
+                  <div className="space-y-2">
+                    <label className="text-sm font-black mr-2 flex items-center gap-1">
+                      <Zap size={14} className="text-emerald-600" />
+                      الرصيد الشهري
+                    </label>
+                    <input
+                      type="number"
+                      className="w-full p-4 border border-slate-200 rounded-2xl outline-none"
+                      defaultValue={0}
+                      onChange={(e) => setNewEmp({...newEmp, monthly_balance: Number(e.target.value)})}
+                    />
+                  </div>
                 </div>
                 <button
                   onClick={handleAddEmployee}
@@ -826,27 +1175,107 @@ const VacationManagementSystem = () => {
                 <button onClick={() => setEditingEmp(null)}><X /></button>
               </div>
               <div className="space-y-5">
-                <input
-                  className="w-full p-4 border border-slate-200 rounded-2xl"
-                  value={editingEmp.name}
-                  onChange={(e) => setEditingEmp({...editingEmp, name: e.target.value})}
-                />
-                <input
-                  className="w-full p-4 border border-slate-200 rounded-2xl"
-                  value={editingEmp.position}
-                  onChange={(e) => setEditingEmp({...editingEmp, position: e.target.value})}
-                />
-                <input
-                  type="number"
-                  className="w-full p-4 border border-slate-200 rounded-2xl"
-                  value={editingEmp.balance}
-                  onChange={(e) => setEditingEmp({...editingEmp, balance: Number(e.target.value)})}
-                />
+                <div className="space-y-2">
+                  <label className="text-sm font-black mr-2">الاسم</label>
+                  <input
+                    className="w-full p-4 border border-slate-200 rounded-2xl"
+                    value={editingEmp.name}
+                    onChange={(e) => setEditingEmp({...editingEmp, name: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-black mr-2">المنصب</label>
+                  <input
+                    className="w-full p-4 border border-slate-200 rounded-2xl"
+                    value={editingEmp.position}
+                    onChange={(e) => setEditingEmp({...editingEmp, position: e.target.value})}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-black mr-2">الرصيد الحالي</label>
+                    <input
+                      type="number"
+                      className="w-full p-4 border border-slate-200 rounded-2xl"
+                      value={editingEmp.balance}
+                      onChange={(e) => setEditingEmp({...editingEmp, balance: Number(e.target.value)})}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-black mr-2 flex items-center gap-1">
+                      <Zap size={14} className="text-emerald-600" />
+                      الرصيد الشهري
+                    </label>
+                    <input
+                      type="number"
+                      className="w-full p-4 border border-slate-200 rounded-2xl"
+                      value={editingEmp.monthly_balance || 0}
+                      onChange={(e) => setEditingEmp({...editingEmp, monthly_balance: Number(e.target.value)})}
+                    />
+                  </div>
+                </div>
                 <button
                   onClick={handleUpdateEmployee}
                   className="w-full bg-indigo-600 text-white p-5 rounded-2xl font-black"
                 >
                   تحديث
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Edit Vacation Modal */}
+        {editingVac && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-6 z-[100]">
+            <div className="bg-white p-10 rounded-[2.5rem] w-full max-w-lg shadow-2xl text-right" dir="rtl">
+              <div className="flex justify-between mb-8">
+                <h3 className="text-2xl font-black text-slate-800">تعديل طلب الإجازة</h3>
+                <button onClick={() => setEditingVac(null)}><X size={28} /></button>
+              </div>
+              <div className="space-y-5">
+                <div className="bg-slate-50 p-4 rounded-xl">
+                  <p className="text-sm text-slate-500">الموظف</p>
+                  <p className="font-black text-lg">{editingVac.employee_name}</p>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-black mr-2">تاريخ البداية</label>
+                  <input
+                    type="date"
+                    className="w-full p-4 border border-slate-200 rounded-2xl"
+                    value={editingVac.start_date}
+                    onChange={(e) => setEditingVac({...editingVac, start_date: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-black mr-2">عدد الأيام</label>
+                  <input
+                    type="number"
+                    min="1"
+                    className="w-full p-4 border border-slate-200 rounded-2xl"
+                    value={editingVac.days}
+                    onChange={(e) => setEditingVac({...editingVac, days: Number(e.target.value)})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-black mr-2">ملاحظات</label>
+                  <textarea
+                    className="w-full p-4 border border-slate-200 rounded-2xl resize-none"
+                    rows={3}
+                    value={editingVac.notes || ''}
+                    onChange={(e) => setEditingVac({...editingVac, notes: e.target.value})}
+                  />
+                </div>
+                <div className="bg-indigo-50 p-4 rounded-xl">
+                  <p className="text-sm text-indigo-700 font-bold">
+                    تاريخ العودة المتوقع: {formatDate(getCalculatedDates(editingVac.start_date, editingVac.days).back)}
+                  </p>
+                </div>
+                <button
+                  onClick={handleUpdateVacation}
+                  className="w-full bg-indigo-600 text-white p-5 rounded-2xl font-black"
+                >
+                  حفظ التعديلات
                 </button>
               </div>
             </div>
@@ -862,7 +1291,14 @@ const VacationManagementSystem = () => {
         <header className="max-w-4xl mx-auto flex justify-between items-center mb-10">
           <div>
             <h2 className="text-3xl font-black text-slate-800">أهلاً، {currentUser.name}</h2>
-            <p className="text-slate-500">رصيدك الحالي: <span className="font-black text-indigo-600">{currentUser.balance} يوم</span></p>
+            <p className="text-slate-500">
+              رصيدك الحالي: <span className="font-black text-indigo-600">{currentUser.balance} يوم</span>
+              {currentUser.monthly_balance > 0 && (
+                <span className="mr-2 text-emerald-600 text-sm">
+                  (+{currentUser.monthly_balance} شهرياً)
+                </span>
+              )}
+            </p>
           </div>
           <button onClick={() => setCurrentView("login")} className="text-red-500 font-bold flex items-center gap-2">
             <LogOut size={20} /> خروج
@@ -916,14 +1352,14 @@ const VacationManagementSystem = () => {
 
           {/* حالة الطلبات */}
           <section className="space-y-6">
-             <h3 className="text-xl font-black flex items-center gap-3">
+            <h3 className="text-xl font-black flex items-center gap-3">
               <Clock className="text-amber-500" /> طلباتي الأخيرة
             </h3>
             {requests
               .filter(r => r.employee_id === currentUser.id)
               .map(req => (
                 <div key={req.id} className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
-                  <div className="flex justify-between items-center">
+                  <div className="flex justify-between items-start mb-4">
                     <div>
                       <p className="font-bold text-slate-800">{formatDate(req.start_date)}</p>
                       <p className="text-xs text-slate-400">{req.days} يوم</p>
@@ -932,11 +1368,27 @@ const VacationManagementSystem = () => {
                       req.status === 'approved' ? 'bg-emerald-100 text-emerald-700' :
                       req.status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
                     }`}>
-                      {req.status === 'approved' ? 'مقبول' : req.status === 'rejected' ? 'مرفوض' : 'قيد الانتظار'}
+                      {req.status === 'approved' ? 'مقبول ✓' : req.status === 'rejected' ? 'مرفوض ✗' : 'قيد الانتظار ⏳'}
                     </span>
                   </div>
+                  
+                  {req.admin_notes && (
+                    <div className="mt-4 p-4 bg-blue-50 rounded-xl border border-blue-100">
+                      <p className="text-xs text-blue-600 font-bold mb-1 flex items-center gap-1">
+                        <MessageSquare size={14} />
+                        ملاحظات الإدارة:
+                      </p>
+                      <p className="text-sm text-blue-900">{req.admin_notes}</p>
+                    </div>
+                  )}
                 </div>
               ))}
+            
+            {requests.filter(r => r.employee_id === currentUser.id).length === 0 && (
+              <div className="bg-white p-16 rounded-[2rem] text-center border border-dashed border-slate-200">
+                <p className="text-slate-400 font-bold">لم تقم بتقديم أي طلبات بعد</p>
+              </div>
+            )}
           </section>
         </div>
       </div>
