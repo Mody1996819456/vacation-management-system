@@ -93,7 +93,7 @@ const calculateWorkedDays = (returnDate: string) => {
 };
 
 // ==================== MAIN COMPONENT ====================
-const VacationManagementSystem = () => {
+const App = () => {
   // ========== STATES ==========
   const [employees, setEmployees] = useState<any[]>([]);
   const [requests, setRequests] = useState<any[]>([]);
@@ -2200,4 +2200,4 @@ ${JSON.stringify(systemData, null, 2)}
   return null;
 };
 
-export default VacationManagementSystem;
+export default App;
