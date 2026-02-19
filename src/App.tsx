@@ -150,6 +150,59 @@ const VacationManagementSystem = () => {
   const [newDept, setNewDept] = useState({ name: "", description: "" });
   const [newHoliday, setNewHoliday] = useState({ name: "", date: "", is_recurring: false });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [showAIChat, setShowAIChat] = useState(false);
+  const [backupLoading, setBackupLoading] = useState(false);
+  const [lastBackup, setLastBackup] = useState<string>("");
+  const GOOGLE_SCRIPT_URL = process.env.REACT_APP_GOOGLE_SCRIPT_URL || "";
+  const [aiMessages, setAiMessages] = useState<{role:string, content:string}[]>([
+    { role: "assistant", content: "مرحباً! أنا مساعدك الذكي لإدارة الإجازات 🤖\n\nأستطيع مساعدتك في:\n• إضافة أو حذف موظف\n• عرض الإحصائيات والتقارير\n• الاستفسار عن أي موظف\n• مراجعة الطلبات المعلقة\n• وأي شيء آخر تحتاجه!\n\nاكتب أمرك بالعربي وأنا أنفذه." }
+  ]);
+  const [aiInput, setAiInput] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
+  const GEMINI_API_KEY = process.env.REACT_APP_GEMINI_API_KEY || "AIzaSyC_rw5v06CA-rEzGvhqHQWBrH2Dit_4IFM";
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  // تحديث الساعة كل ثانية
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // الحكم اليومية
+  const dailyWisdoms = [
+    "النجاح ليس نهاية المطاف، والفشل ليس قاتلاً، بل الشجاعة على الاستمرار هي ما يهم.",
+    "العمل الجماعي يجعل الحلم يتحقق.",
+    "أفضل طريقة للتنبؤ بالمستقبل هي صنعه.",
+    "الإنجاز الكبير لا يأتي إلا بخطوات صغيرة متراكمة.",
+    "من لا يُخطئ لا يتعلم، ومن لا يتعلم لا يتقدم.",
+    "احرص على وقتك كما تحرص على مالك، فالوقت أثمن.",
+    "التنظيم نصف النجاح، والجدية نصفه الآخر.",
+    "خير الناس أنفعهم للناس.",
+    "العقل السليم في الجسم السليم، فاعتنِ بصحتك.",
+    "الصبر مفتاح الفرج، والإصرار طريق النجاح.",
+    "ابدأ بما يجب، ثم افعل ما هو ممكن، وفجأة ستجد نفسك تفعل المستحيل.",
+    "القائد الناجح هو من يبني فريقاً أقوى منه.",
+  ];
+
+  const getDailyWisdom = () => {
+    const dayOfYear = Math.floor((currentTime.getTime() - new Date(currentTime.getFullYear(), 0, 0).getTime()) / 86400000);
+    return dailyWisdoms[dayOfYear % dailyWisdoms.length];
+  };
+
+  const getGreeting = () => {
+    const hour = currentTime.getHours();
+    if (hour >= 5 && hour < 12) return { text: "صباح الخير", emoji: "🌅" };
+    if (hour >= 12 && hour < 17) return { text: "مساء النور", emoji: "☀️" };
+    if (hour >= 17 && hour < 21) return { text: "مساء الخير", emoji: "🌆" };
+    return { text: "تصبح على خير", emoji: "🌙" };
+  };
+
+  const getHijriDate = () => {
+    try {
+      return currentTime.toLocaleDateString("ar-SA-u-ca-islamic", { year: "numeric", month: "long", day: "numeric" });
+    } catch { return ""; }
+  };
 
   // ========== FETCH DATA ==========
   const fetchData = useCallback(async () => {
@@ -706,42 +759,277 @@ const VacationManagementSystem = () => {
     });
   }, [requests, vacSearch, vacationTypeFilter, statusFilter]);
 
+  // ==================== GOOGLE SHEETS BACKUP ====================
+  const handleBackup = async () => {
+    if (!GOOGLE_SCRIPT_URL) {
+      alert("❌ لم يتم إعداد REACT_APP_GOOGLE_SCRIPT_URL بعد!\nراجع خطوات الإعداد في إعدادات Vercel.");
+      return;
+    }
+    setBackupLoading(true);
+    try {
+      const backupData = {
+        timestamp: new Date().toISOString(),
+        employees: employees.map(emp => ({
+          الاسم: emp.name,
+          الكود: emp.code,
+          المنصب: emp.position || "-",
+          البريد: emp.email || "-",
+          القسم: departments.find(d => d.id === emp.department_id)?.name || "-",
+          الرصيد: emp.balance,
+          الرصيد_الشهري: emp.monthly_balance || 0,
+          تاريخ_التعيين: emp.hire_date || "-",
+          تاريخ_العودة: emp.return_date || "-",
+          الحالة: getEmployeeStatus(emp),
+        })),
+        requests: requests.map(req => ({
+          الموظف: req.employee_name,
+          نوع_الإجازة: vacationTypes.find(v => v.id === req.vacation_type_id)?.name || "-",
+          تاريخ_البداية: req.start_date,
+          المدة: req.days,
+          الحالة: req.status === "approved" ? "مقبول" : req.status === "rejected" ? "مرفوض" : "معلق",
+          ملاحظات: req.admin_notes || "-",
+        })),
+        stats: {
+          إجمالي_الموظفين: stats.totalEmployees,
+          في_إجازة_الآن: stats.onVacationNow,
+          طلبات_معلقة: stats.pendingRequests,
+          متوسط_الرصيد: stats.avgBalance,
+          إجمالي_أيام_الإجازة: stats.totalVacationDays,
+        }
+      };
+
+      await fetch(GOOGLE_SCRIPT_URL, {
+        method: "POST",
+        mode: "no-cors",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(backupData),
+      });
+
+      const now = new Date().toLocaleString("ar-EG");
+      setLastBackup(now);
+      localStorage.setItem("lastBackup", now);
+      alert("✅ تم النسخ الاحتياطي بنجاح إلى Google Sheets!");
+    } catch (err) {
+      alert("❌ فشل النسخ الاحتياطي. تأكد من إعداد Google Apps Script.");
+    }
+    setBackupLoading(false);
+  };
+
+  // ==================== AI CHAT HANDLER ====================
+  const handleAIMessage = async () => {
+    if (!aiInput.trim() || aiLoading) return;
+    const userMsg = aiInput.trim();
+    setAiInput("");
+    setAiMessages(prev => [...prev, { role: "user", content: userMsg }]);
+    setAiLoading(true);
+
+    // بيانات النظام الحالية للـ AI
+    const systemData = {
+      employees: employees.map(e => ({
+        id: e.id, name: e.name, code: e.code, position: e.position,
+        email: e.email, balance: e.balance, monthly_balance: e.monthly_balance,
+        department: departments.find(d => d.id === e.department_id)?.name || "-",
+        status: getEmployeeStatus(e), return_date: e.return_date,
+      })),
+      requests: requests.map(r => ({
+        id: r.id, employee_name: r.employee_name, status: r.status,
+        start_date: r.start_date, days: r.days,
+        type: vacationTypes.find(v => v.id === r.vacation_type_id)?.name || "-",
+      })),
+      stats,
+      departments: departments.map(d => ({ id: d.id, name: d.name })),
+      vacationTypes: vacationTypes.map(v => ({ id: v.id, name: v.name })),
+    };
+
+    const systemPrompt = `أنت مساعد ذكي لنظام إدارة الإجازات. لديك صلاحيات كاملة للاطلاع على البيانات وتنفيذ الأوامر.
+
+بيانات النظام الحالية:
+${JSON.stringify(systemData, null, 2)}
+
+قواعد الرد:
+1. أجب بالعربي دائماً
+2. إذا كان الطلب استعلاماً، أجب مباشرة بالمعلومات
+3. إذا كان الطلب تنفيذ أمر (إضافة/حذف/تعديل)، اشرح ما ستفعله وأضف في نهاية ردك السطر التالي بالضبط:
+   ACTION: {"type": "نوع_الأمر", "data": {البيانات}}
+   أنواع الأوامر المتاحة:
+   - add_employee: {"name","code","position","email","balance","department_id"}
+   - delete_employee: {"id"}  
+   - update_balance: {"id","balance"}
+   - approve_request: {"id"}
+   - reject_request: {"id"}
+4. كن مختصراً وواضحاً
+5. إذا سُئلت عن إحصائيات، احسبها من البيانات`;
+
+    try {
+      // بناء تاريخ المحادثة لـ Gemini
+      const conversationHistory = aiMessages
+        .filter((m, idx) => !(m.role === "assistant" && idx === 0))
+        .map(m => ({
+          role: m.role === "assistant" ? "model" : "user",
+          parts: [{ text: m.content }],
+        }));
+      conversationHistory.push({ role: "user", parts: [{ text: userMsg }] });
+
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            system_instruction: { parts: [{ text: systemPrompt }] },
+            contents: conversationHistory,
+            generationConfig: { maxOutputTokens: 1024 },
+          }),
+        }
+      );
+
+      const data = await response.json();
+      const replyText = data.candidates?.[0]?.content?.parts?.[0]?.text || "عذراً، حدث خطأ في الاتصال.";
+      
+      // تحقق من وجود ACTION في الرد
+      const actionMatch = replyText.match(/ACTION:\s*(\{.*\})/s);
+      const cleanReply = replyText.replace(/ACTION:\s*\{.*\}/s, "").trim();
+      
+      setAiMessages(prev => [...prev, { role: "assistant", content: cleanReply }]);
+
+      // تنفيذ الأمر لو موجود
+      if (actionMatch) {
+        try {
+          const action = JSON.parse(actionMatch[1]);
+          if (action.type === "add_employee" && action.data) {
+            const dept = departments.find(d => d.name === action.data.department);
+            await supabase.from("employees").insert([{ ...action.data, department_id: dept?.id || null, balance: action.data.balance || 21 }]);
+            setAiMessages(prev => [...prev, { role: "assistant", content: "✅ تم تنفيذ الأمر بنجاح! جاري تحديث البيانات..." }]);
+            fetchData();
+          } else if (action.type === "delete_employee" && action.data?.id) {
+            await supabase.from("vacation_requests").delete().eq("employee_id", action.data.id);
+            await supabase.from("employees").delete().eq("id", action.data.id);
+            setAiMessages(prev => [...prev, { role: "assistant", content: "✅ تم الحذف بنجاح!" }]);
+            fetchData();
+          } else if (action.type === "update_balance" && action.data) {
+            await supabase.from("employees").update({ balance: action.data.balance }).eq("id", action.data.id);
+            setAiMessages(prev => [...prev, { role: "assistant", content: "✅ تم تحديث الرصيد!" }]);
+            fetchData();
+          } else if (action.type === "approve_request" && action.data?.id) {
+            const req = requests.find(r => r.id === action.data.id);
+            const emp = employees.find(e => e.id === req?.employee_id);
+            if (req && emp) {
+              await supabase.from("employees").update({ balance: emp.balance - req.days, status: "إجازة", return_date: null }).eq("id", emp.id);
+              await supabase.from("vacation_requests").update({ status: "approved" }).eq("id", action.data.id);
+              setAiMessages(prev => [...prev, { role: "assistant", content: "✅ تمت الموافقة على الطلب!" }]);
+              fetchData();
+            }
+          } else if (action.type === "reject_request" && action.data?.id) {
+            await supabase.from("vacation_requests").update({ status: "rejected" }).eq("id", action.data.id);
+            setAiMessages(prev => [...prev, { role: "assistant", content: "✅ تم رفض الطلب!" }]);
+            fetchData();
+          }
+        } catch(e) { console.error("Action parse error:", e); }
+      }
+    } catch (err) {
+      setAiMessages(prev => [...prev, { role: "assistant", content: "❌ خطأ في الاتصال. تأكد من إعداد REACT_APP_GEMINI_API_KEY في Vercel." }]);
+    }
+    setAiLoading(false);
+  };
+
   // ==================== LOGIN VIEW ====================
   if (currentView === "login") {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-900 flex items-center justify-center p-6" dir="rtl">
-        <div className="w-full max-w-4xl grid md:grid-cols-2 rounded-[2.5rem] overflow-hidden shadow-2xl border border-slate-700/50">
-          <div className="p-12 bg-slate-800/80">
-            <Users className="text-indigo-400 mb-6" size={48} />
-            <h2 className="text-3xl font-bold text-white mb-8">دخول الموظفين</h2>
-            <input
-              className="w-full bg-slate-700/50 p-4 rounded-2xl text-white mb-4 outline-none border border-slate-600 focus:border-indigo-500"
-              placeholder="الكود الوظيفي"
-              value={empCodeInput}
-              onChange={(e) => setEmpCodeInput(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleLogin(e as any)}
-            />
-            <button onClick={handleLogin} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white p-4 rounded-2xl font-bold">دخول</button>
+      <div dir="rtl" style={{
+        minHeight: "100vh",
+        background: "linear-gradient(135deg, #0f0c29, #302b63, #24243e)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "24px",
+        position: "relative",
+        overflow: "hidden",
+        fontFamily: "Cairo, sans-serif",
+      }}>
+        {/* خلفية دوائر متحركة */}
+        <style>{`
+          @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap');
+          @keyframes float1 { 0%,100%{transform:translate(0,0) scale(1)} 50%{transform:translate(30px,-40px) scale(1.05)} }
+          @keyframes float2 { 0%,100%{transform:translate(0,0) scale(1)} 50%{transform:translate(-20px,30px) scale(0.95)} }
+          @keyframes float3 { 0%,100%{transform:translate(0,0)} 50%{transform:translate(15px,-20px)} }
+          @keyframes shimmer { 0%{opacity:0.3} 50%{opacity:0.7} 100%{opacity:0.3} }
+          .orb1 { animation: float1 8s ease-in-out infinite; }
+          .orb2 { animation: float2 10s ease-in-out infinite; }
+          .orb3 { animation: float3 6s ease-in-out infinite; }
+          .login-card { backdrop-filter: blur(20px); transition: all 0.3s ease; }
+          .login-btn { transition: all 0.2s ease; }
+          .login-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0,0,0,0.3); }
+          .login-input:focus { outline: none; }
+        `}</style>
+
+        {/* كرات ضوئية في الخلفية */}
+        <div className="orb1" style={{ position:"absolute", top:"-10%", right:"-5%", width:"500px", height:"500px", borderRadius:"50%", background:"radial-gradient(circle, rgba(99,102,241,0.4) 0%, transparent 70%)", filter:"blur(40px)" }} />
+        <div className="orb2" style={{ position:"absolute", bottom:"-15%", left:"-10%", width:"600px", height:"600px", borderRadius:"50%", background:"radial-gradient(circle, rgba(16,185,129,0.3) 0%, transparent 70%)", filter:"blur(50px)" }} />
+        <div className="orb3" style={{ position:"absolute", top:"40%", left:"30%", width:"300px", height:"300px", borderRadius:"50%", background:"radial-gradient(circle, rgba(139,92,246,0.25) 0%, transparent 70%)", filter:"blur(30px)" }} />
+
+        {/* شبكة نقاط خلفية */}
+        <div style={{ position:"absolute", inset:0, backgroundImage:"radial-gradient(rgba(255,255,255,0.05) 1px, transparent 1px)", backgroundSize:"40px 40px", pointerEvents:"none" }} />
+
+        {/* الكارت الرئيسي */}
+        <div style={{ width:"100%", maxWidth:"900px", display:"grid", gridTemplateColumns:"1fr 1fr", borderRadius:"32px", overflow:"hidden", boxShadow:"0 30px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.05)", position:"relative", zIndex:10 }}>
+          
+          {/* قسم الموظفين - يمين */}
+          <div className="login-card" style={{ padding:"52px 40px", background:"rgba(255,255,255,0.04)", borderLeft:"1px solid rgba(255,255,255,0.08)" }}>
+            <div style={{ width:"60px", height:"60px", borderRadius:"18px", background:"linear-gradient(135deg, #6366f1, #8b5cf6)", display:"flex", alignItems:"center", justifyContent:"center", marginBottom:"24px", boxShadow:"0 8px 20px rgba(99,102,241,0.4)" }}>
+              <Users className="text-white" size={28} />
+            </div>
+            <h2 style={{ color:"white", fontSize:"26px", fontWeight:"900", marginBottom:"8px", fontFamily:"Cairo, sans-serif" }}>دخول الموظفين</h2>
+            <p style={{ color:"rgba(255,255,255,0.4)", fontSize:"14px", marginBottom:"32px" }}>أدخل كودك الوظيفي للمتابعة</p>
+            <div style={{ position:"relative", marginBottom:"16px" }}>
+              <input
+                className="login-input"
+                style={{ width:"100%", background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.12)", borderRadius:"14px", padding:"14px 18px", color:"white", fontSize:"15px", boxSizing:"border-box", fontFamily:"Cairo, sans-serif" }}
+                placeholder="الكود الوظيفي"
+                value={empCodeInput}
+                onChange={(e) => setEmpCodeInput(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleLogin(e as any)}
+              />
+            </div>
+            <button className="login-btn" onClick={handleLogin} style={{ width:"100%", background:"linear-gradient(135deg, #6366f1, #8b5cf6)", border:"none", borderRadius:"14px", padding:"15px", color:"white", fontSize:"16px", fontWeight:"700", cursor:"pointer", fontFamily:"Cairo, sans-serif" }}>
+              دخول
+            </button>
           </div>
-          <div className="p-12 bg-slate-900/80">
-            <ShieldCheck className="text-emerald-400 mb-6" size={48} />
-            <h2 className="text-3xl font-bold text-white mb-8">لوحة الإدارة</h2>
+
+          {/* قسم الإدارة - يسار */}
+          <div className="login-card" style={{ padding:"52px 40px", background:"rgba(0,0,0,0.25)" }}>
+            <div style={{ width:"60px", height:"60px", borderRadius:"18px", background:"linear-gradient(135deg, #10b981, #059669)", display:"flex", alignItems:"center", justifyContent:"center", marginBottom:"24px", boxShadow:"0 8px 20px rgba(16,185,129,0.4)" }}>
+              <ShieldCheck className="text-white" size={28} />
+            </div>
+            <h2 style={{ color:"white", fontSize:"26px", fontWeight:"900", marginBottom:"8px", fontFamily:"Cairo, sans-serif" }}>لوحة الإدارة</h2>
+            <p style={{ color:"rgba(255,255,255,0.4)", fontSize:"14px", marginBottom:"32px" }}>صلاحيات خاصة للمسؤولين فقط</p>
             <input
-              className="w-full bg-slate-800/50 p-4 rounded-2xl text-white mb-4 border border-slate-700 outline-none focus:border-emerald-500"
+              className="login-input"
+              style={{ width:"100%", background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.12)", borderRadius:"14px", padding:"14px 18px", color:"white", fontSize:"15px", marginBottom:"12px", display:"block", boxSizing:"border-box", fontFamily:"Cairo, sans-serif" }}
               placeholder="البريد الإلكتروني"
               value={loginData.email}
               onChange={(e) => setLoginData({ ...loginData, email: e.target.value })}
             />
             <input
               type="password"
-              className="w-full bg-slate-800/50 p-4 rounded-2xl text-white mb-6 border border-slate-700 outline-none focus:border-emerald-500"
+              className="login-input"
+              style={{ width:"100%", background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.12)", borderRadius:"14px", padding:"14px 18px", color:"white", fontSize:"15px", marginBottom:"16px", display:"block", boxSizing:"border-box", fontFamily:"Cairo, sans-serif" }}
               placeholder="كلمة المرور"
               value={loginData.password}
               onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
               onKeyDown={(e) => e.key === "Enter" && handleLogin(e as any)}
             />
-            <button onClick={handleLogin} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white p-4 rounded-2xl font-bold">دخول</button>
+            <button className="login-btn" onClick={handleLogin} style={{ width:"100%", background:"linear-gradient(135deg, #10b981, #059669)", border:"none", borderRadius:"14px", padding:"15px", color:"white", fontSize:"16px", fontWeight:"700", cursor:"pointer", fontFamily:"Cairo, sans-serif" }}>
+              دخول
+            </button>
           </div>
+        </div>
+
+        {/* شعار النظام */}
+        <div style={{ position:"absolute", top:"32px", right:"50%", transform:"translateX(50%)", display:"flex", alignItems:"center", gap:"12px", zIndex:10 }}>
+          <div style={{ width:"40px", height:"40px", borderRadius:"12px", background:"linear-gradient(135deg, #6366f1, #8b5cf6)", display:"flex", alignItems:"center", justifyContent:"center" }}>
+            <CalendarDays size={20} className="text-white" />
+          </div>
+          <span style={{ color:"white", fontWeight:"900", fontSize:"18px", fontFamily:"Cairo, sans-serif" }}>نظام إدارة الإجازات</span>
         </div>
       </div>
     );
@@ -751,10 +1039,32 @@ const VacationManagementSystem = () => {
   if (currentView === "admin") {
     return (
       <div className="min-h-screen bg-slate-50 flex" dir="rtl">
+
+        {/* Overlay للموبايل */}
+        {sidebarOpen && (
+          <div
+            className="fixed inset-0 bg-black/50 z-10 lg:hidden"
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
+
+        {/* زرار toggle دايماً ظاهر في الكورنر */}
+        <button
+          onClick={() => setSidebarOpen(!sidebarOpen)}
+          className="fixed top-4 right-4 z-30 text-white p-3 rounded-2xl shadow-lg transition-all"
+          style={{ background: sidebarOpen ? "rgba(99,102,241,0.9)" : "#6366f1", backdropFilter:"blur(10px)" }}
+          title={sidebarOpen ? "إغلاق القائمة" : "فتح القائمة"}
+        >
+          {sidebarOpen ? <X size={22} /> : <LayoutDashboard size={22} />}
+        </button>
+
         {/* Sidebar */}
-        <aside className="w-72 bg-slate-900 text-slate-300 fixed h-full p-6 flex flex-col shadow-2xl z-20">
-          <div className="mb-10 text-center">
-            <div className="bg-indigo-600 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
+        <aside
+          className={`w-72 bg-slate-900 text-slate-300 fixed h-full p-6 flex flex-col shadow-2xl z-20 transition-transform duration-300`}
+          style={{ right: 0, transform: sidebarOpen ? "translateX(0)" : "translateX(100%)" }}
+        >
+          <div className="mb-8 text-center relative">
+            <div className="bg-indigo-600 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg" style={{marginTop:"48px"}}>
               <CalendarDays className="text-white" size={32} />
             </div>
             <h1 className="text-white font-black text-xl">نظام إدارة الإجازات</h1>
@@ -773,7 +1083,7 @@ const VacationManagementSystem = () => {
             ].map((item) => (
               <button
                 key={item.id}
-                onClick={() => setActiveTab(item.id)}
+                onClick={() => { setActiveTab(item.id); if (window.innerWidth < 1024) setSidebarOpen(false); }}
                 className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-all ${activeTab === item.id ? "bg-indigo-600 text-white shadow-lg" : "hover:bg-slate-800 hover:text-white"}`}
               >
                 <item.icon size={20} />
@@ -790,7 +1100,7 @@ const VacationManagementSystem = () => {
         </aside>
 
         {/* Main Content */}
-        <main className="mr-72 p-10 w-full">
+        <main className="transition-all duration-300 p-4 lg:p-10 w-full" style={{ marginRight: sidebarOpen ? "18rem" : "0" }}>
           {loading && <div className="flex items-center justify-center h-screen"><Loader2 className="animate-spin text-indigo-600" size={48} /></div>}
 
           {!loading && (
@@ -798,10 +1108,92 @@ const VacationManagementSystem = () => {
               {/* ===== DASHBOARD ===== */}
               {activeTab === "dashboard" && (
                 <div className="space-y-8">
-                  <header>
-                    <h2 className="text-3xl font-black text-slate-800">أهلاً {currentUser.name} 👋</h2>
-                    <p className="text-slate-500 mt-1">نظرة عامة على حالة الإجازات</p>
-                  </header>
+                  {/* ===== رسالة الترحيب ===== */}
+                  {(() => {
+                    const greeting = getGreeting();
+                    return (
+                      <div style={{
+                        background: "linear-gradient(135deg, #1e1b4b 0%, #312e81 40%, #4338ca 100%)",
+                        borderRadius: "2rem",
+                        padding: "36px 40px",
+                        position: "relative",
+                        overflow: "hidden",
+                        boxShadow: "0 20px 60px rgba(99,102,241,0.3)",
+                      }}>
+                        {/* دوائر زخرفية */}
+                        <div style={{ position:"absolute", top:"-40px", left:"-40px", width:"200px", height:"200px", borderRadius:"50%", background:"rgba(255,255,255,0.04)" }} />
+                        <div style={{ position:"absolute", bottom:"-60px", left:"30%", width:"250px", height:"250px", borderRadius:"50%", background:"rgba(255,255,255,0.03)" }} />
+
+                        <div style={{ position:"relative", zIndex:1, display:"flex", justifyContent:"space-between", alignItems:"flex-start", flexWrap:"wrap", gap:"24px" }}>
+                          {/* يمين - الترحيب */}
+                          <div>
+                            <div style={{ display:"flex", alignItems:"center", gap:"12px", marginBottom:"8px" }}>
+                              <span style={{ fontSize:"36px" }}>{greeting.emoji}</span>
+                              <h2 style={{ color:"white", fontSize:"28px", fontWeight:"900", margin:0 }}>{greeting.text}، {currentUser.name}</h2>
+                            </div>
+                            <p style={{ color:"rgba(255,255,255,0.6)", fontSize:"15px", marginBottom:"20px" }}>نظرة عامة على حالة الإجازات</p>
+
+                            {/* التاريخ والوقت */}
+                            <div style={{ display:"flex", gap:"16px", flexWrap:"wrap" }}>
+                              <div style={{ background:"rgba(255,255,255,0.1)", backdropFilter:"blur(10px)", borderRadius:"12px", padding:"10px 18px", border:"1px solid rgba(255,255,255,0.15)" }}>
+                                <div style={{ color:"rgba(255,255,255,0.5)", fontSize:"11px", marginBottom:"2px" }}>الوقت</div>
+                                <div style={{ color:"white", fontSize:"22px", fontWeight:"900", fontVariantNumeric:"tabular-nums", direction:"ltr" }}>
+                                  {currentTime.toLocaleTimeString("ar-EG", { hour:"2-digit", minute:"2-digit", second:"2-digit" })}
+                                </div>
+                              </div>
+                              <div style={{ background:"rgba(255,255,255,0.1)", backdropFilter:"blur(10px)", borderRadius:"12px", padding:"10px 18px", border:"1px solid rgba(255,255,255,0.15)" }}>
+                                <div style={{ color:"rgba(255,255,255,0.5)", fontSize:"11px", marginBottom:"2px" }}>ميلادي</div>
+                                <div style={{ color:"white", fontSize:"14px", fontWeight:"700" }}>
+                                  {currentTime.toLocaleDateString("ar-EG", { weekday:"long", year:"numeric", month:"long", day:"numeric" })}
+                                </div>
+                              </div>
+                              <div style={{ background:"rgba(255,255,255,0.1)", backdropFilter:"blur(10px)", borderRadius:"12px", padding:"10px 18px", border:"1px solid rgba(255,255,255,0.15)" }}>
+                                <div style={{ color:"rgba(255,255,255,0.5)", fontSize:"11px", marginBottom:"2px" }}>هجري</div>
+                                <div style={{ color:"#a5b4fc", fontSize:"14px", fontWeight:"700" }}>{getHijriDate()}</div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* يسار - الحكمة اليومية */}
+                          <div style={{ maxWidth:"340px", background:"rgba(255,255,255,0.07)", borderRadius:"16px", padding:"20px 24px", border:"1px solid rgba(255,255,255,0.12)", backdropFilter:"blur(10px)" }}>
+                            <div style={{ color:"#fbbf24", fontSize:"12px", fontWeight:"700", marginBottom:"10px", display:"flex", alignItems:"center", gap:"6px" }}>
+                              <span>💡</span> حكمة اليوم
+                            </div>
+                            <p style={{ color:"rgba(255,255,255,0.85)", fontSize:"14px", lineHeight:"1.8", margin:0 }}>
+                              "{getDailyWisdom()}"
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                  {/* زرار النسخ الاحتياطي */}
+                  <div style={{ display:"flex", justifyContent:"flex-end", alignItems:"center", gap:"16px" }}>
+                    {lastBackup && (
+                      <span style={{ color:"#64748b", fontSize:"13px" }}>
+                        آخر نسخة: {lastBackup}
+                      </span>
+                    )}
+                    <button
+                      onClick={handleBackup}
+                      disabled={backupLoading}
+                      style={{
+                        display:"flex", alignItems:"center", gap:"8px",
+                        background: backupLoading ? "#94a3b8" : "linear-gradient(135deg, #10b981, #059669)",
+                        color:"white", border:"none", borderRadius:"14px",
+                        padding:"12px 24px", fontWeight:"700", cursor: backupLoading ? "not-allowed" : "pointer",
+                        fontSize:"14px", boxShadow:"0 4px 15px rgba(16,185,129,0.3)",
+                        fontFamily:"inherit",
+                      }}
+                    >
+                      {backupLoading ? (
+                        <><RefreshCw size={18} style={{animation:"spin 1s linear infinite"}} /> جاري النسخ...</>
+                      ) : (
+                        <><Download size={18} /> نسخ احتياطي Google Sheets</>
+                      )}
+                    </button>
+                  </div>
+
                   <div className="grid grid-cols-4 gap-6">
                     <div className="bg-white p-6 rounded-[2rem] shadow-sm border flex items-center gap-4">
                       <div className="p-4 bg-blue-50 text-blue-600 rounded-xl"><Users size={28} /></div>
@@ -1437,6 +1829,94 @@ const VacationManagementSystem = () => {
             </div>
           </div>
         )}
+        {/* ==================== AI CHATBOT ==================== */}
+        {/* زرار الـ AI العائم */}
+        <button
+          onClick={() => setShowAIChat(!showAIChat)}
+          style={{
+            position: "fixed", bottom: "32px", left: "32px", zIndex: 50,
+            width: "60px", height: "60px", borderRadius: "50%",
+            background: showAIChat ? "linear-gradient(135deg, #ef4444, #dc2626)" : "linear-gradient(135deg, #6366f1, #8b5cf6)",
+            border: "none", cursor: "pointer", display: "flex", alignItems: "center",
+            justifyContent: "center", boxShadow: "0 8px 30px rgba(99,102,241,0.5)",
+            transition: "all 0.3s ease", fontSize: "24px",
+          }}
+          title={showAIChat ? "إغلاق المساعد" : "فتح المساعد الذكي"}
+        >
+          {showAIChat ? "✕" : "🤖"}
+        </button>
+
+        {/* نافذة الـ AI Chat */}
+        {showAIChat && (
+          <div style={{
+            position: "fixed", bottom: "104px", left: "32px", zIndex: 50,
+            width: "400px", height: "560px",
+            background: "white", borderRadius: "24px",
+            boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
+            display: "flex", flexDirection: "column", overflow: "hidden",
+            border: "1px solid rgba(99,102,241,0.2)",
+          }} dir="rtl">
+            {/* Header */}
+            <div style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)", padding: "20px 24px", display: "flex", alignItems: "center", gap: "12px" }}>
+              <div style={{ width: "44px", height: "44px", borderRadius: "50%", background: "rgba(255,255,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "22px" }}>🤖</div>
+              <div>
+                <div style={{ color: "white", fontWeight: "900", fontSize: "16px" }}>المساعد الذكي</div>
+                <div style={{ color: "rgba(255,255,255,0.7)", fontSize: "12px" }}>متصل • صلاحيات كاملة</div>
+              </div>
+              <button onClick={() => setAiMessages([{ role: "assistant", content: "مرحباً من جديد! كيف أساعدك؟ 🤖" }])} style={{ marginRight: "auto", background: "rgba(255,255,255,0.15)", border: "none", borderRadius: "8px", color: "white", padding: "6px 12px", cursor: "pointer", fontSize: "11px" }}>مسح</button>
+            </div>
+
+            {/* Messages */}
+            <div style={{ flex: 1, overflowY: "auto", padding: "16px", display: "flex", flexDirection: "column", gap: "12px" }}>
+              {aiMessages.map((msg, idx) => (
+                <div key={idx} style={{ display: "flex", justifyContent: msg.role === "user" ? "flex-start" : "flex-end" }}>
+                  <div style={{
+                    maxWidth: "85%", padding: "12px 16px", borderRadius: "16px",
+                    background: msg.role === "user" ? "#f1f5f9" : "linear-gradient(135deg, #6366f1, #8b5cf6)",
+                    color: msg.role === "user" ? "#1e293b" : "white",
+                    fontSize: "13px", lineHeight: "1.7", whiteSpace: "pre-wrap",
+                    borderBottomRightRadius: msg.role === "user" ? "4px" : "16px",
+                    borderBottomLeftRadius: msg.role === "assistant" ? "4px" : "16px",
+                  }}>
+                    {msg.content}
+                  </div>
+                </div>
+              ))}
+              {aiLoading && (
+                <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                  <div style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)", borderRadius: "16px", padding: "12px 20px", color: "white", fontSize: "20px" }}>
+                    ●●●
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Input */}
+            <div style={{ padding: "16px", borderTop: "1px solid #f1f5f9", display: "flex", gap: "10px" }}>
+              <input
+                style={{ flex: 1, background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "12px", padding: "12px 16px", fontSize: "13px", outline: "none", fontFamily: "inherit", textAlign: "right" }}
+                placeholder="اكتب أمرك هنا... مثال: أضف موظف اسمه محمد"
+                value={aiInput}
+                onChange={(e) => setAiInput(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleAIMessage()}
+                disabled={aiLoading}
+              />
+              <button
+                onClick={handleAIMessage}
+                disabled={aiLoading || !aiInput.trim()}
+                style={{
+                  background: "linear-gradient(135deg, #6366f1, #8b5cf6)", border: "none",
+                  borderRadius: "12px", padding: "12px 18px", color: "white",
+                  cursor: aiLoading ? "not-allowed" : "pointer", fontSize: "18px",
+                  opacity: aiLoading || !aiInput.trim() ? 0.6 : 1,
+                }}
+              >
+                ↑
+              </button>
+            </div>
+          </div>
+        )}
+
       </div>
     );
   }
@@ -1537,4 +2017,3 @@ const VacationManagementSystem = () => {
 };
 
 export default VacationManagementSystem;
-
