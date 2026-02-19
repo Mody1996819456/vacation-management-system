@@ -160,7 +160,7 @@ const VacationManagementSystem = () => {
   ]);
   const [aiInput, setAiInput] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
-  const CLAUDE_API_KEY = process.env.REACT_APP_CLAUDE_API_KEY || "";
+  const GEMINI_API_KEY = process.env.REACT_APP_GEMINI_API_KEY || "AIzaSyC_rw5v06CA-rEzGvhqHQWBrH2Dit_4IFM";
   const [currentTime, setCurrentTime] = useState(new Date());
 
   // تحديث الساعة كل ثانية
@@ -861,26 +861,30 @@ ${JSON.stringify(systemData, null, 2)}
 5. إذا سُئلت عن إحصائيات، احسبها من البيانات`;
 
     try {
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": CLAUDE_API_KEY,
-          "anthropic-version": "2023-06-01",
-        },
-        body: JSON.stringify({
-          model: "claude-opus-4-6",
-          max_tokens: 1024,
-          system: systemPrompt,
-          messages: [
-            ...aiMessages.filter(m => m.role !== "assistant" || aiMessages.indexOf(m) > 0).map(m => ({ role: m.role, content: m.content })),
-            { role: "user", content: userMsg }
-          ],
-        }),
-      });
+      // بناء تاريخ المحادثة لـ Gemini
+      const conversationHistory = aiMessages
+        .filter((m, idx) => !(m.role === "assistant" && idx === 0))
+        .map(m => ({
+          role: m.role === "assistant" ? "model" : "user",
+          parts: [{ text: m.content }],
+        }));
+      conversationHistory.push({ role: "user", parts: [{ text: userMsg }] });
+
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            system_instruction: { parts: [{ text: systemPrompt }] },
+            contents: conversationHistory,
+            generationConfig: { maxOutputTokens: 1024 },
+          }),
+        }
+      );
 
       const data = await response.json();
-      const replyText = data.content?.[0]?.text || "عذراً، حدث خطأ في الاتصال.";
+      const replyText = data.candidates?.[0]?.content?.parts?.[0]?.text || "عذراً، حدث خطأ في الاتصال.";
       
       // تحقق من وجود ACTION في الرد
       const actionMatch = replyText.match(/ACTION:\s*(\{.*\})/s);
@@ -923,7 +927,7 @@ ${JSON.stringify(systemData, null, 2)}
         } catch(e) { console.error("Action parse error:", e); }
       }
     } catch (err) {
-      setAiMessages(prev => [...prev, { role: "assistant", content: "❌ خطأ في الاتصال. تأكد من إعداد REACT_APP_CLAUDE_API_KEY في Vercel." }]);
+      setAiMessages(prev => [...prev, { role: "assistant", content: "❌ خطأ في الاتصال. تأكد من إعداد REACT_APP_GEMINI_API_KEY في Vercel." }]);
     }
     setAiLoading(false);
   };
@@ -956,6 +960,188 @@ ${JSON.stringify(systemData, null, 2)}
           .login-btn { transition: all 0.2s ease; }
           .login-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0,0,0,0.3); }
           .login-input:focus { outline: none; }
+
+          /* ===== RESPONSIVE ===== */
+          @media (max-width: 640px) {
+            .login-grid { grid-template-columns: 1fr !important; max-width: 420px !important; }
+            .login-card { padding: 36px 24px !important; }
+          }
+
+          /* Admin - main content */
+          .admin-main {
+            transition: all 0.3s;
+            padding: 16px;
+            width: 100%;
+            box-sizing: border-box;
+            overflow-x: hidden;
+          }
+          @media (min-width: 1024px) {
+            .admin-main { padding: 40px; }
+          }
+
+          /* Stats grid: 4 cols → 2 cols → 1 col */
+          .stats-grid {
+            display: grid !important;
+            grid-template-columns: repeat(4, 1fr) !important;
+            gap: 16px !important;
+          }
+          @media (max-width: 1024px) {
+            .stats-grid { grid-template-columns: repeat(2, 1fr) !important; }
+          }
+          @media (max-width: 640px) {
+            .stats-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 10px !important; }
+          }
+
+          /* Dashboard 2-col sections → 1-col */
+          .dash-2col {
+            display: grid !important;
+            grid-template-columns: repeat(2, 1fr) !important;
+            gap: 24px !important;
+          }
+          @media (max-width: 768px) {
+            .dash-2col { grid-template-columns: 1fr !important; }
+          }
+
+          /* Dashboard 3-col chart section */
+          .dash-3col {
+            display: grid !important;
+            grid-template-columns: 2fr 1fr !important;
+            gap: 24px !important;
+          }
+          @media (max-width: 768px) {
+            .dash-3col { grid-template-columns: 1fr !important; }
+          }
+
+          /* Greeting card responsive */
+          .greeting-inner {
+            flex-direction: row;
+            flex-wrap: wrap;
+          }
+          @media (max-width: 768px) {
+            .greeting-inner { flex-direction: column !important; }
+            .greeting-inner h2 { font-size: 20px !important; }
+            .greeting-inner .wisdom-card { max-width: 100% !important; }
+            .greeting-inner .time-badges { gap: 8px !important; }
+            .greeting-inner .time-badges > div { padding: 8px 12px !important; }
+          }
+
+          /* Scrollable tables on mobile */
+          .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+          /* Employees toolbar */
+          .emp-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+            justify-content: space-between;
+          }
+          .emp-toolbar .search-wrap { width: 100%; }
+          .emp-toolbar .actions-wrap { display: flex; flex-wrap: wrap; gap: 8px; width: 100%; }
+          @media (min-width: 768px) {
+            .emp-toolbar .search-wrap { width: auto; flex: 1; }
+            .emp-toolbar .actions-wrap { width: auto; }
+          }
+
+          /* Requests grid: 2-col → 1-col */
+          .requests-grid {
+            display: grid !important;
+            grid-template-columns: repeat(2, 1fr) !important;
+            gap: 20px !important;
+          }
+          @media (max-width: 768px) {
+            .requests-grid { grid-template-columns: 1fr !important; }
+          }
+
+          /* Departments grid: 3-col → 2 → 1 */
+          .dept-grid {
+            display: grid !important;
+            grid-template-columns: repeat(3, 1fr) !important;
+            gap: 20px !important;
+          }
+          @media (max-width: 1024px) {
+            .dept-grid { grid-template-columns: repeat(2, 1fr) !important; }
+          }
+          @media (max-width: 640px) {
+            .dept-grid { grid-template-columns: 1fr !important; }
+          }
+
+          /* Reports dept grid: 3-col → 1-col */
+          .report-dept-grid {
+            display: grid !important;
+            grid-template-columns: repeat(3, 1fr) !important;
+            gap: 16px !important;
+          }
+          @media (max-width: 768px) {
+            .report-dept-grid { grid-template-columns: repeat(2, 1fr) !important; }
+          }
+          @media (max-width: 480px) {
+            .report-dept-grid { grid-template-columns: 1fr !important; }
+          }
+
+          /* Low balance grid: 5-col → 2-col */
+          .low-balance-grid {
+            display: grid !important;
+            grid-template-columns: repeat(5, 1fr) !important;
+            gap: 12px !important;
+          }
+          @media (max-width: 768px) {
+            .low-balance-grid { grid-template-columns: repeat(3, 1fr) !important; }
+          }
+          @media (max-width: 480px) {
+            .low-balance-grid { grid-template-columns: repeat(2, 1fr) !important; }
+          }
+
+          /* Header bar */
+          .tab-header {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+          }
+
+          /* Backup button */
+          .backup-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: flex-end;
+            align-items: center;
+          }
+
+          /* AI chat - always visible bottom */
+          @media (max-width: 640px) {
+            .ai-chat-widget {
+              width: calc(100vw - 24px) !important;
+              right: 12px !important;
+              left: 12px !important;
+              bottom: 12px !important;
+            }
+          }
+
+          /* Modals on mobile */
+          @media (max-width: 640px) {
+            .modal-inner {
+              padding: 24px 16px !important;
+              border-radius: 24px !important;
+              max-height: 90vh;
+              overflow-y: auto;
+            }
+            .modal-2col { grid-template-columns: 1fr !important; }
+          }
+
+          /* Toggle button safe area */
+          .sidebar-toggle {
+            position: fixed;
+            top: 12px;
+            right: 12px;
+            z-index: 30;
+          }
+
+          /* Main scrollable area */
+          html, body { overflow-x: hidden; }
         `}</style>
 
         {/* كرات ضوئية في الخلفية */}
@@ -967,7 +1153,7 @@ ${JSON.stringify(systemData, null, 2)}
         <div style={{ position:"absolute", inset:0, backgroundImage:"radial-gradient(rgba(255,255,255,0.05) 1px, transparent 1px)", backgroundSize:"40px 40px", pointerEvents:"none" }} />
 
         {/* الكارت الرئيسي */}
-        <div style={{ width:"100%", maxWidth:"900px", display:"grid", gridTemplateColumns:"1fr 1fr", borderRadius:"32px", overflow:"hidden", boxShadow:"0 30px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.05)", position:"relative", zIndex:10 }}>
+        <div className="login-grid" style={{ width:"100%", maxWidth:"900px", display:"grid", gridTemplateColumns:"1fr 1fr", borderRadius:"32px", overflow:"hidden", boxShadow:"0 30px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.05)", position:"relative", zIndex:10 }}>
           
           {/* قسم الموظفين - يمين */}
           <div className="login-card" style={{ padding:"52px 40px", background:"rgba(255,255,255,0.04)", borderLeft:"1px solid rgba(255,255,255,0.08)" }}>
@@ -1096,7 +1282,7 @@ ${JSON.stringify(systemData, null, 2)}
         </aside>
 
         {/* Main Content */}
-        <main className="transition-all duration-300 p-4 lg:p-10 w-full" style={{ marginRight: sidebarOpen ? "18rem" : "0" }}>
+        <main className="admin-main transition-all duration-300" style={{ marginRight: sidebarOpen ? "18rem" : "0" }}>
           {loading && <div className="flex items-center justify-center h-screen"><Loader2 className="animate-spin text-indigo-600" size={48} /></div>}
 
           {!loading && (
@@ -1120,7 +1306,7 @@ ${JSON.stringify(systemData, null, 2)}
                         <div style={{ position:"absolute", top:"-40px", left:"-40px", width:"200px", height:"200px", borderRadius:"50%", background:"rgba(255,255,255,0.04)" }} />
                         <div style={{ position:"absolute", bottom:"-60px", left:"30%", width:"250px", height:"250px", borderRadius:"50%", background:"rgba(255,255,255,0.03)" }} />
 
-                        <div style={{ position:"relative", zIndex:1, display:"flex", justifyContent:"space-between", alignItems:"flex-start", flexWrap:"wrap", gap:"24px" }}>
+                        <div className="greeting-inner" style={{ position:"relative", zIndex:1, display:"flex", justifyContent:"space-between", alignItems:"flex-start", flexWrap:"wrap", gap:"24px" }}>
                           {/* يمين - الترحيب */}
                           <div>
                             <div style={{ display:"flex", alignItems:"center", gap:"12px", marginBottom:"8px" }}>
@@ -1130,7 +1316,7 @@ ${JSON.stringify(systemData, null, 2)}
                             <p style={{ color:"rgba(255,255,255,0.6)", fontSize:"15px", marginBottom:"20px" }}>نظرة عامة على حالة الإجازات</p>
 
                             {/* التاريخ والوقت */}
-                            <div style={{ display:"flex", gap:"16px", flexWrap:"wrap" }}>
+                            <div className="time-badges" style={{ display:"flex", gap:"16px", flexWrap:"wrap" }}>
                               <div style={{ background:"rgba(255,255,255,0.1)", backdropFilter:"blur(10px)", borderRadius:"12px", padding:"10px 18px", border:"1px solid rgba(255,255,255,0.15)" }}>
                                 <div style={{ color:"rgba(255,255,255,0.5)", fontSize:"11px", marginBottom:"2px" }}>الوقت</div>
                                 <div style={{ color:"white", fontSize:"22px", fontWeight:"900", fontVariantNumeric:"tabular-nums", direction:"ltr" }}>
@@ -1151,7 +1337,7 @@ ${JSON.stringify(systemData, null, 2)}
                           </div>
 
                           {/* يسار - الحكمة اليومية */}
-                          <div style={{ maxWidth:"340px", background:"rgba(255,255,255,0.07)", borderRadius:"16px", padding:"20px 24px", border:"1px solid rgba(255,255,255,0.12)", backdropFilter:"blur(10px)" }}>
+                          <div className="wisdom-card" style={{ maxWidth:"340px", background:"rgba(255,255,255,0.07)", borderRadius:"16px", padding:"20px 24px", border:"1px solid rgba(255,255,255,0.12)", backdropFilter:"blur(10px)" }}>
                             <div style={{ color:"#fbbf24", fontSize:"12px", fontWeight:"700", marginBottom:"10px", display:"flex", alignItems:"center", gap:"6px" }}>
                               <span>💡</span> حكمة اليوم
                             </div>
@@ -1164,7 +1350,7 @@ ${JSON.stringify(systemData, null, 2)}
                     );
                   })()}
                   {/* زرار النسخ الاحتياطي */}
-                  <div style={{ display:"flex", justifyContent:"flex-end", alignItems:"center", gap:"16px" }}>
+                  <div className="backup-row" style={{ display:"flex", justifyContent:"flex-end", alignItems:"center", gap:"16px" }}>
                     {lastBackup && (
                       <span style={{ color:"#64748b", fontSize:"13px" }}>
                         آخر نسخة: {lastBackup}
@@ -1190,7 +1376,7 @@ ${JSON.stringify(systemData, null, 2)}
                     </button>
                   </div>
 
-                  <div className="grid grid-cols-4 gap-6">
+                  <div className="stats-grid">
                     <div className="bg-white p-6 rounded-[2rem] shadow-sm border flex items-center gap-4">
                       <div className="p-4 bg-blue-50 text-blue-600 rounded-xl"><Users size={28} /></div>
                       <div><p className="text-slate-500 font-bold text-sm">إجمالي الموظفين</p><h3 className="text-3xl font-black">{stats.totalEmployees}</h3></div>
@@ -1208,7 +1394,7 @@ ${JSON.stringify(systemData, null, 2)}
                       <div><p className="text-slate-500 font-bold text-sm">متوسط الرصيد</p><h3 className="text-3xl font-black text-purple-600">{stats.avgBalance}</h3></div>
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-8">
+                  <div className="dash-2col">
                     <div className="bg-white rounded-[2rem] shadow-sm border">
                       <div className="p-6 border-b bg-slate-50/50"><h4 className="font-black text-slate-800 flex items-center gap-2"><ArrowUpRight className="text-indigo-600" size={20} /> الأعلى رصيداً</h4></div>
                       <div className="p-4">
@@ -1232,8 +1418,8 @@ ${JSON.stringify(systemData, null, 2)}
                       </div>
                     </div>
                   </div>
-                  <div className="grid grid-cols-3 gap-6">
-                    <div className="bg-white p-6 rounded-[2rem] shadow-sm border col-span-2">
+                  <div className="dash-3col">
+                    <div className="bg-white p-6 rounded-[2rem] shadow-sm border" style={{gridColumn: "span 1 / span 1"}}>
                       <h4 className="font-black mb-4 flex items-center gap-2"><BarChart2 size={20} className="text-indigo-600" /> الإجازات الشهرية</h4>
                       <div className="h-48 flex items-end justify-between gap-2">
                         {vacationByMonth.map((item, idx) => {
@@ -1266,12 +1452,12 @@ ${JSON.stringify(systemData, null, 2)}
               {/* ===== EMPLOYEES ===== */}
               {activeTab === "employees" && (
                 <div className="space-y-6">
-                  <div className="flex justify-between items-center">
-                    <div className="relative w-1/3">
+                  <div className="emp-toolbar">
+                    <div className="search-wrap relative">
                       <Search className="absolute right-4 top-3.5 text-slate-400" size={20} />
                       <input className="w-full pr-12 p-3.5 bg-white border rounded-2xl shadow-sm outline-none" placeholder="ابحث عن موظف..." value={empSearch} onChange={(e) => setEmpSearch(e.target.value)} />
                     </div>
-                    <div className="flex gap-3">
+                    <div className="actions-wrap">
                       {departments.length > 0 && (
                         <select className="px-4 py-3 bg-white border rounded-xl outline-none" value={departmentFilter} onChange={(e) => setDepartmentFilter(e.target.value)}>
                           <option value="all">كل الأقسام</option>
@@ -1283,13 +1469,14 @@ ${JSON.stringify(systemData, null, 2)}
                         <option value="عمل">عمل</option>
                         <option value="إجازة">إجازة</option>
                       </select>
-                      <button onClick={() => setShowImportModal(true)} className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-2xl flex items-center gap-2 font-bold shadow-lg"><Upload size={20} /> استيراد Excel</button>
-                      <button onClick={() => setShowAddEmp(true)} className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-2xl flex items-center gap-2 font-bold shadow-lg"><UserPlus size={20} /> إضافة موظف</button>
-                      <button onClick={() => exportToExcel(filteredEmployees, "قائمة_الموظفين")} className="bg-slate-800 hover:bg-slate-900 text-white px-6 py-3 rounded-2xl flex items-center gap-2 font-bold"><Download size={20} /> تصدير</button>
+                      <button onClick={() => setShowImportModal(true)} className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-3 rounded-2xl flex items-center gap-2 font-bold shadow-lg"><Upload size={18} /> <span className="hidden sm:inline">استيراد</span> Excel</button>
+                      <button onClick={() => setShowAddEmp(true)} className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-3 rounded-2xl flex items-center gap-2 font-bold shadow-lg"><UserPlus size={18} /> <span className="hidden sm:inline">إضافة موظف</span></button>
+                      <button onClick={() => exportToExcel(filteredEmployees, "قائمة_الموظفين")} className="bg-slate-800 hover:bg-slate-900 text-white px-4 py-3 rounded-2xl flex items-center gap-2 font-bold"><Download size={18} /></button>
                     </div>
                   </div>
                   <div className="bg-white rounded-[2rem] shadow-sm border overflow-hidden">
-                    <table className="w-full">
+                    <div className="table-scroll">
+                    <table className="w-full" style={{minWidth:"900px"}}>
                       <thead className="bg-slate-50 text-slate-500 border-b text-xs">
                         <tr>
                           <th className="p-4 text-right">الاسم</th>
@@ -1346,21 +1533,20 @@ ${JSON.stringify(systemData, null, 2)}
                         })}
                       </tbody>
                     </table>
+                    </div>
                   </div>
                 </div>
               )}
-
-              {/* ===== REQUESTS ===== */}
               {activeTab === "requests" && (
                 <div className="space-y-6">
-                  <div className="flex justify-between items-center">
+                  <div className="tab-header">
                     <h2 className="text-2xl font-black">طلبات الإجازات المعلقة</h2>
                     <select className="px-4 py-3 bg-white border rounded-xl" value={vacationTypeFilter} onChange={(e) => setVacationTypeFilter(e.target.value)}>
                       <option value="all">كل الأنواع</option>
                       {vacationTypes.map(vt => <option key={vt.id} value={vt.id}>{vt.name}</option>)}
                     </select>
                   </div>
-                  <div className="grid grid-cols-2 gap-6">
+                  <div className="requests-grid">
                     {filteredRequests.filter(r => r.status === "pending").map(req => {
                       const vacType = vacationTypes.find(vt => vt.id === req.vacation_type_id);
                       return (
@@ -1416,7 +1602,7 @@ ${JSON.stringify(systemData, null, 2)}
                   {vacationByDepartment.length > 0 && (
                     <div className="bg-white p-6 rounded-[2rem] shadow-sm border">
                       <h4 className="font-black mb-4 flex items-center gap-2"><Building2 size={20} className="text-indigo-600" /> إحصائيات الأقسام</h4>
-                      <div className="grid grid-cols-3 gap-4">
+                      <div className="report-dept-grid">
                         {vacationByDepartment.map(dept => (
                           <div key={dept.name} className="p-4 bg-slate-50 rounded-xl">
                             <h5 className="font-bold text-slate-800 mb-2">{dept.name}</h5>
@@ -1432,7 +1618,7 @@ ${JSON.stringify(systemData, null, 2)}
                   )}
                   <div className="bg-white p-6 rounded-[2rem] shadow-sm border">
                     <h4 className="font-black mb-4 flex items-center gap-2"><AlertCircle size={20} className="text-amber-600" /> تحذير: رصيد منخفض</h4>
-                    <div className="grid grid-cols-5 gap-3">
+                    <div className="low-balance-grid">
                       {lowBalances.map(emp => (
                         <div key={emp.id} className="p-3 bg-amber-50 rounded-xl text-center border border-amber-100">
                           <p className="font-bold text-sm mb-1">{emp.name}</p>
@@ -1452,7 +1638,7 @@ ${JSON.stringify(systemData, null, 2)}
                     <h2 className="text-2xl font-black">إدارة الأقسام</h2>
                     <button onClick={() => setShowAddDept(true)} className="bg-indigo-600 text-white px-6 py-3 rounded-2xl flex items-center gap-2 font-bold"><Plus size={20} /> إضافة قسم</button>
                   </div>
-                  <div className="grid grid-cols-3 gap-6">
+                  <div className="dept-grid">
                     {departments.map(dept => {
                       const deptEmps = employees.filter(e => e.department_id === dept.id);
                       return (
@@ -1520,7 +1706,8 @@ ${JSON.stringify(systemData, null, 2)}
                     </div>
                   </div>
                   <div className="bg-white rounded-[2rem] shadow-sm border overflow-hidden">
-                    <table className="w-full text-sm">
+                    <div className="table-scroll">
+                    <table className="w-full text-sm" style={{minWidth:"800px"}}>
                       <thead className="bg-slate-50 border-b text-xs">
                         <tr>
                           <th className="p-4 text-right">الموظف</th>
@@ -1571,6 +1758,7 @@ ${JSON.stringify(systemData, null, 2)}
                         })}
                       </tbody>
                     </table>
+                    </div>
                   </div>
                 </div>
               )}
@@ -1583,7 +1771,7 @@ ${JSON.stringify(systemData, null, 2)}
         {/* Import Excel Modal */}
         {showImportModal && (
           <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-6 z-[100]" onClick={() => setShowImportModal(false)}>
-            <div className="bg-white p-10 rounded-[2.5rem] w-full max-w-2xl shadow-2xl" dir="rtl" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-inner bg-white p-10 rounded-[2.5rem] w-full max-w-2xl shadow-2xl" dir="rtl" onClick={(e) => e.stopPropagation()}>
               <div className="flex justify-between mb-8">
                 <h3 className="text-2xl font-black flex items-center gap-3"><Upload className="text-emerald-600" /> استيراد من Excel</h3>
                 <button onClick={() => setShowImportModal(false)} className="text-slate-400 hover:text-red-500"><X size={28} /></button>
@@ -1610,14 +1798,14 @@ ${JSON.stringify(systemData, null, 2)}
         {/* Add Employee Modal */}
         {showAddEmp && (
           <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-6 z-[100]" onClick={() => setShowAddEmp(false)}>
-            <div className="bg-white p-10 rounded-[2.5rem] w-full max-w-lg shadow-2xl" dir="rtl" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-inner bg-white p-10 rounded-[2.5rem] w-full max-w-lg shadow-2xl" dir="rtl" onClick={(e) => e.stopPropagation()}>
               <div className="flex justify-between mb-8">
                 <h3 className="text-2xl font-black">إضافة موظف جديد</h3>
                 <button onClick={() => setShowAddEmp(false)}><X size={28} /></button>
               </div>
               <div className="space-y-4">
                 <input className="w-full p-4 border rounded-2xl outline-none focus:border-indigo-500" placeholder="الاسم الكامل *" value={newEmp.name} onChange={(e) => setNewEmp({...newEmp, name: e.target.value})} />
-                <div className="grid grid-cols-2 gap-4">
+                <div className="modal-2col grid grid-cols-2 gap-4">
                   <input className="p-4 border rounded-2xl outline-none" placeholder="الكود الوظيفي *" value={newEmp.code} onChange={(e) => setNewEmp({...newEmp, code: e.target.value})} />
                   <input className="p-4 border rounded-2xl outline-none" placeholder="المنصب" value={newEmp.position} onChange={(e) => setNewEmp({...newEmp, position: e.target.value})} />
                 </div>
@@ -1628,7 +1816,7 @@ ${JSON.stringify(systemData, null, 2)}
                     {departments.map(dept => <option key={dept.id} value={dept.id}>{dept.name}</option>)}
                   </select>
                 )}
-                <div className="grid grid-cols-2 gap-4">
+                <div className="modal-2col grid grid-cols-2 gap-4">
                   <div>
                     <label className="text-xs text-slate-500 font-bold mb-1 block">تاريخ التعيين (بيان فقط)</label>
                     <input type="date" className="w-full p-4 border rounded-2xl outline-none" value={newEmp.hire_date} onChange={(e) => setNewEmp({...newEmp, hire_date: e.target.value})} />
@@ -1638,7 +1826,7 @@ ${JSON.stringify(systemData, null, 2)}
                     <input type="date" className="w-full p-4 border-2 border-indigo-300 rounded-2xl outline-none focus:border-indigo-500" value={newEmp.return_date} onChange={(e) => setNewEmp({...newEmp, return_date: e.target.value})} />
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="modal-2col grid grid-cols-2 gap-4">
                   <input type="number" step="0.5" className="p-4 border rounded-2xl outline-none" placeholder="الرصيد" value={newEmp.balance} onChange={(e) => setNewEmp({...newEmp, balance: Number(e.target.value)})} />
                   <input type="number" step="0.5" className="p-4 border rounded-2xl outline-none" placeholder="الرصيد الشهري" value={newEmp.monthly_balance} onChange={(e) => setNewEmp({...newEmp, monthly_balance: Number(e.target.value)})} />
                 </div>
@@ -1651,14 +1839,14 @@ ${JSON.stringify(systemData, null, 2)}
         {/* Edit Employee Modal */}
         {editingEmp && (
           <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-6 z-[100]" onClick={() => setEditingEmp(null)}>
-            <div className="bg-white p-10 rounded-[2.5rem] w-full max-w-lg shadow-2xl" dir="rtl" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-inner bg-white p-10 rounded-[2.5rem] w-full max-w-lg shadow-2xl" dir="rtl" onClick={(e) => e.stopPropagation()}>
               <div className="flex justify-between mb-8">
                 <h3 className="text-2xl font-black">تعديل بيانات الموظف</h3>
                 <button onClick={() => setEditingEmp(null)}><X size={28} /></button>
               </div>
               <div className="space-y-4">
                 <input className="w-full p-4 border rounded-2xl" placeholder="الاسم" value={editingEmp.name || ''} onChange={(e) => setEditingEmp({...editingEmp, name: e.target.value})} />
-                <div className="grid grid-cols-2 gap-4">
+                <div className="modal-2col grid grid-cols-2 gap-4">
                   <input className="p-4 border rounded-2xl" placeholder="الكود" value={editingEmp.code || ''} onChange={(e) => setEditingEmp({...editingEmp, code: e.target.value})} />
                   <input className="p-4 border rounded-2xl" placeholder="المنصب" value={editingEmp.position || ''} onChange={(e) => setEditingEmp({...editingEmp, position: e.target.value})} />
                 </div>
@@ -1669,7 +1857,7 @@ ${JSON.stringify(systemData, null, 2)}
                     {departments.map(dept => <option key={dept.id} value={dept.id}>{dept.name}</option>)}
                   </select>
                 )}
-                <div className="grid grid-cols-2 gap-4">
+                <div className="modal-2col grid grid-cols-2 gap-4">
                   <div>
                     <label className="text-xs text-slate-500 font-bold mb-1 block">تاريخ التعيين (بيان فقط)</label>
                     <input type="date" className="w-full p-4 border rounded-2xl" value={editingEmp.hire_date || ''} onChange={(e) => setEditingEmp({...editingEmp, hire_date: e.target.value})} />
@@ -1679,7 +1867,7 @@ ${JSON.stringify(systemData, null, 2)}
                     <input type="date" className="w-full p-4 border-2 border-indigo-300 rounded-2xl" value={editingEmp.return_date || ''} onChange={(e) => setEditingEmp({...editingEmp, return_date: e.target.value})} />
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="modal-2col grid grid-cols-2 gap-4">
                   <input type="number" step="0.5" className="p-4 border rounded-2xl" placeholder="الرصيد" value={editingEmp.balance || 0} onChange={(e) => setEditingEmp({...editingEmp, balance: Number(e.target.value)})} />
                   <input type="number" step="0.5" className="p-4 border rounded-2xl" placeholder="الرصيد الشهري" value={editingEmp.monthly_balance || 0} onChange={(e) => setEditingEmp({...editingEmp, monthly_balance: Number(e.target.value)})} />
                 </div>
@@ -1692,7 +1880,7 @@ ${JSON.stringify(systemData, null, 2)}
         {/* Approval Modal */}
         {showApprovalModal && currentRequest && (
           <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-6 z-[100]" onClick={() => setShowApprovalModal(false)}>
-            <div className="bg-white p-10 rounded-[2.5rem] w-full max-w-lg shadow-2xl" dir="rtl" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-inner bg-white p-10 rounded-[2.5rem] w-full max-w-lg shadow-2xl" dir="rtl" onClick={(e) => e.stopPropagation()}>
               <div className="flex justify-between mb-8">
                 <h3 className="text-2xl font-black">{currentRequest.action === "approved" ? "✅ موافقة" : "❌ رفض"}</h3>
                 <button onClick={() => setShowApprovalModal(false)}><X size={28} /></button>
@@ -1716,7 +1904,7 @@ ${JSON.stringify(systemData, null, 2)}
         {/* Edit Vacation Modal */}
         {editingVac && (
           <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-6 z-[100]" onClick={() => setEditingVac(null)}>
-            <div className="bg-white p-10 rounded-[2.5rem] w-full max-w-lg shadow-2xl" dir="rtl" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-inner bg-white p-10 rounded-[2.5rem] w-full max-w-lg shadow-2xl" dir="rtl" onClick={(e) => e.stopPropagation()}>
               <div className="flex justify-between mb-8">
                 <h3 className="text-2xl font-black">تعديل طلب الإجازة</h3>
                 <button onClick={() => setEditingVac(null)}><X size={28} /></button>
@@ -1741,7 +1929,7 @@ ${JSON.stringify(systemData, null, 2)}
         {/* Return Modal */}
         {showReturnModal && returnData && (
           <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-6 z-[100]" onClick={() => setShowReturnModal(false)}>
-            <div className="bg-white p-10 rounded-[2.5rem] w-full max-w-lg shadow-2xl" dir="rtl" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-inner bg-white p-10 rounded-[2.5rem] w-full max-w-lg shadow-2xl" dir="rtl" onClick={(e) => e.stopPropagation()}>
               <div className="flex justify-between mb-8">
                 <h3 className="text-2xl font-black">✅ تسجيل العودة من الإجازة</h3>
                 <button onClick={() => setShowReturnModal(false)}><X size={28} /></button>
@@ -1768,7 +1956,7 @@ ${JSON.stringify(systemData, null, 2)}
         {/* Add Department Modal */}
         {showAddDept && (
           <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-6 z-[100]" onClick={() => setShowAddDept(false)}>
-            <div className="bg-white p-10 rounded-[2.5rem] w-full max-w-lg shadow-2xl" dir="rtl" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-inner bg-white p-10 rounded-[2.5rem] w-full max-w-lg shadow-2xl" dir="rtl" onClick={(e) => e.stopPropagation()}>
               <div className="flex justify-between mb-8">
                 <h3 className="text-2xl font-black">إضافة قسم جديد</h3>
                 <button onClick={() => setShowAddDept(false)}><X size={28} /></button>
@@ -1785,7 +1973,7 @@ ${JSON.stringify(systemData, null, 2)}
         {/* Add Holiday Modal */}
         {showAddHoliday && (
           <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-6 z-[100]" onClick={() => setShowAddHoliday(false)}>
-            <div className="bg-white p-10 rounded-[2.5rem] w-full max-w-lg shadow-2xl" dir="rtl" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-inner bg-white p-10 rounded-[2.5rem] w-full max-w-lg shadow-2xl" dir="rtl" onClick={(e) => e.stopPropagation()}>
               <div className="flex justify-between mb-8">
                 <h3 className="text-2xl font-black">إضافة عطلة رسمية</h3>
                 <button onClick={() => setShowAddHoliday(false)}><X size={28} /></button>
@@ -1844,7 +2032,7 @@ ${JSON.stringify(systemData, null, 2)}
 
         {/* نافذة الـ AI Chat */}
         {showAIChat && (
-          <div style={{
+          <div className="ai-chat-widget" style={{
             position: "fixed", bottom: "104px", left: "32px", zIndex: 50,
             width: "400px", height: "560px",
             background: "white", borderRadius: "24px",
