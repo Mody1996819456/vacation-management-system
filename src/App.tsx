@@ -1,52 +1,78 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
 import * as XLSX from "xlsx";
+import emailjs from "emailjs-com";
 import {
-  LayoutDashboard,
-  Users,
-  LogOut,
-  Plus,
-  Trash2,
-  Calendar,
-  CheckCircle,
-  Clock,
-  Search,
-  Edit3,
-  ShieldCheck,
-  Download,
-  FileSpreadsheet,
-  Loader2,
-  ArrowUpRight,
-  CalendarDays,
-  Save,
-  X,
-  UserPlus,
-  Upload,
-  Bell,
-  MessageSquare,
-  FileDown,
-  Zap,
+  LayoutDashboard, Users, LogOut, Plus, Trash2, Calendar, CheckCircle,
+  Clock, Search, Edit3, ShieldCheck, Download, Loader2,
+  ArrowUpRight, CalendarDays, X, UserPlus, Upload, Bell,  MessageSquare,
+  FileDown, Zap, BarChart3, Building2, TrendingUp,
+  AlertCircle, RefreshCw, PieChart, BarChart2,
+  History, Mail, Briefcase,
 } from "lucide-react";
 
-// --- إعدادات الاتصال بـ Supabase (باستخدام متغيرات البيئة لضمان نجاح الرفع) ---
+// ==================== SUPABASE CONFIG ====================
 const supabaseUrl = process.env.REACT_APP_SUPABASE_URL || "https://rxeminlotawcfqalxoqy.supabase.co";
 const supabaseKey = process.env.REACT_APP_SUPABASE_ANON_KEY || "sb_publishable_nExTWl7CRubKfDuiqbX1Sw_EwyMdUoX";
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// --- دوال مساعدة للتواريخ ---
+// ==================== EMAILJS CONFIG ====================
+const EMAILJS_SERVICE_ID  = "service_1fmr5dt";
+const EMAILJS_PUBLIC_KEY  = "huxXo8btK5U4v1zQd";
+const EMAILJS_TEMPLATES = {
+  approved:          "template_s3qqrew",
+  rejected:          "template_aigwzle",
+  return_reminder:   "template_return_reminder",
+  new_request_admin: "template_new_request",
+};
+
+const ADMIN_EMAIL = "mohamedgamal199681945@gmail.com";
+
+// ==================== EMAIL SENDER ====================
+// Cache عشان نمنع التكرار في نفس الجلسة
+const sentEmailsCache = new Set<string>();
+
+// مفتاح مركّب من templateId + toEmail + بيانات الطلب لمنع التكرار
+const buildEmailKey = (templateId: string, toEmail: string, params: Record<string, any>) => {
+  const uniqueField = params.request_id || params.start_date || JSON.stringify(params).slice(0, 80);
+  return `${templateId}|${toEmail}|${uniqueField}`;
+};
+
+const sendEmail = async (templateId: string, toEmail: string, params: Record<string, any>) => {
+  const cacheKey = buildEmailKey(templateId, toEmail, params);
+  if (sentEmailsCache.has(cacheKey)) {
+    console.log(`⏭️ إيميل سبق إرساله، تم التخطي: ${toEmail} - ${templateId}`);
+    return;
+  }
+  try {
+    await emailjs.send(EMAILJS_SERVICE_ID, templateId, { to_email: toEmail, ...params }, EMAILJS_PUBLIC_KEY);
+    sentEmailsCache.add(cacheKey);
+    console.log(`✅ إيميل أُرسل لـ ${toEmail}`);
+  } catch (err) {
+    console.error(`❌ فشل إرسال الإيميل لـ ${toEmail}:`, err);
+  }
+};
+
+// ==================== HELPER FUNCTIONS ====================
 const formatDate = (dateStr: string) => {
   if (!dateStr) return "-";
   return new Date(dateStr).toLocaleDateString("ar-EG", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
+    year: "numeric", month: "2-digit", day: "2-digit",
+  });
+};
+
+const formatDateTime = (dateStr: string) => {
+  if (!dateStr) return "-";
+  return new Date(dateStr).toLocaleString("ar-EG", {
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit",
   });
 };
 
 const getCalculatedDates = (startDate: string, days: number) => {
   if (!startDate || !days) return { end: "", back: "" };
   const start = new Date(startDate);
-  const end = new Date(startDate);
+  const end = new Date(start);
   end.setDate(start.getDate() + (Number(days) - 1));
   const back = new Date(end);
   back.setDate(end.getDate() + 1);
@@ -56,18 +82,39 @@ const getCalculatedDates = (startDate: string, days: number) => {
   };
 };
 
+// أيام العمل = من تاريخ العودة حتى اليوم فقط
+const calculateWorkedDays = (returnDate: string) => {
+  if (!returnDate) return 0;
+  const start = new Date(returnDate);
+  const today = new Date();
+  if (start > today) return 0;
+  const diffTime = today.getTime() - start.getTime();
+  return Math.floor(diffTime / (1000 * 60 * 60 * 24));
+};
+
+// ==================== MAIN COMPONENT ====================
 const VacationManagementSystem = () => {
-  // --- States ---
+  // ========== STATES ==========
   const [employees, setEmployees] = useState<any[]>([]);
   const [requests, setRequests] = useState<any[]>([]);
+  const [vacationTypes, setVacationTypes] = useState<any[]>([]);
+  const [departments, setDepartments] = useState<any[]>([]);
+  const [publicHolidays, setPublicHolidays] = useState<any[]>([]);
+  const [auditLog, setAuditLog] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("dashboard");
   const [currentView, setCurrentView] = useState("login");
   const [currentUser, setCurrentUser] = useState<any>(null);
 
-  // Inputs & Modals
+  // Filters & Search
   const [empSearch, setEmpSearch] = useState("");
   const [vacSearch, setVacSearch] = useState("");
+  const [departmentFilter, setDepartmentFilter] = useState("all");
+  const [vacationTypeFilter, setVacationTypeFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [empStatusFilter, setEmpStatusFilter] = useState("all");
+
+  // Modals & Forms
   const [loginData, setLoginData] = useState({ email: "", password: "" });
   const [empCodeInput, setEmpCodeInput] = useState("");
   const [showAddEmp, setShowAddEmp] = useState(false);
@@ -79,45 +126,64 @@ const VacationManagementSystem = () => {
   const [currentRequest, setCurrentRequest] = useState<any>(null);
   const [adminNotes, setAdminNotes] = useState("");
   const [notifications, setNotifications] = useState<any[]>([]);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [showReturnModal, setShowReturnModal] = useState(false);
+  const [returnData, setReturnData] = useState<any>(null);
+  const [showAddDept, setShowAddDept] = useState(false);
+  const [showAddHoliday, setShowAddHoliday] = useState(false);
+  const [showAuditLog, setShowAuditLog] = useState(false);
 
+  // Calendar
+  const [currentMonth, setCurrentMonth] = useState(new Date());
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // New Data Forms
+  // Form Data - أضفنا return_date و email وحذفنا hire_date من الحساب
   const [newEmp, setNewEmp] = useState({
-    name: "",
-    code: "",
-    position: "",
-    balance: 21,
-    monthly_balance: 0,
+    name: "", code: "", position: "", balance: 21, monthly_balance: 0,
+    department_id: "", hire_date: "", return_date: "", email: "",
   });
+
   const [newRequest, setNewRequest] = useState({
-    start_date: "",
-    days: 1,
-    notes: "",
+    start_date: "", days: 1, notes: "", vacation_type_id: "",
   });
+
+  const [newDept, setNewDept] = useState({ name: "", description: "" });
+  const [newHoliday, setNewHoliday] = useState({ name: "", date: "", is_recurring: false });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // --- جلب البيانات ---
+  // ========== FETCH DATA ==========
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const { data: emps } = await supabase
-        .from("employees")
-        .select("*")
-        .order("balance", { ascending: false });
-      const { data: reqs } = await supabase
-        .from("vacation_requests")
-        .select("*")
-        .order("created_at", { ascending: false });
+      const [
+        { data: emps }, { data: reqs }, { data: types },
+        { data: depts }, { data: holidays }, { data: logs }
+      ] = await Promise.all([
+        supabase.from("employees").select("*").order("name"),
+        supabase.from("vacation_requests").select("*").order("created_at", { ascending: false }),
+        supabase.from("vacation_types").select("*"),
+        supabase.from("departments").select("*"),
+        supabase.from("public_holidays").select("*").order("date"),
+        supabase.from("audit_log").select("*").order("created_at", { ascending: false }).limit(100),
+      ]);
+
       if (emps) setEmployees(emps);
       if (reqs) setRequests(reqs);
-      
-      // جلب الإشعارات للموظف الحالي
+      if (types) setVacationTypes(types);
+      if (depts) setDepartments(depts);
+      if (holidays) setPublicHolidays(holidays);
+      if (logs) setAuditLog(logs);
+
       if (currentUser && currentView === "employee") {
-        const userNotifications = reqs?.filter(
+        const userNotifs = reqs?.filter(
           r => r.employee_id === currentUser.id && r.admin_notes && r.status !== "pending"
         ) || [];
-        setNotifications(userNotifications);
+        setNotifications(userNotifs);
+      }
+
+      if (currentView === "admin") {
+        const pendingReqs = reqs?.filter(r => r.status === "pending") || [];
+        setNotifications(pendingReqs);
       }
     } catch (err) {
       console.error("Fetch Error:", err);
@@ -125,208 +191,267 @@ const VacationManagementSystem = () => {
     setLoading(false);
   }, [currentUser, currentView]);
 
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+  useEffect(() => { fetchData(); }, [fetchData]);
 
-  // --- التحديث الشهري التلقائي للرصيد ---
+  // ========== تذكير العودة التلقائي ==========
+  useEffect(() => {
+    if (currentView !== "admin" || requests.length === 0) return;
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowStr = tomorrow.toISOString().split("T")[0];
+
+    requests.forEach(req => {
+      if (req.status !== "approved") return;
+      const { back } = getCalculatedDates(req.start_date, req.days);
+      if (back === tomorrowStr) {
+        const emp = employees.find(e => e.id === req.employee_id);
+        if (emp?.email) {
+          sendEmail(EMAILJS_TEMPLATES.return_reminder, emp.email, {
+            employee_name: emp.name,
+            back_date: formatDate(back),
+          });
+        }
+      }
+    });
+  }, [requests, employees, currentView]);
+
+  // ========== حالة الموظف تلقائياً ==========
+  const getEmployeeStatus = (emp: any) => {
+    const today = new Date().toISOString().split("T")[0];
+    const isOnVacation = requests.some(r =>
+      r.employee_id === emp.id && r.status === "approved" &&
+      (() => { const { back } = getCalculatedDates(r.start_date, r.days); return r.start_date <= today && back > today; })()
+    );
+    return isOnVacation ? "إجازة" : "عمل";
+  };
+
+  // ========== AUDIT LOG ==========
+  const logAction = async (action: string, tableName: string, recordId: any = null, oldData: any = null, newData: any = null) => {
+    try {
+      await supabase.from("audit_log").insert([{
+        user_id: currentUser?.id || null,
+        user_name: currentUser?.name || "النظام",
+        action, table_name: tableName, record_id: recordId,
+        old_data: oldData, new_data: newData,
+      }]);
+    } catch (err) { console.error("Audit log error:", err); }
+  };
+
+  // ========== MONTHLY BALANCE UPDATE ==========
   useEffect(() => {
     const updateMonthlyBalances = async () => {
       const today = new Date();
-      const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1)
-        .toISOString()
-        .split("T")[0];
-
+      const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split("T")[0];
       for (const emp of employees) {
-        if (emp.monthly_balance > 0) {
-          // التحقق من آخر تحديث
-          if (!emp.last_balance_update || emp.last_balance_update < firstDayOfMonth) {
-            // إضافة الرصيد الشهري
-            const newBalance = emp.balance + emp.monthly_balance;
-            
-            await supabase
-              .from("employees")
-              .update({
-                balance: newBalance,
-                last_balance_update: firstDayOfMonth,
-              })
-              .eq("id", emp.id);
-
-            // تسجيل التحديث
-            await supabase.from("balance_updates").insert([
-              {
-                employee_id: emp.id,
-                amount: emp.monthly_balance,
-                update_date: firstDayOfMonth,
-              },
-            ]);
-          }
+        if (emp.monthly_balance > 0 && (!emp.last_balance_update || emp.last_balance_update < firstDayOfMonth)) {
+          const newBalance = emp.balance + emp.monthly_balance;
+          await supabase.from("employees").update({ balance: newBalance, last_balance_update: firstDayOfMonth }).eq("id", emp.id);
+          await supabase.from("balance_updates").insert([{ employee_id: emp.id, amount: emp.monthly_balance, update_date: firstDayOfMonth }]);
+          await logAction("monthly_balance_update", "employees", emp.id, { balance: emp.balance }, { balance: newBalance });
         }
       }
     };
-
-    if (employees.length > 0 && currentView === "admin") {
-      updateMonthlyBalances();
-    }
+    if (employees.length > 0 && currentView === "admin") updateMonthlyBalances();
   }, [employees, currentView]);
 
-  // --- التحليلات (Analytics) ---
-  const topBalances = useMemo(() => [...employees].slice(0, 5), [employees]);
+  // ========== STATISTICS ==========
+  const stats = useMemo(() => {
+    const totalEmployees = employees.length;
+    const pendingRequests = requests.filter(r => r.status === "pending").length;
+    const approvedThisMonth = requests.filter(r => {
+      const reqDate = new Date(r.created_at);
+      const now = new Date();
+      return r.status === "approved" && reqDate.getMonth() === now.getMonth() && reqDate.getFullYear() === now.getFullYear();
+    }).length;
+    const today = new Date().toISOString().split("T")[0];
+    const onVacationNow = requests.filter(r => {
+      if (r.status !== "approved") return false;
+      const { back } = getCalculatedDates(r.start_date, r.days);
+      return r.start_date <= today && back > today;
+    }).length;
+    const atWorkNow = totalEmployees - onVacationNow;
+    const avgBalance = employees.length > 0
+      ? (employees.reduce((sum, e) => sum + Number(e.balance), 0) / employees.length).toFixed(1) : 0;
+    const totalVacationDays = requests.filter(r => r.status === "approved").reduce((sum, r) => sum + Number(r.days), 0);
+    return { totalEmployees, pendingRequests, approvedThisMonth, onVacationNow, atWorkNow, avgBalance, totalVacationDays };
+  }, [employees, requests]);
 
+  const topBalances = useMemo(() => [...employees].sort((a, b) => b.balance - a.balance).slice(0, 5), [employees]);
+  const lowBalances = useMemo(() => [...employees].sort((a, b) => a.balance - b.balance).slice(0, 5), [employees]);
   const comingBackSoon = useMemo(() => {
     const today = new Date().toISOString().split("T")[0];
-    return requests
-      .filter((r) => r.status === "approved")
-      .map((r) => ({
-        ...r,
-        backDate: getCalculatedDates(r.start_date, r.days).back,
-      }))
-      .filter((r) => r.backDate >= today)
-      .sort((a, b) => a.backDate.localeCompare(b.backDate))
-      .slice(0, 5);
+    return requests.filter(r => r.status === "approved")
+      .map(r => ({ ...r, backDate: getCalculatedDates(r.start_date, r.days).back }))
+      .filter(r => r.backDate >= today).sort((a, b) => a.backDate.localeCompare(b.backDate)).slice(0, 8);
   }, [requests]);
 
-  // --- التعامل مع الدخول ---
+  const vacationByMonth = useMemo(() => {
+    const months = ['يناير','فبراير','مارس','إبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+    return months.map((month, idx) => ({
+      month,
+      count: requests.filter(r => { const d = new Date(r.start_date); return d.getMonth() === idx && r.status === "approved"; }).length,
+    }));
+  }, [requests]);
+
+  const vacationByType = useMemo(() => vacationTypes.map(vt => ({
+    name: vt.name, color: vt.color,
+    count: requests.filter(r => r.vacation_type_id === vt.id && r.status === "approved").length,
+  })), [requests, vacationTypes]);
+
+  const vacationByDepartment = useMemo(() => departments.map(dept => {
+    const deptEmps = employees.filter(e => e.department_id === dept.id);
+    const deptReqs = requests.filter(r => deptEmps.some(e => e.id === r.employee_id) && r.status === "approved");
+    return { name: dept.name, count: deptReqs.length, days: deptReqs.reduce((s, r) => s + Number(r.days), 0), employees: deptEmps.length };
+  }), [employees, departments, requests]);
+
+  // ========== LOGIN ==========
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (
-      loginData.email === "mohamedgamal199681945@gmail.com" &&
-      loginData.password === "Mg1996819456"
-    ) {
+    if (loginData.email === ADMIN_EMAIL && loginData.password === "Mg1996819456") {
       setCurrentUser({ role: "admin", name: "محمد جمال" });
       setCurrentView("admin");
+      await logAction("login", "users", null, null, { role: "admin" });
     } else {
-      const { data: emp } = await supabase
-        .from("employees")
-        .select("*")
-        .eq("code", empCodeInput.trim())
-        .single();
+      const { data: emp } = await supabase.from("employees").select("*").eq("code", empCodeInput.trim()).single();
       if (emp) {
         setCurrentUser(emp);
         setCurrentView("employee");
+        await logAction("login", "employees", emp.id);
       } else {
         alert("الكود الوظيفي غير صحيح ❌");
       }
     }
   };
 
-  // --- تحميل نموذج Excel ---
+  // ========== EXCEL OPERATIONS ==========
   const downloadExcelTemplate = () => {
-    const template = [
-      {
-        "الاسم الكامل": "محمد أحمد علي",
-        "الكود الوظيفي": "1001",
-        "المنصب": "محاسب",
-        "الرصيد الحالي": 21,
-        "الرصيد الشهري": 2,
-      },
-      {
-        "الاسم الكامل": "فاطمة حسن",
-        "الكود الوظيفي": "1002",
-        "المنصب": "مهندسة",
-        "الرصيد الحالي": 21,
-        "الرصيد الشهري": 2,
-      },
-    ];
+    const template = [{
+      "الاسم الكامل": "محمد أحمد",
+      "الكود الوظيفي": "1001",
+      "المنصب": "محاسب",
+      "البريد الإلكتروني": "mohamed@example.com",
+      "الرصيد الحالي": 21,
+      "الرصيد الشهري": 2,
+      "تاريخ التعيين": "2020-01-01",
+      "تاريخ العودة": "2025-01-15",
+      "القسم": "المحاسبة",
+    }];
     const ws = XLSX.utils.json_to_sheet(template);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "نموذج الموظفين");
-    XLSX.writeFile(wb, "نموذج_استيراد_الموظفين.xlsx");
+    XLSX.utils.book_append_sheet(wb, ws, "نموذج");
+    XLSX.writeFile(wb, "نموذج_الموظفين.xlsx");
   };
 
-  // --- استيراد الموظفين من Excel ---
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     setUploadingFile(true);
     try {
       const data = await file.arrayBuffer();
       const workbook = XLSX.read(data);
       const worksheet = workbook.Sheets[workbook.SheetNames[0]];
       const jsonData = XLSX.utils.sheet_to_json(worksheet);
-
-      const employeesToAdd = jsonData.map((row: any) => ({
-        name: row["الاسم الكامل"] || row.name || "",
-        code: String(row["الكود الوظيفي"] || row.code || ""),
-        position: row["المنصب"] || row.position || "",
-        balance: Number(row["الرصيد الحالي"] || row.balance || 21),
-        monthly_balance: Number(row["الرصيد الشهري"] || row.monthly_balance || 0),
-      }));
-
-      // التحقق من البيانات
-      const validEmployees = employeesToAdd.filter(
-        (emp) => emp.name && emp.code
-      );
-
-      if (validEmployees.length === 0) {
-        alert("لم يتم العثور على بيانات صحيحة في الملف!");
-        setUploadingFile(false);
-        return;
-      }
-
-      // إضافة الموظفين
-      const { error } = await supabase
-        .from("employees")
-        .insert(validEmployees);
-
-      if (error) {
-        console.error("Import Error:", error);
-        alert("حدث خطأ أثناء الاستيراد. تأكد من عدم تكرار الأكواد الوظيفية.");
-      } else {
-        alert(`تم إضافة ${validEmployees.length} موظف بنجاح! ✅`);
+      const employeesToAdd = jsonData.map((row: any) => {
+        const deptName = row["القسم"] || "";
+        const dept = departments.find(d => d.name === deptName);
+        return {
+          name: row["الاسم الكامل"] || row.name || "",
+          code: String(row["الكود الوظيفي"] || row.code || ""),
+          position: row["المنصب"] || row.position || "",
+          email: row["البريد الإلكتروني"] || row.email || "",
+          balance: Number(row["الرصيد الحالي"] || row.balance || 21),
+          monthly_balance: Number(row["الرصيد الشهري"] || row.monthly_balance || 0),
+          hire_date: row["تاريخ التعيين"] || row.hire_date || null,
+          return_date: row["تاريخ العودة"] || row.return_date || null,
+          department_id: dept?.id || null,
+        };
+      });
+      const validEmployees = employeesToAdd.filter(emp => emp.name && emp.code);
+      if (validEmployees.length === 0) { alert("لم يتم العثور على بيانات صحيحة!"); setUploadingFile(false); return; }
+      const { error } = await supabase.from("employees").insert(validEmployees);
+      if (!error) {
+        alert(`تم إضافة ${validEmployees.length} موظف ✅`);
         setShowImportModal(false);
         fetchData();
-      }
-    } catch (err) {
-      console.error("File processing error:", err);
-      alert("حدث خطأ في قراءة الملف. تأكد من صحة التنسيق.");
-    }
+        await logAction("bulk_import", "employees", null, null, { count: validEmployees.length });
+      } else { alert("خطأ في الاستيراد: " + error.message); }
+    } catch (err) { alert("خطأ في قراءة الملف"); }
     setUploadingFile(false);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  // --- عمليات الموظفين (Admin) ---
+  const exportToExcel = (data: any[], fileName: string) => {
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "البيانات");
+    XLSX.writeFile(wb, `${fileName}.xlsx`);
+  };
+
+  const exportDetailedReport = () => {
+    const reportData = employees.map(emp => {
+      const empRequests = requests.filter(r => r.employee_id === emp.id && r.status === "approved");
+      const totalVacDays = empRequests.reduce((sum, r) => sum + Number(r.days), 0);
+      const workedDays = calculateWorkedDays(emp.return_date);
+      const dept = departments.find(d => d.id === emp.department_id);
+      const status = getEmployeeStatus(emp);
+      return {
+        "الاسم": emp.name, "الكود الوظيفي": emp.code, "المنصب": emp.position,
+        "البريد الإلكتروني": emp.email || "-",
+        "القسم": dept?.name || "-",
+        "تاريخ التعيين": formatDate(emp.hire_date),
+        "تاريخ العودة": formatDate(emp.return_date),
+        "الرصيد الحالي": emp.balance, "الرصيد الشهري": emp.monthly_balance,
+        "إجمالي أيام الإجازة": totalVacDays,
+        "أيام العمل بعد العودة": workedDays,
+        "حالة الموظف": status,
+        "عدد الطلبات": empRequests.length,
+      };
+    });
+    exportToExcel(reportData, `تقرير_شامل_${new Date().toISOString().split('T')[0]}`);
+  };
+
+  // ========== EMPLOYEE OPERATIONS ==========
   const handleAddEmployee = async () => {
-    if (!newEmp.name || !newEmp.code)
-      return alert("يرجى ملء البيانات الأساسية");
+    if (!newEmp.name || !newEmp.code) return alert("املأ البيانات الأساسية");
     const { error } = await supabase.from("employees").insert([newEmp]);
     if (!error) {
       setShowAddEmp(false);
-      setNewEmp({ name: "", code: "", position: "", balance: 21, monthly_balance: 0 });
+      setNewEmp({ name: "", code: "", position: "", balance: 21, monthly_balance: 0, department_id: "", hire_date: "", return_date: "", email: "" });
       fetchData();
+      await logAction("create", "employees", null, null, newEmp);
+      alert("تم الإضافة ✅");
     }
   };
 
-  const handleDeleteEmployee = async (id: number) => {
-    if (window.confirm("هل أنت متأكد من حذف هذا الموظف نهائياً؟")) {
+  const handleDeleteEmployee = async (id: string) => {
+    if (window.confirm("حذف الموظف نهائياً؟")) {
+      const emp = employees.find(e => e.id === id);
+      await supabase.from("vacation_requests").delete().eq("employee_id", id);
       await supabase.from("employees").delete().eq("id", id);
+      await logAction("delete", "employees", id, emp);
       fetchData();
     }
   };
 
   const handleUpdateEmployee = async () => {
-    const { error } = await supabase
-      .from("employees")
-      .update({
-        name: editingEmp.name,
-        code: editingEmp.code,
-        position: editingEmp.position,
-        balance: editingEmp.balance,
-        monthly_balance: editingEmp.monthly_balance || 0,
-      })
-      .eq("id", editingEmp.id);
+    const oldData = employees.find(e => e.id === editingEmp.id);
+    const { error } = await supabase.from("employees").update({
+      name: editingEmp.name, code: editingEmp.code, position: editingEmp.position,
+      email: editingEmp.email || "",
+      balance: editingEmp.balance, monthly_balance: editingEmp.monthly_balance || 0,
+      department_id: editingEmp.department_id,
+      hire_date: editingEmp.hire_date,
+      return_date: editingEmp.return_date,
+    }).eq("id", editingEmp.id);
     if (!error) {
       setEditingEmp(null);
       fetchData();
-      alert("تم تحديث بيانات الموظف بنجاح ✅");
-    } else {
-      console.error("Update Error:", error);
-      alert("حدث خطأ في التحديث. تحقق من البيانات.");
+      alert("تم التحديث ✅");
+      await logAction("update", "employees", editingEmp.id, oldData, editingEmp);
     }
   };
 
-  // --- عمليات الإجازات (Admin) مع الملاحظات ---
+  // ========== VACATION OPERATIONS ==========
   const openApprovalModal = (req: any, action: "approved" | "rejected") => {
     setCurrentRequest({ ...req, action });
     setAdminNotes("");
@@ -335,766 +460,760 @@ const VacationManagementSystem = () => {
 
   const handleActionWithNotes = async () => {
     if (!currentRequest) return;
-    
     const { id, action, employee_id, days } = currentRequest;
-    
+    const oldData = requests.find(r => r.id === id);
+    const emp = employees.find(e => e.id === employee_id);
+
     if (action === "approved") {
-      const emp = employees.find((e) => e.id === employee_id);
-      if (emp.balance < days) {
-        alert("رصيد الموظف غير كافٍ!");
-        setShowApprovalModal(false);
-        return;
+      if (emp.balance < days) { alert("رصيد غير كافٍ!"); setShowApprovalModal(false); return; }
+      // خصم الرصيد + تغيير الحالة لإجازة
+      // نخصم الرصيد + نغير الحالة لإجازة + نعمل reset لـ return_date عشان أيام العمل تبقى صفر
+      await supabase.from("employees").update({ balance: emp.balance - days, status: "إجازة", return_date: null }).eq("id", emp.id);
+      // إرسال إيميل للموظف بالموافقة
+      if (emp.email) {
+        const { back } = getCalculatedDates(currentRequest.start_date, days);
+        await sendEmail(EMAILJS_TEMPLATES.approved, emp.email, {
+          employee_name: emp.name,
+          start_date: formatDate(currentRequest.start_date),
+          days: days,
+          back_date: formatDate(back),
+          admin_notes: adminNotes || "لا توجد ملاحظات",
+          request_id: id,
+        });
       }
-      await supabase
-        .from("employees")
-        .update({ balance: emp.balance - days })
-        .eq("id", emp.id);
     }
-    
-    await supabase
-      .from("vacation_requests")
-      .update({ 
-        status: action,
-        admin_notes: adminNotes || null
-      })
-      .eq("id", id);
-    
+
+    if (action === "rejected") {
+      // إرسال إيميل للموظف بالرفض
+      if (emp?.email) {
+        await sendEmail(EMAILJS_TEMPLATES.rejected, emp.email, {
+          employee_name: emp.name,
+          start_date: formatDate(currentRequest.start_date),
+          admin_notes: adminNotes || "لا توجد ملاحظات",
+          request_id: id,
+        });
+      }
+    }
+
+    await supabase.from("vacation_requests").update({ status: action, admin_notes: adminNotes || null }).eq("id", id);
     setShowApprovalModal(false);
     setCurrentRequest(null);
     setAdminNotes("");
     fetchData();
+    await logAction(action, "vacation_requests", id, oldData, { status: action, admin_notes: adminNotes });
+  };
+
+  const handleDeleteVacation = async (id: string) => {
+    if (!window.confirm("حذف طلب الإجازة؟")) return;
+    const req = requests.find(r => r.id === id);
+    if (req?.status === "approved") {
+      const emp = employees.find(e => e.id === req.employee_id);
+      if (emp) await supabase.from("employees").update({ balance: emp.balance + Number(req.days) }).eq("id", emp.id);
+    }
+    await supabase.from("vacation_requests").delete().eq("id", id);
+    await logAction("delete", "vacation_requests", id, req);
+    fetchData();
+    alert("تم الحذف ✅");
   };
 
   const handleUpdateVacation = async () => {
-    const { error } = await supabase
-      .from("vacation_requests")
-      .update({
-        start_date: editingVac.start_date,
-        days: editingVac.days,
-        notes: editingVac.notes,
-      })
-      .eq("id", editingVac.id);
+    const oldData = requests.find(r => r.id === editingVac.id);
+    const { error } = await supabase.from("vacation_requests").update({
+      start_date: editingVac.start_date, days: editingVac.days,
+      notes: editingVac.notes, vacation_type_id: editingVac.vacation_type_id,
+    }).eq("id", editingVac.id);
     if (!error) {
       setEditingVac(null);
       fetchData();
-      alert("تم تحديث بيانات الإجازة ✅");
+      alert("تم التحديث ✅");
+      await logAction("update", "vacation_requests", editingVac.id, oldData, editingVac);
     }
   };
 
-  // --- بوابة الموظف (Employee Logic) ---
+  // ========== RETURN FROM VACATION ==========
+  const openReturnModal = (request: any) => {
+    setReturnData({ ...request, actual_return_date: new Date().toISOString().split("T")[0] });
+    setShowReturnModal(true);
+  };
+
+  const handleReturnFromVacation = async () => {
+    if (!returnData) return;
+    const emp = employees.find(e => e.id === returnData.employee_id);
+    if (!emp) return;
+    // تسجيل تاريخ العودة الفعلي + حالة الموظف = عمل
+    await supabase.from("employees").update({
+      return_date: returnData.actual_return_date,
+      status: "عمل",
+    }).eq("id", emp.id);
+    await supabase.from("vacation_requests").update({ actual_return_date: returnData.actual_return_date }).eq("id", returnData.id);
+    setShowReturnModal(false);
+    setReturnData(null);
+    fetchData();
+    alert("تم تسجيل العودة وتحديث تاريخ العودة ✅");
+    await logAction("return_from_vacation", "vacation_requests", returnData.id);
+  };
+
+  // ========== EMPLOYEE PORTAL ==========
   const submitVacationRequest = async () => {
-    if (!newRequest.start_date) return alert("يرجى تحديد تاريخ البداية");
+    if (!newRequest.start_date) return alert("حدد تاريخ البداية");
+    if (!newRequest.vacation_type_id) return alert("اختر نوع الإجازة");
     setIsSubmitting(true);
-    const { error } = await supabase.from("vacation_requests").insert([
-      {
-        employee_id: currentUser.id,
-        employee_name: currentUser.name,
-        start_date: newRequest.start_date,
-        days: newRequest.days,
-        notes: newRequest.notes,
-        status: "pending",
-      },
-    ]);
+    const { error } = await supabase.from("vacation_requests").insert([{
+      employee_id: currentUser.id, employee_name: currentUser.name,
+      start_date: newRequest.start_date, days: newRequest.days,
+      notes: newRequest.notes, vacation_type_id: newRequest.vacation_type_id, status: "pending",
+    }]);
     if (!error) {
-      setNewRequest({ start_date: "", days: 1, notes: "" });
+      // إشعار المدير بالطلب الجديد
+      await sendEmail(EMAILJS_TEMPLATES.new_request_admin, ADMIN_EMAIL, {
+        employee_name: currentUser.name,
+        start_date: formatDate(newRequest.start_date),
+        days: newRequest.days,
+        notes: newRequest.notes || "لا توجد ملاحظات",
+      });
+      setNewRequest({ start_date: "", days: 1, notes: "", vacation_type_id: "" });
       fetchData();
-      alert("تم إرسال طلبك بنجاح");
+      alert("تم الإرسال وتم إشعار الإدارة ✅");
+      await logAction("create", "vacation_requests", null, null, newRequest);
     }
     setIsSubmitting(false);
   };
 
-  // --- تصدير واستيراد ---
-  const exportToExcel = (data: any[], fileName: string) => {
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "البيانات");
-    XLSX.writeFile(wb, `${fileName}.xlsx`);
+  // ========== DEPARTMENT OPERATIONS ==========
+  const handleAddDepartment = async () => {
+    if (!newDept.name) return alert("أدخل اسم القسم");
+    const { error } = await supabase.from("departments").insert([newDept]);
+    if (!error) {
+      setShowAddDept(false);
+      setNewDept({ name: "", description: "" });
+      fetchData();
+      await logAction("create", "departments", null, null, newDept);
+      alert("تم إضافة القسم ✅");
+    }
   };
 
-  // --- واجهة تسجيل الدخول ---
-  if (currentView === "login")
+  const deleteDepartment = async (id: string) => {
+    if (window.confirm("حذف القسم؟")) {
+      await supabase.from("departments").delete().eq("id", id);
+      fetchData();
+      await logAction("delete", "departments", id);
+      alert("تم الحذف ✅");
+    }
+  };
+
+  // ========== HOLIDAY OPERATIONS ==========
+  const handleAddHoliday = async () => {
+    if (!newHoliday.name || !newHoliday.date) return alert("أدخل بيانات العطلة");
+    const { error } = await supabase.from("public_holidays").insert([newHoliday]);
+    if (!error) {
+      setShowAddHoliday(false);
+      setNewHoliday({ name: "", date: "", is_recurring: false });
+      fetchData();
+      await logAction("create", "public_holidays", null, null, newHoliday);
+      alert("تم إضافة العطلة ✅");
+    }
+  };
+
+  const deleteHoliday = async (id: string) => {
+    if (window.confirm("حذف العطلة؟")) {
+      await supabase.from("public_holidays").delete().eq("id", id);
+      fetchData();
+      await logAction("delete", "public_holidays", id);
+    }
+  };
+
+  // ========== CALENDAR RENDER ==========
+  const renderCalendar = () => {
+    const year = currentMonth.getFullYear();
+    const month = currentMonth.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const daysInMonth = lastDay.getDate();
+    const startingDayOfWeek = firstDay.getDay();
+    const dayNames = ["الأحد","الاثنين","الثلاثاء","الأربعاء","الخميس","الجمعة","السبت"];
+    const days = [];
+    for (let i = 0; i < startingDayOfWeek; i++) days.push(<div key={`e-${i}`} className="p-2"></div>);
+    for (let day = 1; day <= daysInMonth; day++) {
+      const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+      const dayRequests = requests.filter(r => {
+        if (r.status !== "approved") return false;
+        const { back } = getCalculatedDates(r.start_date, r.days);
+        return r.start_date <= dateStr && back > dateStr;
+      });
+      const isHoliday = publicHolidays.some(h => h.date === dateStr);
+      const isToday = dateStr === new Date().toISOString().split('T')[0];
+      days.push(
+        <div key={day} className={`p-2 border rounded-lg min-h-[70px] text-sm ${isToday ? 'bg-indigo-50 border-indigo-300 font-bold' : 'border-slate-100'} ${isHoliday ? 'bg-red-50' : ''}`}>
+          <div className={`text-xs mb-1 ${isToday ? 'text-indigo-600' : ''}`}>{day}</div>
+          {dayRequests.length > 0 && (
+            <div className="space-y-0.5">
+              {dayRequests.slice(0, 2).map((req, idx) => {
+                const vacType = vacationTypes.find(vt => vt.id === req.vacation_type_id);
+                return (<div key={idx} className="text-[9px] px-1 py-0.5 rounded truncate" style={{ backgroundColor: vacType?.color+'30', color: vacType?.color }} title={req.employee_name}>{req.employee_name.split(' ')[0]}</div>);
+              })}
+              {dayRequests.length > 2 && <div className="text-[9px] text-slate-400">+{dayRequests.length - 2}</div>}
+            </div>
+          )}
+          {isHoliday && <div className="text-[9px] text-red-600 font-bold">عطلة</div>}
+        </div>
+      );
+    }
     return (
-      <div
-        className="min-h-screen bg-slate-950 flex items-center justify-center p-6 text-right"
-        dir="rtl"
-      >
-        <div className="w-full max-w-4xl grid md:grid-cols-2 rounded-[2.5rem] overflow-hidden shadow-2xl border border-slate-800">
-          <div className="p-12 bg-slate-900 border-l border-slate-800">
-            <Users className="text-indigo-500 mb-6" size={48} />
-            <h2 className="text-3xl font-bold text-white mb-8">
-              دخول الموظفين
-            </h2>
+      <div className="bg-white p-6 rounded-[2rem] shadow-sm border">
+        <div className="flex items-center justify-between mb-4">
+          <button onClick={() => setCurrentMonth(new Date(year, month-1))} className="p-2 hover:bg-slate-100 rounded-xl">❯</button>
+          <h3 className="text-lg font-black">{currentMonth.toLocaleDateString('ar-EG', { month: 'long', year: 'numeric' })}</h3>
+          <button onClick={() => setCurrentMonth(new Date(year, month+1))} className="p-2 hover:bg-slate-100 rounded-xl">❮</button>
+        </div>
+        <div className="grid grid-cols-7 gap-1 mb-2">
+          {dayNames.map(n => <div key={n} className="text-center font-bold text-xs text-slate-600 p-1">{n}</div>)}
+        </div>
+        <div className="grid grid-cols-7 gap-1">{days}</div>
+        <div className="mt-4 flex gap-3 text-xs flex-wrap">
+          {vacationTypes.map(vt => (
+            <div key={vt.id} className="flex items-center gap-1">
+              <div className="w-3 h-3 rounded" style={{ backgroundColor: vt.color }}></div>
+              <span>{vt.name}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  // ========== FILTERED DATA ==========
+  const filteredEmployees = useMemo(() => {
+    const today = new Date().toISOString().split("T")[0];
+    return employees.filter(emp => {
+      const matchSearch = emp.name.includes(empSearch) || emp.code.includes(empSearch);
+      const matchDept = departmentFilter === "all" || emp.department_id === departmentFilter;
+      const isOnVacation = requests.some(r =>
+        r.employee_id === emp.id && r.status === "approved" &&
+        (() => { const { back } = getCalculatedDates(r.start_date, r.days); return r.start_date <= today && back > today; })()
+      );
+      const empStatus = isOnVacation ? "إجازة" : "عمل";
+      const matchStatus = empStatusFilter === "all" || empStatus === empStatusFilter;
+      return matchSearch && matchDept && matchStatus;
+    });
+  }, [employees, empSearch, departmentFilter, empStatusFilter, requests]);
+
+  const filteredRequests = useMemo(() => {
+    return requests.filter(req => {
+      const matchSearch = req.employee_name?.includes(vacSearch);
+      const matchType = vacationTypeFilter === "all" || req.vacation_type_id === vacationTypeFilter;
+      const matchStatus = statusFilter === "all" || req.status === statusFilter;
+      return matchSearch && matchType && matchStatus;
+    });
+  }, [requests, vacSearch, vacationTypeFilter, statusFilter]);
+
+  // ==================== LOGIN VIEW ====================
+  if (currentView === "login") {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-900 flex items-center justify-center p-6" dir="rtl">
+        <div className="w-full max-w-4xl grid md:grid-cols-2 rounded-[2.5rem] overflow-hidden shadow-2xl border border-slate-700/50">
+          <div className="p-12 bg-slate-800/80">
+            <Users className="text-indigo-400 mb-6" size={48} />
+            <h2 className="text-3xl font-bold text-white mb-8">دخول الموظفين</h2>
             <input
-              className="w-full bg-slate-800 p-4 rounded-2xl text-white mb-4 outline-none border border-slate-700 focus:border-indigo-500 transition-all"
-              placeholder="أدخل الكود الوظيفي"
+              className="w-full bg-slate-700/50 p-4 rounded-2xl text-white mb-4 outline-none border border-slate-600 focus:border-indigo-500"
+              placeholder="الكود الوظيفي"
               value={empCodeInput}
               onChange={(e) => setEmpCodeInput(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleLogin(e as any)}
             />
-            <button
-              onClick={handleLogin}
-              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white p-4 rounded-2xl font-bold text-lg shadow-lg shadow-indigo-900/20"
-            >
-              دخول سريع
-            </button>
+            <button onClick={handleLogin} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white p-4 rounded-2xl font-bold">دخول</button>
           </div>
-          <div className="p-12 bg-slate-950">
-            <ShieldCheck className="text-emerald-500 mb-6" size={48} />
+          <div className="p-12 bg-slate-900/80">
+            <ShieldCheck className="text-emerald-400 mb-6" size={48} />
             <h2 className="text-3xl font-bold text-white mb-8">لوحة الإدارة</h2>
             <input
-              className="w-full bg-slate-900 p-4 rounded-2xl text-white mb-4 border border-slate-800 outline-none focus:border-emerald-500"
+              className="w-full bg-slate-800/50 p-4 rounded-2xl text-white mb-4 border border-slate-700 outline-none focus:border-emerald-500"
               placeholder="البريد الإلكتروني"
-              onChange={(e) =>
-                setLoginData({ ...loginData, email: e.target.value })
-              }
+              value={loginData.email}
+              onChange={(e) => setLoginData({ ...loginData, email: e.target.value })}
             />
             <input
               type="password"
-              className="w-full bg-slate-900 p-4 rounded-2xl text-white mb-6 border border-slate-800 outline-none focus:border-emerald-500"
+              className="w-full bg-slate-800/50 p-4 rounded-2xl text-white mb-6 border border-slate-700 outline-none focus:border-emerald-500"
               placeholder="كلمة المرور"
-              onChange={(e) =>
-                setLoginData({ ...loginData, password: e.target.value })
-              }
+              value={loginData.password}
+              onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
+              onKeyDown={(e) => e.key === "Enter" && handleLogin(e as any)}
             />
-            <button
-              onClick={handleLogin}
-              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white p-4 rounded-2xl font-bold text-lg shadow-lg shadow-emerald-900/20"
-            >
-              تسجيل دخول المدير
-            </button>
+            <button onClick={handleLogin} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white p-4 rounded-2xl font-bold">دخول</button>
           </div>
         </div>
       </div>
     );
+  }
 
-  // --- واجهة المدير (Admin) ---
-  if (currentView === "admin")
+  // ==================== ADMIN VIEW ====================
+  if (currentView === "admin") {
     return (
-      <div
-        className="min-h-screen bg-slate-50 flex text-right font-sans"
-        dir="rtl"
-      >
+      <div className="min-h-screen bg-slate-50 flex" dir="rtl">
         {/* Sidebar */}
         <aside className="w-72 bg-slate-900 text-slate-300 fixed h-full p-6 flex flex-col shadow-2xl z-20">
           <div className="mb-10 text-center">
-            <div className="bg-indigo-600 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-indigo-500/30">
+            <div className="bg-indigo-600 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
               <CalendarDays className="text-white" size={32} />
             </div>
-            <h1 className="text-white font-black text-xl tracking-tight">
-              نظام إدارة الإجازات
-            </h1>
-            <p className="text-slate-500 text-xs mt-1 uppercase tracking-widest">
-              المؤسسة الاحترافية
-            </p>
+            <h1 className="text-white font-black text-xl">نظام إدارة الإجازات</h1>
+            <p className="text-slate-500 text-xs mt-1">النسخة المتقدمة</p>
           </div>
-
           <nav className="flex-1 space-y-2">
             {[
               { id: "dashboard", label: "الرئيسية", icon: LayoutDashboard },
-              { id: "employees", label: "شؤون الموظفين", icon: Users },
-              { id: "requests", label: "طلبات الانتظار", icon: Clock },
-              { id: "history", label: "سجل الإجازات", icon: FileSpreadsheet },
+              { id: "employees", label: "الموظفين", icon: Users },
+              { id: "requests", label: "الطلبات", icon: Clock },
+              { id: "calendar", label: "التقويم", icon: Calendar },
+              { id: "reports", label: "التقارير", icon: BarChart3 },
+              { id: "departments", label: "الأقسام", icon: Building2 },
+              { id: "holidays", label: "العطلات", icon: CalendarDays },
+              { id: "history", label: "السجل", icon: History },
             ].map((item) => (
               <button
                 key={item.id}
                 onClick={() => setActiveTab(item.id)}
-                className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-all duration-200 ${
-                  activeTab === item.id
-                    ? "bg-indigo-600 text-white shadow-lg shadow-indigo-900/40"
-                    : "hover:bg-slate-800 hover:text-white"
-                }`}
+                className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-all ${activeTab === item.id ? "bg-indigo-600 text-white shadow-lg" : "hover:bg-slate-800 hover:text-white"}`}
               >
-                <item.icon size={22} />
+                <item.icon size={20} />
                 <span className="font-bold">{item.label}</span>
+                {item.id === "requests" && notifications.length > 0 && (
+                  <span className="mr-auto bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">{notifications.length}</span>
+                )}
               </button>
             ))}
           </nav>
-
-          <button
-            onClick={() => setCurrentView("login")}
-            className="p-4 text-red-400 hover:bg-red-500/10 rounded-2xl flex items-center gap-4 transition-all mt-auto border border-red-500/20"
-          >
-            <LogOut size={22} />
-            <span className="font-bold">تسجيل الخروج</span>
+          <button onClick={() => setCurrentView("login")} className="p-4 text-red-400 hover:bg-red-500/10 rounded-2xl flex items-center gap-4 transition-all mt-auto border border-red-500/20">
+            <LogOut size={20} /><span className="font-bold">خروج</span>
           </button>
         </aside>
 
-        {/* Main Area */}
-        <main className="mr-72 p-10 w-full overflow-x-hidden">
-          {/* TAB: DASHBOARD */}
-          {activeTab === "dashboard" && (
-            <div className="space-y-10 animate-in fade-in duration-500">
-              <header className="flex justify-between items-end">
-                <div>
-                  <h2 className="text-3xl font-black text-slate-800">
-                    أهلاً بك، {currentUser.name} 👋
-                  </h2>
-                  <p className="text-slate-500 mt-1">
-                    إليك ملخص حالة العمل اليوم في المؤسسة.
-                  </p>
-                </div>
-              </header>
+        {/* Main Content */}
+        <main className="mr-72 p-10 w-full">
+          {loading && <div className="flex items-center justify-center h-screen"><Loader2 className="animate-spin text-indigo-600" size={48} /></div>}
 
-              <div className="grid grid-cols-3 gap-8">
-                <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 flex items-center gap-6">
-                  <div className="p-5 bg-blue-50 text-blue-600 rounded-[1.5rem]">
-                    <Users size={32} />
+          {!loading && (
+            <>
+              {/* ===== DASHBOARD ===== */}
+              {activeTab === "dashboard" && (
+                <div className="space-y-8">
+                  <header>
+                    <h2 className="text-3xl font-black text-slate-800">أهلاً {currentUser.name} 👋</h2>
+                    <p className="text-slate-500 mt-1">نظرة عامة على حالة الإجازات</p>
+                  </header>
+                  <div className="grid grid-cols-4 gap-6">
+                    <div className="bg-white p-6 rounded-[2rem] shadow-sm border flex items-center gap-4">
+                      <div className="p-4 bg-blue-50 text-blue-600 rounded-xl"><Users size={28} /></div>
+                      <div><p className="text-slate-500 font-bold text-sm">إجمالي الموظفين</p><h3 className="text-3xl font-black">{stats.totalEmployees}</h3></div>
+                    </div>
+                    <div className="bg-white p-6 rounded-[2rem] shadow-sm border flex items-center gap-4">
+                      <div className="p-4 bg-amber-50 text-amber-600 rounded-xl"><Clock size={28} /></div>
+                      <div><p className="text-slate-500 font-bold text-sm">طلبات معلقة</p><h3 className="text-3xl font-black text-amber-600">{stats.pendingRequests}</h3></div>
+                    </div>
+                    <div className="bg-white p-6 rounded-[2rem] shadow-sm border flex items-center gap-4">
+                      <div className="p-4 bg-emerald-50 text-emerald-600 rounded-xl"><CheckCircle size={28} /></div>
+                      <div><p className="text-slate-500 font-bold text-sm">في إجازة الآن</p><h3 className="text-3xl font-black text-emerald-600">{stats.onVacationNow}</h3></div>
+                    </div>
+                    <div className="bg-white p-6 rounded-[2rem] shadow-sm border flex items-center gap-4">
+                      <div className="p-4 bg-purple-50 text-purple-600 rounded-xl"><TrendingUp size={28} /></div>
+                      <div><p className="text-slate-500 font-bold text-sm">متوسط الرصيد</p><h3 className="text-3xl font-black text-purple-600">{stats.avgBalance}</h3></div>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-slate-500 font-bold mb-1">
-                      القوة البشرية
-                    </p>
-                    <h3 className="text-4xl font-black">{employees.length}</h3>
-                  </div>
-                </div>
-                <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 flex items-center gap-6">
-                  <div className="p-5 bg-amber-50 text-amber-600 rounded-[1.5rem]">
-                    <Clock size={32} />
-                  </div>
-                  <div>
-                    <p className="text-slate-500 font-bold mb-1">
-                      بانتظار القرار
-                    </p>
-                    <h3 className="text-4xl font-black text-amber-600">
-                      {requests.filter((r) => r.status === "pending").length}
-                    </h3>
-                  </div>
-                </div>
-                <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 flex items-center gap-6">
-                  <div className="p-5 bg-emerald-50 text-emerald-600 rounded-[1.5rem]">
-                    <CheckCircle size={32} />
-                  </div>
-                  <div>
-                    <p className="text-slate-500 font-bold mb-1">
-                      في إجازة حالياً
-                    </p>
-                    <h3 className="text-4xl font-black text-emerald-600">
-                      {comingBackSoon.length}
-                    </h3>
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-10">
-                {/* الأكثر رصيداً */}
-                <section className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden">
-                  <div className="p-8 border-b border-slate-50 flex justify-between items-center bg-slate-50/50">
-                    <h4 className="font-black text-slate-800 flex items-center gap-3">
-                      <ArrowUpRight className="text-indigo-600" /> الأكثر رصيداً
-                      للأيام
-                    </h4>
-                  </div>
-                  <div className="p-4">
-                    <table className="w-full">
-                      <thead>
-                        <tr className="text-slate-400 text-sm">
-                          <th className="p-4 text-right">الموظف</th>
-                          <th className="p-4 text-center">الرصيد المتبقي</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {topBalances.map((emp) => (
-                          <tr
-                            key={emp.id}
-                            className="border-t border-slate-50 group hover:bg-slate-50 transition-all"
-                          >
-                            <td className="p-5 font-bold text-slate-700">
-                              {emp.name}
-                            </td>
-                            <td className="p-5 text-center">
-                              <span className="bg-indigo-100 text-indigo-700 px-4 py-1.5 rounded-full font-black text-sm">
-                                {emp.balance} يوم
-                              </span>
-                            </td>
-                          </tr>
+                  <div className="grid grid-cols-2 gap-8">
+                    <div className="bg-white rounded-[2rem] shadow-sm border">
+                      <div className="p-6 border-b bg-slate-50/50"><h4 className="font-black text-slate-800 flex items-center gap-2"><ArrowUpRight className="text-indigo-600" size={20} /> الأعلى رصيداً</h4></div>
+                      <div className="p-4">
+                        {topBalances.map((emp, idx) => (
+                          <div key={emp.id} className="flex justify-between items-center p-3 hover:bg-slate-50 rounded-xl">
+                            <div className="flex items-center gap-3"><span className="text-lg font-bold text-slate-400">#{idx+1}</span><span className="font-bold text-slate-800">{emp.name}</span></div>
+                            <span className="bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full font-bold text-sm">{emp.balance} يوم</span>
+                          </div>
                         ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </section>
-
-                {/* أقرب عودة */}
-                <section className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden">
-                  <div className="p-8 border-b border-slate-50 flex justify-between items-center bg-slate-50/50">
-                    <h4 className="font-black text-slate-800 flex items-center gap-3">
-                      <Calendar className="text-emerald-600" /> أقرب مواعيد
-                      العودة
-                    </h4>
-                  </div>
-                  <div className="p-4">
-                    <table className="w-full">
-                      <thead>
-                        <tr className="text-slate-400 text-sm">
-                          <th className="p-4 text-right">الموظف</th>
-                          <th className="p-4 text-center">يوم العودة</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {comingBackSoon.map((req) => (
-                          <tr
-                            key={req.id}
-                            className="border-t border-slate-50 hover:bg-slate-50 transition-all"
-                          >
-                            <td className="p-5 font-bold text-slate-700">
-                              {req.employee_name}
-                            </td>
-                            <td className="p-5 text-center font-black text-emerald-600">
-                              {formatDate(req.backDate)}
-                            </td>
-                          </tr>
+                      </div>
+                    </div>
+                    <div className="bg-white rounded-[2rem] shadow-sm border">
+                      <div className="p-6 border-b bg-slate-50/50"><h4 className="font-black text-slate-800 flex items-center gap-2"><Calendar className="text-emerald-600" size={20} /> أقرب مواعيد العودة</h4></div>
+                      <div className="p-4 space-y-2">
+                        {comingBackSoon.map(req => (
+                          <div key={req.id} className="flex justify-between items-center p-3 hover:bg-slate-50 rounded-xl">
+                            <span className="font-bold text-slate-800">{req.employee_name}</span>
+                            <span className="text-emerald-600 font-bold text-sm">{formatDate(req.backDate)}</span>
+                          </div>
                         ))}
-                        {comingBackSoon.length === 0 && (
-                          <tr>
-                            <td
-                              colSpan={2}
-                              className="p-16 text-center text-slate-400 font-bold"
-                            >
-                              لا يوجد أحد في إجازة حالياً
-                            </td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
+                      </div>
+                    </div>
                   </div>
-                </section>
-              </div>
-            </div>
-          )}
-
-          {/* TAB: EMPLOYEES */}
-          {activeTab === "employees" && (
-            <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500">
-              <div className="flex justify-between items-center">
-                <div className="relative w-1/2">
-                  <Search
-                    className="absolute right-4 top-3.5 text-slate-400"
-                    size={20}
-                  />
-                  <input
-                    className="w-full pr-12 p-3.5 bg-white border border-slate-200 rounded-2xl shadow-sm outline-none focus:ring-4 ring-indigo-500/5 transition-all"
-                    placeholder="ابحث بالاسم، الكود، أو المنصب..."
-                    value={empSearch}
-                    onChange={(e) => setEmpSearch(e.target.value)}
-                  />
-                </div>
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => setShowImportModal(true)}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3.5 rounded-2xl flex items-center gap-2 font-black shadow-lg shadow-emerald-200"
-                  >
-                    <Upload size={20} /> استيراد من Excel
-                  </button>
-                  <button
-                    onClick={() => setShowAddEmp(true)}
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3.5 rounded-2xl flex items-center gap-2 font-black shadow-lg shadow-indigo-200"
-                  >
-                    <UserPlus size={20} /> إضافة موظف
-                  </button>
-                  <button
-                    onClick={() => exportToExcel(employees, "قائمة_الموظفين")}
-                    className="bg-slate-800 hover:bg-slate-900 text-white px-6 py-3.5 rounded-2xl flex items-center gap-2 font-black"
-                  >
-                    <Download size={20} /> تصدير
-                  </button>
-                </div>
-              </div>
-
-              <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 overflow-hidden">
-                <table className="w-full text-right">
-                  <thead className="bg-slate-50 text-slate-500 border-b uppercase text-xs tracking-wider">
-                    <tr>
-                      <th className="p-6">الاسم الكامل</th>
-                      <th className="p-6">كود الموظف</th>
-                      <th className="p-6">المنصب</th>
-                      <th className="p-6 text-center">الرصيد الحالي</th>
-                      <th className="p-6 text-center">الرصيد الشهري</th>
-                      <th className="p-6 text-center">التحكم</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-50">
-                    {employees
-                      .filter(
-                        (e) =>
-                          e.name.includes(empSearch) ||
-                          e.code.includes(empSearch)
-                      )
-                      .map((emp) => (
-                        <tr
-                          key={emp.id}
-                          className="hover:bg-slate-50 transition-colors"
-                        >
-                          <td className="p-6 font-black text-slate-800">
-                            {emp.name}
-                          </td>
-                          <td className="p-6 font-mono text-slate-500 text-sm">
-                            {emp.code}
-                          </td>
-                          <td className="p-6 text-slate-600 font-medium">
-                            {emp.position}
-                          </td>
-                          <td className="p-6 text-center">
-                            <span className="font-black text-indigo-600 text-lg">
-                              {emp.balance}
-                            </span>
-                          </td>
-                          <td className="p-6 text-center">
-                            <span className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full font-bold text-sm flex items-center justify-center gap-1 w-fit mx-auto">
-                              <Zap size={14} />
-                              {emp.monthly_balance || 0}
-                            </span>
-                          </td>
-                          <td className="p-6 text-center">
-                            <div className="flex justify-center gap-2">
-                              <button
-                                onClick={() => setEditingEmp(emp)}
-                                className="p-2.5 text-blue-500 hover:bg-blue-50 rounded-xl transition-all"
-                              >
-                                <Edit3 size={18} />
-                              </button>
-                              <button
-                                onClick={() => handleDeleteEmployee(emp.id)}
-                                className="p-2.5 text-red-500 hover:bg-red-50 rounded-xl transition-all"
-                              >
-                                <Trash2 size={18} />
-                              </button>
+                  <div className="grid grid-cols-3 gap-6">
+                    <div className="bg-white p-6 rounded-[2rem] shadow-sm border col-span-2">
+                      <h4 className="font-black mb-4 flex items-center gap-2"><BarChart2 size={20} className="text-indigo-600" /> الإجازات الشهرية</h4>
+                      <div className="h-48 flex items-end justify-between gap-2">
+                        {vacationByMonth.map((item, idx) => {
+                          const maxCount = Math.max(...vacationByMonth.map(v => v.count));
+                          const height = maxCount > 0 ? (item.count / maxCount) * 100 : 0;
+                          return (
+                            <div key={idx} className="flex-1 flex flex-col items-center">
+                              <div className="w-full bg-indigo-500 rounded-t-lg transition-all hover:bg-indigo-600" style={{ height: `${height}%` }} title={`${item.month}: ${item.count}`}></div>
+                              <span className="text-xs mt-2 text-slate-600">{item.month.slice(0,3)}</span>
                             </div>
-                          </td>
-                        </tr>
-                      ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {/* TAB: REQUESTS */}
-          {activeTab === "requests" && (
-            <div className="grid grid-cols-2 gap-6 animate-in fade-in duration-500">
-              {requests
-                .filter((r) => r.status === "pending")
-                .map((req) => (
-                  <div
-                    key={req.id}
-                    className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm flex flex-col justify-between hover:shadow-md transition-all"
-                  >
-                    <div>
-                      <div className="flex justify-between items-start mb-6">
-                        <div>
-                          <h4 className="font-black text-xl text-slate-800">
-                            {req.employee_name}
-                          </h4>
-                          <p className="text-slate-400 text-sm mt-1">
-                            طلب إجازة جديد
-                          </p>
-                        </div>
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => setEditingVac(req)}
-                            className="p-2 text-blue-500 hover:bg-blue-50 rounded-xl transition-all"
-                            title="تعديل الطلب"
-                          >
-                            <Edit3 size={18} />
-                          </button>
-                          <span className="bg-amber-100 text-amber-700 px-4 py-1.5 rounded-full text-xs font-black">
-                            قيد المراجعة
-                          </span>
-                        </div>
+                          );
+                        })}
                       </div>
-                      <div className="bg-slate-50 p-6 rounded-2xl space-y-3 mb-8">
-                        <div className="flex justify-between text-sm font-bold">
-                          <span className="text-slate-400">تاريخ البداية</span>
-                          <span className="text-slate-800">
-                            {formatDate(req.start_date)}
-                          </span>
-                        </div>
-                        <div className="flex justify-between text-sm font-bold">
-                          <span className="text-slate-400">المدة المطلوبة</span>
-                          <span className="text-slate-800">{req.days} يوم</span>
-                        </div>
-                        <div className="flex justify-between text-sm font-bold pt-3 border-t">
-                          <span className="text-indigo-600">
-                            موعد العودة التقريبي
-                          </span>
-                          <span className="text-indigo-600 font-black">
-                            {formatDate(
-                              getCalculatedDates(req.start_date, req.days).back
-                            )}
-                          </span>
-                        </div>
-                      </div>
-                      {req.notes && (
-                        <p className="text-sm text-slate-500 italic mb-6">
-                          " {req.notes} "
-                        </p>
-                      )}
                     </div>
-                    <div className="flex gap-3">
-                      <button
-                        onClick={() => openApprovalModal(req, "approved")}
-                        className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-4 rounded-2xl font-black transition-all shadow-lg shadow-emerald-100"
-                      >
-                        قبول الإجازة
-                      </button>
-                      <button
-                        onClick={() => openApprovalModal(req, "rejected")}
-                        className="flex-1 bg-red-50 text-red-600 hover:bg-red-100 py-4 rounded-2xl font-black transition-all"
-                      >
-                        رفض
-                      </button>
+                    <div className="bg-white p-6 rounded-[2rem] shadow-sm border">
+                      <h4 className="font-black mb-4 flex items-center gap-2"><PieChart size={20} className="text-purple-600" /> أنواع الإجازات</h4>
+                      <div className="space-y-3">
+                        {vacationByType.map(item => (
+                          <div key={item.name} className="flex justify-between items-center">
+                            <div className="flex items-center gap-2"><div className="w-3 h-3 rounded" style={{ backgroundColor: item.color }}></div><span className="text-sm">{item.name}</span></div>
+                            <span className="font-bold">{item.count}</span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   </div>
-                ))}
-              {requests.filter((r) => r.status === "pending").length === 0 && (
-                <div className="col-span-2 py-32 text-center bg-white rounded-[3rem] border border-dashed border-slate-200">
-                  <p className="text-slate-400 font-bold text-lg">
-                    لا توجد طلبات معلقة حالياً.. العمل مستقر ✅
-                  </p>
                 </div>
               )}
-            </div>
-          )}
 
-          {/* TAB: HISTORY */}
-          {activeTab === "history" && (
-            <div className="space-y-6 animate-in fade-in duration-500">
-              <div className="flex justify-between items-center">
-                <div className="relative w-1/3">
-                  <Search
-                    className="absolute right-4 top-3 text-slate-400"
-                    size={18}
-                  />
-                  <input
-                    className="w-full pr-11 p-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-4 ring-indigo-500/5"
-                    placeholder="بحث في السجل..."
-                    onChange={(e) => setVacSearch(e.target.value)}
-                  />
+              {/* ===== EMPLOYEES ===== */}
+              {activeTab === "employees" && (
+                <div className="space-y-6">
+                  <div className="flex justify-between items-center">
+                    <div className="relative w-1/3">
+                      <Search className="absolute right-4 top-3.5 text-slate-400" size={20} />
+                      <input className="w-full pr-12 p-3.5 bg-white border rounded-2xl shadow-sm outline-none" placeholder="ابحث عن موظف..." value={empSearch} onChange={(e) => setEmpSearch(e.target.value)} />
+                    </div>
+                    <div className="flex gap-3">
+                      {departments.length > 0 && (
+                        <select className="px-4 py-3 bg-white border rounded-xl outline-none" value={departmentFilter} onChange={(e) => setDepartmentFilter(e.target.value)}>
+                          <option value="all">كل الأقسام</option>
+                          {departments.map(dept => <option key={dept.id} value={dept.id}>{dept.name}</option>)}
+                        </select>
+                      )}
+                      <select className="px-4 py-3 bg-white border rounded-xl outline-none" value={empStatusFilter} onChange={(e) => setEmpStatusFilter(e.target.value)}>
+                        <option value="all">كل الحالات</option>
+                        <option value="عمل">عمل</option>
+                        <option value="إجازة">إجازة</option>
+                      </select>
+                      <button onClick={() => setShowImportModal(true)} className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-2xl flex items-center gap-2 font-bold shadow-lg"><Upload size={20} /> استيراد Excel</button>
+                      <button onClick={() => setShowAddEmp(true)} className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-2xl flex items-center gap-2 font-bold shadow-lg"><UserPlus size={20} /> إضافة موظف</button>
+                      <button onClick={() => exportToExcel(filteredEmployees, "قائمة_الموظفين")} className="bg-slate-800 hover:bg-slate-900 text-white px-6 py-3 rounded-2xl flex items-center gap-2 font-bold"><Download size={20} /> تصدير</button>
+                    </div>
+                  </div>
+                  <div className="bg-white rounded-[2rem] shadow-sm border overflow-hidden">
+                    <table className="w-full">
+                      <thead className="bg-slate-50 text-slate-500 border-b text-xs">
+                        <tr>
+                          <th className="p-4 text-right">الاسم</th>
+                          <th className="p-4">الكود</th>
+                          <th className="p-4">المنصب</th>
+                          <th className="p-4">القسم</th>
+                          <th className="p-4 text-center">البريد</th>
+                          <th className="p-4 text-center">تاريخ التعيين</th>
+                          <th className="p-4 text-center">تاريخ العودة</th>
+                          <th className="p-4 text-center">الرصيد</th>
+                          <th className="p-4 text-center">الرصيد الشهري</th>
+                          <th className="p-4 text-center">أيام العمل</th>
+                          <th className="p-4 text-center">الحالة</th>
+                          <th className="p-4 text-center">إجراءات</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredEmployees.map(emp => {
+                          // أيام العمل = من تاريخ العودة لليوم
+                          const workedDays = calculateWorkedDays(emp.return_date);
+                          const dept = departments.find(d => d.id === emp.department_id);
+                          const empStatus = getEmployeeStatus(emp);
+                          return (
+                            <tr key={emp.id} className="border-b hover:bg-slate-50">
+                              <td className="p-4 font-bold text-slate-800">{emp.name}</td>
+                              <td className="p-4 font-mono text-sm text-slate-500">{emp.code}</td>
+                              <td className="p-4 text-slate-600">{emp.position || "-"}</td>
+                              <td className="p-4 text-slate-600">{dept?.name || "-"}</td>
+                              <td className="p-4 text-center">
+                                {emp.email ? (
+                                  <a href={`mailto:${emp.email}`} className="text-indigo-600 hover:underline text-xs flex items-center justify-center gap-1"><Mail size={12} />{emp.email}</a>
+                                ) : <span className="text-slate-300 text-xs">-</span>}
+                              </td>
+                              <td className="p-4 text-center text-sm text-slate-500">{formatDate(emp.hire_date)}</td>
+                              <td className="p-4 text-center text-sm font-bold text-indigo-600">{formatDate(emp.return_date)}</td>
+                              <td className="p-4 text-center"><span className="font-black text-indigo-600">{emp.balance}</span></td>
+                              <td className="p-4 text-center">
+                                <span className="bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full text-xs font-bold flex items-center justify-center gap-1 w-fit mx-auto"><Zap size={12} /> {emp.monthly_balance || 0}</span>
+                              </td>
+                              <td className="p-4 text-center font-bold text-purple-600">{workedDays}</td>
+                              <td className="p-4 text-center">
+                                <span className={`px-3 py-1 rounded-full text-xs font-black ${empStatus === "عمل" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
+                                  {empStatus === "عمل" ? "🟢 عمل" : "🟡 إجازة"}
+                                </span>
+                              </td>
+                              <td className="p-4 text-center">
+                                <div className="flex justify-center gap-2">
+                                  <button onClick={() => setEditingEmp(emp)} className="p-2 text-blue-500 hover:bg-blue-50 rounded-xl"><Edit3 size={16} /></button>
+                                  <button onClick={() => handleDeleteEmployee(emp.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-xl"><Trash2 size={16} /></button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
-                <button
-                  onClick={() =>
-                    exportToExcel(
-                      requests.filter((r) => r.status === "approved"),
-                      "سجل_الإجازات"
-                    )
-                  }
-                  className="bg-emerald-600 text-white px-6 py-3 rounded-xl flex items-center gap-2 font-black shadow-lg shadow-emerald-100"
-                >
-                  <Download size={18} /> تصدير السجل الكامل
-                </button>
-              </div>
+              )}
 
-              <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 overflow-hidden">
-                <table className="w-full text-right">
-                  <thead className="bg-slate-50 text-slate-500 border-b text-xs">
-                    <tr>
-                      <th className="p-6">الموظف</th>
-                      <th className="p-6 text-center">بداية الإجازة</th>
-                      <th className="p-6 text-center">نهاية الإجازة</th>
-                      <th className="p-6 text-center">تاريخ العودة</th>
-                      <th className="p-6 text-center">المدة</th>
-                      <th className="p-6 text-center">ملاحظات</th>
-                      <th className="p-6 text-center">تعديل</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {requests
-                      .filter(
-                        (r) =>
-                          r.status === "approved" &&
-                          r.employee_name.includes(vacSearch)
-                      )
-                      .map((req) => {
-                        const { end, back } = getCalculatedDates(
-                          req.start_date,
-                          req.days
-                        );
-                        return (
-                          <tr
-                            key={req.id}
-                            className="border-b hover:bg-slate-50 transition-colors"
-                          >
-                            <td className="p-6 font-black text-slate-800">
-                              {req.employee_name}
-                            </td>
-                            <td className="p-6 text-center text-slate-600 font-bold">
-                              {formatDate(req.start_date)}
-                            </td>
-                            <td className="p-6 text-center text-slate-400">
-                              {formatDate(end)}
-                            </td>
-                            <td className="p-6 text-center text-indigo-600 font-black">
-                              {formatDate(back)}
-                            </td>
-                            <td className="p-6 text-center">
-                              <span className="bg-slate-100 px-4 py-1.5 rounded-full font-bold">
-                                {req.days} يوم
-                              </span>
-                            </td>
-                            <td className="p-6 text-center">
-                              {req.admin_notes ? (
-                                <button
-                                  className="text-blue-600 hover:text-blue-700"
-                                  title={req.admin_notes}
-                                >
-                                  <MessageSquare size={18} />
-                                </button>
-                              ) : (
-                                <span className="text-slate-300">-</span>
-                              )}
-                            </td>
-                            <td className="p-6 text-center">
-                              <button
-                                onClick={() => setEditingVac(req)}
-                                className="text-slate-300 hover:text-blue-600 transition-all"
-                              >
-                                <Edit3 size={18} />
-                              </button>
-                            </td>
+              {/* ===== REQUESTS ===== */}
+              {activeTab === "requests" && (
+                <div className="space-y-6">
+                  <div className="flex justify-between items-center">
+                    <h2 className="text-2xl font-black">طلبات الإجازات المعلقة</h2>
+                    <select className="px-4 py-3 bg-white border rounded-xl" value={vacationTypeFilter} onChange={(e) => setVacationTypeFilter(e.target.value)}>
+                      <option value="all">كل الأنواع</option>
+                      {vacationTypes.map(vt => <option key={vt.id} value={vt.id}>{vt.name}</option>)}
+                    </select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-6">
+                    {filteredRequests.filter(r => r.status === "pending").map(req => {
+                      const vacType = vacationTypes.find(vt => vt.id === req.vacation_type_id);
+                      return (
+                        <div key={req.id} className="bg-white p-8 rounded-[2.5rem] border shadow-sm">
+                          <div className="flex justify-between items-start mb-6">
+                            <div>
+                              <h4 className="font-black text-xl text-slate-800">{req.employee_name}</h4>
+                              <p className="text-slate-400 text-sm mt-1">طلب جديد</p>
+                            </div>
+                            <div className="flex gap-2 items-center">
+                              {vacType && <span className="px-3 py-1 rounded-full text-xs font-bold" style={{ backgroundColor: vacType.color+'20', color: vacType.color }}>{vacType.name}</span>}
+                              <button onClick={() => setEditingVac(req)} className="p-2 text-blue-500 hover:bg-blue-50 rounded-xl"><Edit3 size={18} /></button>
+                              <button onClick={() => handleDeleteVacation(req.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-xl"><Trash2 size={18} /></button>
+                            </div>
+                          </div>
+                          <div className="bg-slate-50 p-6 rounded-2xl space-y-3 mb-6">
+                            <div className="flex justify-between text-sm font-bold"><span className="text-slate-400">تاريخ البداية</span><span className="text-slate-800">{formatDate(req.start_date)}</span></div>
+                            <div className="flex justify-between text-sm font-bold"><span className="text-slate-400">المدة</span><span className="text-slate-800">{req.days} يوم</span></div>
+                            <div className="flex justify-between text-sm font-bold pt-3 border-t"><span className="text-indigo-600">تاريخ العودة</span><span className="text-indigo-600 font-black">{formatDate(getCalculatedDates(req.start_date, req.days).back)}</span></div>
+                          </div>
+                          {req.notes && <p className="text-sm text-slate-500 italic mb-6">"{req.notes}"</p>}
+                          <div className="flex gap-3">
+                            <button onClick={() => openApprovalModal(req, "approved")} className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-4 rounded-2xl font-black">قبول</button>
+                            <button onClick={() => openApprovalModal(req, "rejected")} className="flex-1 bg-red-50 text-red-600 hover:bg-red-100 py-4 rounded-2xl font-black">رفض</button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {filteredRequests.filter(r => r.status === "pending").length === 0 && (
+                      <div className="col-span-2 py-32 text-center bg-white rounded-[3rem] border border-dashed">
+                        <p className="text-slate-400 font-bold text-lg">لا توجد طلبات معلقة ✅</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* ===== CALENDAR ===== */}
+              {activeTab === "calendar" && (
+                <div className="space-y-6">
+                  <h2 className="text-2xl font-black">التقويم الشهري</h2>
+                  {renderCalendar()}
+                </div>
+              )}
+
+              {/* ===== REPORTS ===== */}
+              {activeTab === "reports" && (
+                <div className="space-y-6">
+                  <div className="flex justify-between items-center">
+                    <h2 className="text-2xl font-black">التقارير والإحصائيات</h2>
+                    <button onClick={exportDetailedReport} className="bg-emerald-600 text-white px-6 py-3 rounded-2xl flex items-center gap-2 font-bold shadow-lg"><Download size={20} /> تصدير التقرير الشامل</button>
+                  </div>
+                  {vacationByDepartment.length > 0 && (
+                    <div className="bg-white p-6 rounded-[2rem] shadow-sm border">
+                      <h4 className="font-black mb-4 flex items-center gap-2"><Building2 size={20} className="text-indigo-600" /> إحصائيات الأقسام</h4>
+                      <div className="grid grid-cols-3 gap-4">
+                        {vacationByDepartment.map(dept => (
+                          <div key={dept.name} className="p-4 bg-slate-50 rounded-xl">
+                            <h5 className="font-bold text-slate-800 mb-2">{dept.name}</h5>
+                            <div className="space-y-1 text-sm">
+                              <div className="flex justify-between"><span className="text-slate-500">عدد الموظفين:</span><span className="font-bold">{dept.employees}</span></div>
+                              <div className="flex justify-between"><span className="text-slate-500">عدد الإجازات:</span><span className="font-bold">{dept.count}</span></div>
+                              <div className="flex justify-between"><span className="text-slate-500">إجمالي الأيام:</span><span className="font-bold text-indigo-600">{dept.days}</span></div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  <div className="bg-white p-6 rounded-[2rem] shadow-sm border">
+                    <h4 className="font-black mb-4 flex items-center gap-2"><AlertCircle size={20} className="text-amber-600" /> تحذير: رصيد منخفض</h4>
+                    <div className="grid grid-cols-5 gap-3">
+                      {lowBalances.map(emp => (
+                        <div key={emp.id} className="p-3 bg-amber-50 rounded-xl text-center border border-amber-100">
+                          <p className="font-bold text-sm mb-1">{emp.name}</p>
+                          <p className="text-2xl font-black text-amber-600">{emp.balance}</p>
+                          <p className="text-xs text-amber-600">يوم متبقي</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ===== DEPARTMENTS ===== */}
+              {activeTab === "departments" && (
+                <div className="space-y-6">
+                  <div className="flex justify-between items-center">
+                    <h2 className="text-2xl font-black">إدارة الأقسام</h2>
+                    <button onClick={() => setShowAddDept(true)} className="bg-indigo-600 text-white px-6 py-3 rounded-2xl flex items-center gap-2 font-bold"><Plus size={20} /> إضافة قسم</button>
+                  </div>
+                  <div className="grid grid-cols-3 gap-6">
+                    {departments.map(dept => {
+                      const deptEmps = employees.filter(e => e.department_id === dept.id);
+                      return (
+                        <div key={dept.id} className="bg-white p-6 rounded-[2rem] shadow-sm border">
+                          <div className="flex justify-between items-start mb-4">
+                            <div>
+                              <h4 className="font-black text-lg">{dept.name}</h4>
+                              <p className="text-sm text-slate-500">{dept.description || "لا يوجد وصف"}</p>
+                            </div>
+                            <button onClick={() => deleteDepartment(dept.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-xl"><Trash2 size={16} /></button>
+                          </div>
+                          <div className="flex items-center gap-2 text-slate-600"><Users size={16} /><span className="font-bold">{deptEmps.length} موظف</span></div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* ===== HOLIDAYS ===== */}
+              {activeTab === "holidays" && (
+                <div className="space-y-6">
+                  <div className="flex justify-between items-center">
+                    <h2 className="text-2xl font-black">العطلات الرسمية</h2>
+                    <button onClick={() => setShowAddHoliday(true)} className="bg-indigo-600 text-white px-6 py-3 rounded-2xl flex items-center gap-2 font-bold"><Plus size={20} /> إضافة عطلة</button>
+                  </div>
+                  <div className="bg-white rounded-[2rem] shadow-sm border overflow-hidden">
+                    <table className="w-full">
+                      <thead className="bg-slate-50 border-b">
+                        <tr>
+                          <th className="p-4 text-right">اسم العطلة</th>
+                          <th className="p-4 text-center">التاريخ</th>
+                          <th className="p-4 text-center">متكررة سنوياً</th>
+                          <th className="p-4 text-center">إجراءات</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {publicHolidays.map(holiday => (
+                          <tr key={holiday.id} className="border-b hover:bg-slate-50">
+                            <td className="p-4 font-bold">{holiday.name}</td>
+                            <td className="p-4 text-center">{formatDate(holiday.date)}</td>
+                            <td className="p-4 text-center">{holiday.is_recurring ? <CheckCircle size={18} className="text-green-600 mx-auto" /> : <X size={18} className="text-slate-300 mx-auto" />}</td>
+                            <td className="p-4 text-center"><button onClick={() => deleteHoliday(holiday.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-xl"><Trash2 size={16} /></button></td>
                           </tr>
-                        );
-                      })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* ===== HISTORY ===== */}
+              {activeTab === "history" && (
+                <div className="space-y-6">
+                  <div className="flex justify-between items-center">
+                    <h2 className="text-2xl font-black">سجل الإجازات</h2>
+                    <div className="flex gap-3">
+                      <input className="px-4 py-3 bg-white border rounded-xl" placeholder="بحث بالاسم..." onChange={(e) => setVacSearch(e.target.value)} />
+                      <select className="px-4 py-3 bg-white border rounded-xl" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+                        <option value="all">كل الحالات</option>
+                        <option value="approved">مقبول</option>
+                        <option value="rejected">مرفوض</option>
+                      </select>
+                      <button onClick={() => setShowAuditLog(true)} className="bg-purple-600 text-white px-6 py-3 rounded-xl flex items-center gap-2 font-bold"><History size={20} /> سجل التعديلات</button>
+                    </div>
+                  </div>
+                  <div className="bg-white rounded-[2rem] shadow-sm border overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead className="bg-slate-50 border-b text-xs">
+                        <tr>
+                          <th className="p-4 text-right">الموظف</th>
+                          <th className="p-4">نوع الإجازة</th>
+                          <th className="p-4 text-center">تاريخ البداية</th>
+                          <th className="p-4 text-center">المدة</th>
+                          <th className="p-4 text-center">تاريخ العودة المتوقع</th>
+                          <th className="p-4 text-center">تاريخ العودة الفعلي</th>
+                          <th className="p-4 text-center">الحالة</th>
+                          <th className="p-4 text-center">ملاحظات</th>
+                          <th className="p-4 text-center">إجراءات</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredRequests.filter(r => r.status !== "pending").map(req => {
+                          const { back } = getCalculatedDates(req.start_date, req.days);
+                          const vacType = vacationTypes.find(vt => vt.id === req.vacation_type_id);
+                          const today = new Date().toISOString().split("T")[0];
+                          const isOnVacation = req.status === "approved" && req.start_date <= today && back > today;
+                          return (
+                            <tr key={req.id} className="border-b hover:bg-slate-50">
+                              <td className="p-4 font-bold">{req.employee_name}</td>
+                              <td className="p-4">{vacType && <span className="px-2 py-1 rounded-full text-xs font-bold" style={{ backgroundColor: vacType.color+'20', color: vacType.color }}>{vacType.name}</span>}</td>
+                              <td className="p-4 text-center">{formatDate(req.start_date)}</td>
+                              <td className="p-4 text-center font-bold">{req.days}</td>
+                              <td className="p-4 text-center text-indigo-600 font-bold">{formatDate(back)}</td>
+                              <td className="p-4 text-center">
+                                {req.actual_return_date ? (
+                                  <span className="text-green-600 font-bold">{formatDate(req.actual_return_date)}</span>
+                                ) : isOnVacation ? (
+                                  <button onClick={() => openReturnModal(req)} className="text-blue-600 hover:underline font-bold">تسجيل العودة</button>
+                                ) : "-"}
+                              </td>
+                              <td className="p-4 text-center">
+                                <span className={`px-3 py-1 rounded-full text-xs font-bold ${req.status === "approved" ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}`}>
+                                  {req.status === "approved" ? "مقبول" : "مرفوض"}
+                                </span>
+                              </td>
+                              <td className="p-4 text-center">{req.admin_notes && <button className="text-blue-600" title={req.admin_notes}><MessageSquare size={16} /></button>}</td>
+                              <td className="p-4 text-center">
+                                <div className="flex justify-center gap-1">
+                                  <button onClick={() => setEditingVac(req)} className="text-blue-500 hover:bg-blue-50 p-2 rounded-xl"><Edit3 size={16} /></button>
+                                  <button onClick={() => handleDeleteVacation(req.id)} className="text-red-500 hover:bg-red-50 p-2 rounded-xl"><Trash2 size={16} /></button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </main>
 
-        {/* --- MODALS --- */}
+        {/* ==================== MODALS ==================== */}
 
         {/* Import Excel Modal */}
         {showImportModal && (
-          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-6 z-[100]">
-            <div className="bg-white p-10 rounded-[2.5rem] w-full max-w-2xl shadow-2xl animate-in zoom-in duration-200 text-right" dir="rtl">
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-6 z-[100]" onClick={() => setShowImportModal(false)}>
+            <div className="bg-white p-10 rounded-[2.5rem] w-full max-w-2xl shadow-2xl" dir="rtl" onClick={(e) => e.stopPropagation()}>
               <div className="flex justify-between mb-8">
-                <h3 className="text-2xl font-black text-slate-800 flex items-center gap-3">
-                  <Upload className="text-emerald-600" />
-                  استيراد الموظفين من Excel
-                </h3>
-                <button
-                  onClick={() => setShowImportModal(false)}
-                  className="text-slate-400 hover:text-red-500"
-                >
-                  <X size={28} />
-                </button>
+                <h3 className="text-2xl font-black flex items-center gap-3"><Upload className="text-emerald-600" /> استيراد من Excel</h3>
+                <button onClick={() => setShowImportModal(false)} className="text-slate-400 hover:text-red-500"><X size={28} /></button>
               </div>
-
               <div className="space-y-6">
                 <div className="bg-blue-50 p-6 rounded-2xl border border-blue-100">
-                  <h4 className="font-black text-blue-900 mb-3 flex items-center gap-2">
-                    <FileDown size={20} />
-                    الخطوة 1: تحميل النموذج
-                  </h4>
-                  <p className="text-blue-700 text-sm mb-4">
-                    قم بتحميل ملف Excel النموذجي وملء بيانات الموظفين
-                  </p>
-                  <button
-                    onClick={downloadExcelTemplate}
-                    className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2"
-                  >
-                    <FileDown size={18} />
-                    تحميل النموذج
-                  </button>
+                  <h4 className="font-black text-blue-900 mb-1">الخطوة 1: تحميل النموذج</h4>
+                  <p className="text-blue-600 text-sm mb-3">العناوين: الاسم الكامل، الكود الوظيفي، المنصب، البريد الإلكتروني، الرصيد الحالي، الرصيد الشهري، تاريخ التعيين، تاريخ العودة، القسم</p>
+                  <button onClick={downloadExcelTemplate} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2"><FileDown size={18} /> تحميل النموذج</button>
                 </div>
-
                 <div className="bg-slate-50 p-6 rounded-2xl">
-                  <h4 className="font-black text-slate-800 mb-3 flex items-center gap-2">
-                    <Upload size={20} />
-                    الخطوة 2: رفع الملف
-                  </h4>
-                  <p className="text-slate-600 text-sm mb-4">
-                    اختر ملف Excel المعبأ لاستيراد بيانات الموظفين
-                  </p>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".xlsx,.xls"
-                    onChange={handleFileUpload}
-                    className="hidden"
-                  />
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={uploadingFile}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 disabled:opacity-50"
-                  >
-                    {uploadingFile ? (
-                      <>
-                        <Loader2 className="animate-spin" size={18} />
-                        جاري الرفع...
-                      </>
-                    ) : (
-                      <>
-                        <Upload size={18} />
-                        اختر ملف Excel
-                      </>
-                    )}
+                  <h4 className="font-black mb-3">الخطوة 2: رفع الملف</h4>
+                  <input ref={fileInputRef} type="file" accept=".xlsx,.xls" onChange={handleFileUpload} className="hidden" />
+                  <button onClick={() => fileInputRef.current?.click()} disabled={uploadingFile} className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 disabled:opacity-50">
+                    {uploadingFile ? <Loader2 className="animate-spin" size={18} /> : <Upload size={18} />}
+                    {uploadingFile ? "جاري الرفع..." : "اختر ملف"}
                   </button>
                 </div>
-
-                <div className="bg-amber-50 p-4 rounded-xl border border-amber-100">
-                  <p className="text-amber-800 text-xs font-bold">
-                    💡 تأكد من أن الملف يحتوي على الأعمدة: الاسم الكامل - الكود الوظيفي - المنصب - الرصيد الحالي - الرصيد الشهري
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Approval Modal with Notes */}
-        {showApprovalModal && currentRequest && (
-          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-6 z-[100]">
-            <div className="bg-white p-10 rounded-[2.5rem] w-full max-w-lg shadow-2xl text-right" dir="rtl">
-              <div className="flex justify-between mb-8">
-                <h3 className="text-2xl font-black text-slate-800">
-                  {currentRequest.action === "approved" ? "✅ الموافقة على الطلب" : "❌ رفض الطلب"}
-                </h3>
-                <button
-                  onClick={() => setShowApprovalModal(false)}
-                  className="text-slate-400 hover:text-red-500"
-                >
-                  <X size={28} />
-                </button>
-              </div>
-
-              <div className="bg-slate-50 p-6 rounded-2xl mb-6">
-                <p className="text-sm text-slate-500 mb-2">الموظف</p>
-                <p className="font-black text-lg">{currentRequest.employee_name}</p>
-                <div className="grid grid-cols-2 gap-4 mt-4">
-                  <div>
-                    <p className="text-xs text-slate-500">تاريخ البداية</p>
-                    <p className="font-bold">{formatDate(currentRequest.start_date)}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-slate-500">المدة</p>
-                    <p className="font-bold">{currentRequest.days} يوم</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <div>
-                  <label className="text-sm font-black text-slate-700 mb-2 flex items-center gap-2">
-                    <MessageSquare size={16} />
-                    ملاحظات للموظف (اختياري)
-                  </label>
-                  <textarea
-                    className="w-full p-4 border border-slate-200 rounded-2xl outline-none focus:border-indigo-500 resize-none"
-                    rows={4}
-                    placeholder="مثال: تم الموافقة على الإجازة. نتمنى لك إجازة سعيدة..."
-                    value={adminNotes}
-                    onChange={(e) => setAdminNotes(e.target.value)}
-                  />
-                </div>
-
-                <button
-                  onClick={handleActionWithNotes}
-                  className={`w-full p-5 rounded-2xl font-black text-lg ${
-                    currentRequest.action === "approved"
-                      ? "bg-emerald-600 hover:bg-emerald-700 text-white"
-                      : "bg-red-600 hover:bg-red-700 text-white"
-                  }`}
-                >
-                  {currentRequest.action === "approved" ? "تأكيد الموافقة" : "تأكيد الرفض"}
-                </button>
               </div>
             </div>
           </div>
@@ -1102,79 +1221,40 @@ const VacationManagementSystem = () => {
 
         {/* Add Employee Modal */}
         {showAddEmp && (
-          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-6 z-[100]">
-            <div className="bg-white p-10 rounded-[2.5rem] w-full max-w-lg shadow-2xl animate-in zoom-in duration-200 text-right" dir="rtl">
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-6 z-[100]" onClick={() => setShowAddEmp(false)}>
+            <div className="bg-white p-10 rounded-[2.5rem] w-full max-w-lg shadow-2xl" dir="rtl" onClick={(e) => e.stopPropagation()}>
               <div className="flex justify-between mb-8">
-                <h3 className="text-2xl font-black text-slate-800">
-                  إضافة زميل جديد
-                </h3>
-                <button
-                  onClick={() => setShowAddEmp(false)}
-                  className="text-slate-400 hover:text-red-500"
-                >
-                  <X size={28} />
-                </button>
+                <h3 className="text-2xl font-black">إضافة موظف جديد</h3>
+                <button onClick={() => setShowAddEmp(false)}><X size={28} /></button>
               </div>
-              <div className="space-y-5">
-                <div className="space-y-2">
-                  <label className="text-sm font-black mr-2">الاسم الثلاثي</label>
-                  <input
-                    className="w-full p-4 border border-slate-200 rounded-2xl outline-none focus:border-indigo-500"
-                    placeholder="مثلاً: محمد علي حسن"
-                    onChange={(e) => setNewEmp({...newEmp, name: e.target.value})}
-                  />
-                </div>
+              <div className="space-y-4">
+                <input className="w-full p-4 border rounded-2xl outline-none focus:border-indigo-500" placeholder="الاسم الكامل *" value={newEmp.name} onChange={(e) => setNewEmp({...newEmp, name: e.target.value})} />
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-sm font-black mr-2">الكود الوظيفي</label>
-                    <input
-                      className="w-full p-4 border border-slate-200 rounded-2xl outline-none"
-                      placeholder="1001"
-                      onChange={(e) => setNewEmp({...newEmp, code: e.target.value})}
-                    />
+                  <input className="p-4 border rounded-2xl outline-none" placeholder="الكود الوظيفي *" value={newEmp.code} onChange={(e) => setNewEmp({...newEmp, code: e.target.value})} />
+                  <input className="p-4 border rounded-2xl outline-none" placeholder="المنصب" value={newEmp.position} onChange={(e) => setNewEmp({...newEmp, position: e.target.value})} />
+                </div>
+                <input type="email" className="w-full p-4 border rounded-2xl outline-none focus:border-indigo-500" placeholder="البريد الإلكتروني" value={newEmp.email} onChange={(e) => setNewEmp({...newEmp, email: e.target.value})} />
+                {departments.length > 0 && (
+                  <select className="w-full p-4 border rounded-2xl outline-none" value={newEmp.department_id} onChange={(e) => setNewEmp({...newEmp, department_id: e.target.value})}>
+                    <option value="">اختر القسم</option>
+                    {departments.map(dept => <option key={dept.id} value={dept.id}>{dept.name}</option>)}
+                  </select>
+                )}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs text-slate-500 font-bold mb-1 block">تاريخ التعيين (بيان فقط)</label>
+                    <input type="date" className="w-full p-4 border rounded-2xl outline-none" value={newEmp.hire_date} onChange={(e) => setNewEmp({...newEmp, hire_date: e.target.value})} />
                   </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-black mr-2">المنصب</label>
-                    <input
-                      className="w-full p-4 border border-slate-200 rounded-2xl outline-none"
-                      placeholder="محاسب"
-                      onChange={(e) => setNewEmp({...newEmp, position: e.target.value})}
-                    />
+                  <div>
+                    <label className="text-xs text-indigo-600 font-bold mb-1 block">تاريخ العودة (لحساب أيام العمل)</label>
+                    <input type="date" className="w-full p-4 border-2 border-indigo-300 rounded-2xl outline-none focus:border-indigo-500" value={newEmp.return_date} onChange={(e) => setNewEmp({...newEmp, return_date: e.target.value})} />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-sm font-black mr-2">رصيد الإجازات</label>
-                    <input
-                      type="number"
-                      step="0.5"
-                      min="0"
-                      className="w-full p-4 border border-slate-200 rounded-2xl outline-none"
-                      defaultValue={21}
-                      onChange={(e) => setNewEmp({...newEmp, balance: Number(e.target.value)})}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-black mr-2 flex items-center gap-1">
-                      <Zap size={14} className="text-emerald-600" />
-                      الرصيد الشهري
-                    </label>
-                    <input
-                      type="number"
-                      step="0.5"
-                      min="0"
-                      className="w-full p-4 border border-slate-200 rounded-2xl outline-none"
-                      defaultValue={0}
-                      onChange={(e) => setNewEmp({...newEmp, monthly_balance: Number(e.target.value)})}
-                    />
-                  </div>
+                  <input type="number" step="0.5" className="p-4 border rounded-2xl outline-none" placeholder="الرصيد" value={newEmp.balance} onChange={(e) => setNewEmp({...newEmp, balance: Number(e.target.value)})} />
+                  <input type="number" step="0.5" className="p-4 border rounded-2xl outline-none" placeholder="الرصيد الشهري" value={newEmp.monthly_balance} onChange={(e) => setNewEmp({...newEmp, monthly_balance: Number(e.target.value)})} />
                 </div>
-                <button
-                  onClick={handleAddEmployee}
-                  className="w-full bg-indigo-600 text-white p-5 rounded-2xl font-black text-lg mt-4 shadow-xl shadow-indigo-100"
-                >
-                  حفظ البيانات
-                </button>
+                <button onClick={handleAddEmployee} className="w-full bg-indigo-600 text-white p-5 rounded-2xl font-black">💾 حفظ</button>
               </div>
             </div>
           </div>
@@ -1182,237 +1262,276 @@ const VacationManagementSystem = () => {
 
         {/* Edit Employee Modal */}
         {editingEmp && (
-          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-6 z-[100]">
-            <div className="bg-white p-10 rounded-[2.5rem] w-full max-w-lg shadow-2xl text-right" dir="rtl">
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-6 z-[100]" onClick={() => setEditingEmp(null)}>
+            <div className="bg-white p-10 rounded-[2.5rem] w-full max-w-lg shadow-2xl" dir="rtl" onClick={(e) => e.stopPropagation()}>
               <div className="flex justify-between mb-8">
-                <h3 className="text-2xl font-black text-slate-800">تعديل بيانات الموظف</h3>
-                <button onClick={() => setEditingEmp(null)}><X /></button>
+                <h3 className="text-2xl font-black">تعديل بيانات الموظف</h3>
+                <button onClick={() => setEditingEmp(null)}><X size={28} /></button>
               </div>
-              <div className="space-y-5">
-                <div className="space-y-2">
-                  <label className="text-sm font-black mr-2">الاسم</label>
-                  <input
-                    className="w-full p-4 border border-slate-200 rounded-2xl"
-                    value={editingEmp.name}
-                    onChange={(e) => setEditingEmp({...editingEmp, name: e.target.value})}
-                  />
+              <div className="space-y-4">
+                <input className="w-full p-4 border rounded-2xl" placeholder="الاسم" value={editingEmp.name || ''} onChange={(e) => setEditingEmp({...editingEmp, name: e.target.value})} />
+                <div className="grid grid-cols-2 gap-4">
+                  <input className="p-4 border rounded-2xl" placeholder="الكود" value={editingEmp.code || ''} onChange={(e) => setEditingEmp({...editingEmp, code: e.target.value})} />
+                  <input className="p-4 border rounded-2xl" placeholder="المنصب" value={editingEmp.position || ''} onChange={(e) => setEditingEmp({...editingEmp, position: e.target.value})} />
                 </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-black mr-2">المنصب</label>
-                  <input
-                    className="w-full p-4 border border-slate-200 rounded-2xl"
-                    value={editingEmp.position}
-                    onChange={(e) => setEditingEmp({...editingEmp, position: e.target.value})}
-                  />
+                <input type="email" className="w-full p-4 border rounded-2xl" placeholder="البريد الإلكتروني" value={editingEmp.email || ''} onChange={(e) => setEditingEmp({...editingEmp, email: e.target.value})} />
+                {departments.length > 0 && (
+                  <select className="w-full p-4 border rounded-2xl" value={editingEmp.department_id || ''} onChange={(e) => setEditingEmp({...editingEmp, department_id: e.target.value})}>
+                    <option value="">بدون قسم</option>
+                    {departments.map(dept => <option key={dept.id} value={dept.id}>{dept.name}</option>)}
+                  </select>
+                )}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs text-slate-500 font-bold mb-1 block">تاريخ التعيين (بيان فقط)</label>
+                    <input type="date" className="w-full p-4 border rounded-2xl" value={editingEmp.hire_date || ''} onChange={(e) => setEditingEmp({...editingEmp, hire_date: e.target.value})} />
+                  </div>
+                  <div>
+                    <label className="text-xs text-indigo-600 font-bold mb-1 block">تاريخ العودة (لحساب أيام العمل)</label>
+                    <input type="date" className="w-full p-4 border-2 border-indigo-300 rounded-2xl" value={editingEmp.return_date || ''} onChange={(e) => setEditingEmp({...editingEmp, return_date: e.target.value})} />
+                  </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-sm font-black mr-2">الرصيد الحالي</label>
-                    <input
-                      type="number"
-                      step="0.5"
-                      min="0"
-                      className="w-full p-4 border border-slate-200 rounded-2xl"
-                      value={editingEmp.balance}
-                      onChange={(e) => setEditingEmp({...editingEmp, balance: Number(e.target.value)})}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-black mr-2 flex items-center gap-1">
-                      <Zap size={14} className="text-emerald-600" />
-                      الرصيد الشهري
-                    </label>
-                    <input
-                      type="number"
-                      step="0.5"
-                      min="0"
-                      className="w-full p-4 border border-slate-200 rounded-2xl"
-                      value={editingEmp.monthly_balance || 0}
-                      onChange={(e) => setEditingEmp({...editingEmp, monthly_balance: Number(e.target.value)})}
-                    />
-                  </div>
+                  <input type="number" step="0.5" className="p-4 border rounded-2xl" placeholder="الرصيد" value={editingEmp.balance || 0} onChange={(e) => setEditingEmp({...editingEmp, balance: Number(e.target.value)})} />
+                  <input type="number" step="0.5" className="p-4 border rounded-2xl" placeholder="الرصيد الشهري" value={editingEmp.monthly_balance || 0} onChange={(e) => setEditingEmp({...editingEmp, monthly_balance: Number(e.target.value)})} />
                 </div>
-                <button
-                  onClick={handleUpdateEmployee}
-                  className="w-full bg-indigo-600 text-white p-5 rounded-2xl font-black"
-                >
-                  تحديث
-                </button>
+                <button onClick={handleUpdateEmployee} className="w-full bg-indigo-600 text-white p-5 rounded-2xl font-black">تحديث</button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Approval Modal */}
+        {showApprovalModal && currentRequest && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-6 z-[100]" onClick={() => setShowApprovalModal(false)}>
+            <div className="bg-white p-10 rounded-[2.5rem] w-full max-w-lg shadow-2xl" dir="rtl" onClick={(e) => e.stopPropagation()}>
+              <div className="flex justify-between mb-8">
+                <h3 className="text-2xl font-black">{currentRequest.action === "approved" ? "✅ موافقة" : "❌ رفض"}</h3>
+                <button onClick={() => setShowApprovalModal(false)}><X size={28} /></button>
+              </div>
+              <div className="bg-slate-50 p-6 rounded-2xl mb-6">
+                <p className="font-black text-lg">{currentRequest.employee_name}</p>
+                <div className="grid grid-cols-2 gap-4 mt-4 text-sm">
+                  <div><p className="text-slate-500">البداية</p><p className="font-bold">{formatDate(currentRequest.start_date)}</p></div>
+                  <div><p className="text-slate-500">المدة</p><p className="font-bold">{currentRequest.days} يوم</p></div>
+                </div>
+                {(() => { const emp = employees.find(e => e.id === currentRequest.employee_id); return emp?.email ? <p className="text-xs text-indigo-600 mt-3 flex items-center gap-1"><Mail size={12} /> سيُرسل إشعار لـ {emp.email}</p> : <p className="text-xs text-amber-600 mt-3">⚠️ الموظف ليس لديه بريد إلكتروني</p>; })()}
+              </div>
+              <textarea className="w-full p-4 border rounded-2xl outline-none resize-none" rows={4} placeholder="ملاحظات (اختياري)" value={adminNotes} onChange={(e) => setAdminNotes(e.target.value)} />
+              <button onClick={handleActionWithNotes} className={`w-full p-5 rounded-2xl font-black mt-4 ${currentRequest.action === "approved" ? "bg-emerald-600 hover:bg-emerald-700 text-white" : "bg-red-600 hover:bg-red-700 text-white"}`}>
+                تأكيد {currentRequest.action === "approved" ? "وإرسال الإشعار" : "وإرسال الإشعار"}
+              </button>
             </div>
           </div>
         )}
 
         {/* Edit Vacation Modal */}
         {editingVac && (
-          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-6 z-[100]">
-            <div className="bg-white p-10 rounded-[2.5rem] w-full max-w-lg shadow-2xl text-right" dir="rtl">
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-6 z-[100]" onClick={() => setEditingVac(null)}>
+            <div className="bg-white p-10 rounded-[2.5rem] w-full max-w-lg shadow-2xl" dir="rtl" onClick={(e) => e.stopPropagation()}>
               <div className="flex justify-between mb-8">
-                <h3 className="text-2xl font-black text-slate-800">تعديل طلب الإجازة</h3>
+                <h3 className="text-2xl font-black">تعديل طلب الإجازة</h3>
                 <button onClick={() => setEditingVac(null)}><X size={28} /></button>
               </div>
               <div className="space-y-5">
-                <div className="bg-slate-50 p-4 rounded-xl">
-                  <p className="text-sm text-slate-500">الموظف</p>
-                  <p className="font-black text-lg">{editingVac.employee_name}</p>
+                <div className="bg-slate-50 p-4 rounded-xl"><p className="font-black text-lg">{editingVac.employee_name}</p></div>
+                <input type="date" className="w-full p-4 border rounded-2xl" value={editingVac.start_date} onChange={(e) => setEditingVac({...editingVac, start_date: e.target.value})} />
+                <input type="number" step="0.5" className="w-full p-4 border rounded-2xl" value={editingVac.days} onChange={(e) => setEditingVac({...editingVac, days: Number(e.target.value)})} />
+                {vacationTypes.length > 0 && (
+                  <select className="w-full p-4 border rounded-2xl" value={editingVac.vacation_type_id || ''} onChange={(e) => setEditingVac({...editingVac, vacation_type_id: e.target.value})}>
+                    <option value="">اختر النوع</option>
+                    {vacationTypes.map(vt => <option key={vt.id} value={vt.id}>{vt.name}</option>)}
+                  </select>
+                )}
+                <textarea className="w-full p-4 border rounded-2xl resize-none" rows={3} value={editingVac.notes || ''} onChange={(e) => setEditingVac({...editingVac, notes: e.target.value})} />
+                <button onClick={handleUpdateVacation} className="w-full bg-indigo-600 text-white p-5 rounded-2xl font-black">حفظ</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Return Modal */}
+        {showReturnModal && returnData && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-6 z-[100]" onClick={() => setShowReturnModal(false)}>
+            <div className="bg-white p-10 rounded-[2.5rem] w-full max-w-lg shadow-2xl" dir="rtl" onClick={(e) => e.stopPropagation()}>
+              <div className="flex justify-between mb-8">
+                <h3 className="text-2xl font-black">✅ تسجيل العودة من الإجازة</h3>
+                <button onClick={() => setShowReturnModal(false)}><X size={28} /></button>
+              </div>
+              <div className="space-y-5">
+                <div className="bg-slate-50 p-6 rounded-xl">
+                  <p className="font-black text-lg mb-2">{returnData.employee_name}</p>
+                  <div className="text-sm space-y-1">
+                    <p><span className="text-slate-500">بداية الإجازة:</span> <span className="font-bold">{formatDate(returnData.start_date)}</span></p>
+                    <p><span className="text-slate-500">المدة:</span> <span className="font-bold">{returnData.days} يوم</span></p>
+                    <p><span className="text-slate-500">العودة المتوقعة:</span> <span className="font-bold text-indigo-600">{formatDate(getCalculatedDates(returnData.start_date, returnData.days).back)}</span></p>
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-black mr-2">تاريخ البداية</label>
-                  <input
-                    type="date"
-                    className="w-full p-4 border border-slate-200 rounded-2xl"
-                    value={editingVac.start_date}
-                    onChange={(e) => setEditingVac({...editingVac, start_date: e.target.value})}
-                  />
+                <div>
+                  <label className="text-sm font-black mb-2 block text-indigo-700">تاريخ العودة الفعلي (سيُحفظ في بيانات الموظف لحساب أيام العمل)</label>
+                  <input type="date" className="w-full p-4 border-2 border-indigo-300 rounded-2xl" value={returnData.actual_return_date} onChange={(e) => setReturnData({...returnData, actual_return_date: e.target.value})} />
                 </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-black mr-2">عدد الأيام</label>
-                  <input
-                    type="number"
-                    step="0.5"
-                    min="0.5"
-                    className="w-full p-4 border border-slate-200 rounded-2xl"
-                    value={editingVac.days}
-                    onChange={(e) => setEditingVac({...editingVac, days: Number(e.target.value)})}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-black mr-2">ملاحظات</label>
-                  <textarea
-                    className="w-full p-4 border border-slate-200 rounded-2xl resize-none"
-                    rows={3}
-                    value={editingVac.notes || ''}
-                    onChange={(e) => setEditingVac({...editingVac, notes: e.target.value})}
-                  />
-                </div>
-                <div className="bg-indigo-50 p-4 rounded-xl">
-                  <p className="text-sm text-indigo-700 font-bold">
-                    تاريخ العودة المتوقع: {formatDate(getCalculatedDates(editingVac.start_date, editingVac.days).back)}
-                  </p>
-                </div>
-                <button
-                  onClick={handleUpdateVacation}
-                  className="w-full bg-indigo-600 text-white p-5 rounded-2xl font-black"
-                >
-                  حفظ التعديلات
-                </button>
+                <button onClick={handleReturnFromVacation} className="w-full bg-emerald-600 text-white p-5 rounded-2xl font-black">تأكيد العودة وتحديث البيانات</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Add Department Modal */}
+        {showAddDept && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-6 z-[100]" onClick={() => setShowAddDept(false)}>
+            <div className="bg-white p-10 rounded-[2.5rem] w-full max-w-lg shadow-2xl" dir="rtl" onClick={(e) => e.stopPropagation()}>
+              <div className="flex justify-between mb-8">
+                <h3 className="text-2xl font-black">إضافة قسم جديد</h3>
+                <button onClick={() => setShowAddDept(false)}><X size={28} /></button>
+              </div>
+              <div className="space-y-5">
+                <input className="w-full p-4 border rounded-2xl" placeholder="اسم القسم" value={newDept.name} onChange={(e) => setNewDept({...newDept, name: e.target.value})} />
+                <textarea className="w-full p-4 border rounded-2xl resize-none" rows={3} placeholder="وصف القسم (اختياري)" value={newDept.description} onChange={(e) => setNewDept({...newDept, description: e.target.value})} />
+                <button onClick={handleAddDepartment} className="w-full bg-indigo-600 text-white p-5 rounded-2xl font-black">إضافة</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Add Holiday Modal */}
+        {showAddHoliday && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-6 z-[100]" onClick={() => setShowAddHoliday(false)}>
+            <div className="bg-white p-10 rounded-[2.5rem] w-full max-w-lg shadow-2xl" dir="rtl" onClick={(e) => e.stopPropagation()}>
+              <div className="flex justify-between mb-8">
+                <h3 className="text-2xl font-black">إضافة عطلة رسمية</h3>
+                <button onClick={() => setShowAddHoliday(false)}><X size={28} /></button>
+              </div>
+              <div className="space-y-5">
+                <input className="w-full p-4 border rounded-2xl" placeholder="اسم العطلة" value={newHoliday.name} onChange={(e) => setNewHoliday({...newHoliday, name: e.target.value})} />
+                <input type="date" className="w-full p-4 border rounded-2xl" value={newHoliday.date} onChange={(e) => setNewHoliday({...newHoliday, date: e.target.value})} />
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input type="checkbox" checked={newHoliday.is_recurring} onChange={(e) => setNewHoliday({...newHoliday, is_recurring: e.target.checked})} className="w-5 h-5" />
+                  <span className="font-bold">عطلة متكررة سنوياً</span>
+                </label>
+                <button onClick={handleAddHoliday} className="w-full bg-indigo-600 text-white p-5 rounded-2xl font-black">إضافة</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Audit Log Modal */}
+        {showAuditLog && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-6 z-[100]" onClick={() => setShowAuditLog(false)}>
+            <div className="bg-white p-10 rounded-[2.5rem] w-full max-w-4xl shadow-2xl max-h-[80vh] overflow-auto" dir="rtl" onClick={(e) => e.stopPropagation()}>
+              <div className="flex justify-between mb-8">
+                <h3 className="text-2xl font-black">📋 سجل التعديلات</h3>
+                <button onClick={() => setShowAuditLog(false)}><X size={28} /></button>
+              </div>
+              <div className="space-y-3">
+                {auditLog.map((log, idx) => (
+                  <div key={idx} className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                    <div className="flex justify-between items-start mb-2">
+                      <div><span className="font-bold text-slate-800">{log.user_name}</span><span className="text-sm text-slate-500 mr-2">{log.action}</span></div>
+                      <span className="text-xs text-slate-400">{formatDateTime(log.created_at)}</span>
+                    </div>
+                    <p className="text-sm text-slate-600"><span className="font-bold">{log.table_name}</span>{log.record_id && <span> - {log.record_id}</span>}</p>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
         )}
       </div>
     );
+  }
 
-  // --- واجهة الموظف (Employee View) ---
-  if (currentView === "employee")
+  // ==================== EMPLOYEE VIEW ====================
+  if (currentView === "employee") {
+    const empStatus = getEmployeeStatus(currentUser);
     return (
-      <div className="min-h-screen bg-slate-50 p-6 text-right font-sans" dir="rtl">
+      <div className="min-h-screen bg-slate-50 p-6" dir="rtl">
         <header className="max-w-4xl mx-auto flex justify-between items-center mb-10">
           <div>
-            <h2 className="text-3xl font-black text-slate-800">أهلاً، {currentUser.name}</h2>
+            <h2 className="text-3xl font-black text-slate-800">أهلاً {currentUser.name} 👋</h2>
             <p className="text-slate-500">
-              رصيدك الحالي: <span className="font-black text-indigo-600">{currentUser.balance} يوم</span>
-              {currentUser.monthly_balance > 0 && (
-                <span className="mr-2 text-emerald-600 text-sm">
-                  (+{currentUser.monthly_balance} شهرياً)
-                </span>
-              )}
+              رصيدك: <span className="font-black text-indigo-600">{currentUser.balance} يوم</span>
+              {currentUser.monthly_balance > 0 && <span className="mr-2 text-emerald-600 text-sm">(+{currentUser.monthly_balance} شهرياً)</span>}
             </p>
+            {currentUser.hire_date && <p className="text-slate-400 text-sm">تاريخ التعيين: {formatDate(currentUser.hire_date)}</p>}
+            {currentUser.return_date && (
+              <p className="text-slate-400 text-sm">
+                أيام العمل منذ العودة: <span className="font-bold text-purple-600">{calculateWorkedDays(currentUser.return_date)} يوم</span>
+              </p>
+            )}
+            <span className={`inline-block mt-1 px-3 py-1 rounded-full text-xs font-black ${empStatus === "عمل" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
+              {empStatus === "عمل" ? "🟢 في العمل" : "🟡 في إجازة"}
+            </span>
           </div>
-          <button onClick={() => setCurrentView("login")} className="text-red-500 font-bold flex items-center gap-2">
+          <button onClick={() => setCurrentView("login")} className="text-red-500 font-bold flex items-center gap-2 hover:bg-red-50 px-4 py-2 rounded-xl">
             <LogOut size={20} /> خروج
           </button>
         </header>
 
         <div className="max-w-4xl mx-auto grid md:grid-cols-2 gap-8">
-          {/* طلب إجازة */}
-          <section className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
-            <h3 className="text-xl font-black mb-6 flex items-center gap-3">
-              <Plus className="text-indigo-600" /> طلب إجازة جديد
-            </h3>
+          <section className="bg-white p-8 rounded-[2.5rem] shadow-sm border">
+            <h3 className="text-xl font-black mb-6 flex items-center gap-3"><Plus className="text-indigo-600" /> طلب إجازة جديد</h3>
             <div className="space-y-5">
-              <div className="space-y-2">
-                <label className="text-sm font-bold text-slate-400">تاريخ البدء</label>
-                <input
-                  type="date"
-                  className="w-full p-4 bg-slate-50 border-none rounded-2xl outline-none focus:ring-2 ring-indigo-500"
-                  value={newRequest.start_date}
-                  onChange={(e) => setNewRequest({...newRequest, start_date: e.target.value})}
-                />
+              <div>
+                <label className="text-sm font-bold text-slate-400 mb-2 block">نوع الإجازة</label>
+                <select className="w-full p-4 bg-slate-50 border-none rounded-2xl outline-none" value={newRequest.vacation_type_id} onChange={(e) => setNewRequest({...newRequest, vacation_type_id: e.target.value})}>
+                  <option value="">اختر النوع</option>
+                  {vacationTypes.map(vt => <option key={vt.id} value={vt.id}>{vt.name}</option>)}
+                </select>
               </div>
-              <div className="space-y-2">
-                <label className="text-sm font-bold text-slate-400">عدد الأيام</label>
-                <input
-                  type="number"
-                  step="0.5"
-                  min="0.5"
-                  className="w-full p-4 bg-slate-50 border-none rounded-2xl outline-none"
-                  value={newRequest.days}
-                  onChange={(e) => setNewRequest({...newRequest, days: Number(e.target.value)})}
-                />
+              <div>
+                <label className="text-sm font-bold text-slate-400 mb-2 block">تاريخ البدء</label>
+                <input type="date" className="w-full p-4 bg-slate-50 border-none rounded-2xl outline-none" value={newRequest.start_date} onChange={(e) => setNewRequest({...newRequest, start_date: e.target.value})} />
               </div>
-              <div className="space-y-2">
-                <label className="text-sm font-bold text-slate-400">ملاحظات (اختياري)</label>
-                <textarea
-                  className="w-full p-4 bg-slate-50 border-none rounded-2xl outline-none h-24"
-                  placeholder="سبب الإجازة..."
-                  value={newRequest.notes}
-                  onChange={(e) => setNewRequest({...newRequest, notes: e.target.value})}
-                />
+              <div>
+                <label className="text-sm font-bold text-slate-400 mb-2 block">عدد الأيام</label>
+                <input type="number" step="0.5" min="0.5" className="w-full p-4 bg-slate-50 border-none rounded-2xl outline-none" value={newRequest.days} onChange={(e) => setNewRequest({...newRequest, days: Number(e.target.value)})} />
               </div>
-              <button
-                onClick={submitVacationRequest}
-                disabled={isSubmitting}
-                className="w-full bg-indigo-600 text-white p-5 rounded-2xl font-black text-lg disabled:opacity-50"
-              >
-                {isSubmitting ? <Loader2 className="animate-spin mx-auto" /> : "إرسال الطلب للمراجعة"}
+              <div>
+                <label className="text-sm font-bold text-slate-400 mb-2 block">ملاحظات</label>
+                <textarea className="w-full p-4 bg-slate-50 border-none rounded-2xl outline-none h-24" placeholder="سبب الإجازة..." value={newRequest.notes} onChange={(e) => setNewRequest({...newRequest, notes: e.target.value})} />
+              </div>
+              <button onClick={submitVacationRequest} disabled={isSubmitting} className="w-full bg-indigo-600 text-white p-5 rounded-2xl font-black text-lg disabled:opacity-50">
+                {isSubmitting ? <Loader2 className="animate-spin mx-auto" /> : "إرسال الطلب"}
               </button>
             </div>
           </section>
 
-          {/* حالة الطلبات */}
           <section className="space-y-6">
-            <h3 className="text-xl font-black flex items-center gap-3">
-              <Clock className="text-amber-500" /> طلباتي الأخيرة
-            </h3>
-            {requests
-              .filter(r => r.employee_id === currentUser.id)
-              .map(req => (
-                <div key={req.id} className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
+            <h3 className="text-xl font-black flex items-center gap-3"><Clock className="text-amber-500" /> طلباتي</h3>
+            {requests.filter(r => r.employee_id === currentUser.id).map(req => {
+              const vacType = vacationTypes.find(vt => vt.id === req.vacation_type_id);
+              return (
+                <div key={req.id} className="bg-white p-6 rounded-[2rem] shadow-sm border">
                   <div className="flex justify-between items-start mb-4">
                     <div>
                       <p className="font-bold text-slate-800">{formatDate(req.start_date)}</p>
                       <p className="text-xs text-slate-400">{req.days} يوم</p>
+                      {vacType && <span className="inline-block mt-2 px-2 py-1 rounded-full text-xs font-bold" style={{ backgroundColor: vacType.color+'20', color: vacType.color }}>{vacType.name}</span>}
                     </div>
-                    <span className={`px-4 py-1.5 rounded-full text-xs font-black ${
-                      req.status === 'approved' ? 'bg-emerald-100 text-emerald-700' :
-                      req.status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
-                    }`}>
-                      {req.status === 'approved' ? 'مقبول ✓' : req.status === 'rejected' ? 'مرفوض ✗' : 'قيد الانتظار ⏳'}
+                    <span className={`px-4 py-1.5 rounded-full text-xs font-black ${req.status === 'approved' ? 'bg-emerald-100 text-emerald-700' : req.status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
+                      {req.status === 'approved' ? '✓ مقبول' : req.status === 'rejected' ? '✗ مرفوض' : '⏳ معلق'}
                     </span>
                   </div>
-                  
                   {req.admin_notes && (
                     <div className="mt-4 p-4 bg-blue-50 rounded-xl border border-blue-100">
-                      <p className="text-xs text-blue-600 font-bold mb-1 flex items-center gap-1">
-                        <MessageSquare size={14} />
-                        ملاحظات الإدارة:
-                      </p>
+                      <p className="text-xs text-blue-600 font-bold mb-1 flex items-center gap-1"><MessageSquare size={14} /> ملاحظات الإدارة:</p>
                       <p className="text-sm text-blue-900">{req.admin_notes}</p>
                     </div>
                   )}
                 </div>
-              ))}
-            
+              );
+            })}
             {requests.filter(r => r.employee_id === currentUser.id).length === 0 && (
-              <div className="bg-white p-16 rounded-[2rem] text-center border border-dashed border-slate-200">
-                <p className="text-slate-400 font-bold">لم تقم بتقديم أي طلبات بعد</p>
+              <div className="bg-white p-16 rounded-[2rem] text-center border border-dashed">
+                <p className="text-slate-400 font-bold">لم تقدم أي طلبات بعد</p>
               </div>
             )}
           </section>
         </div>
       </div>
     );
+  }
 
   return null;
 };
