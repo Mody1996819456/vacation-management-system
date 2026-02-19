@@ -150,6 +150,7 @@ const VacationManagementSystem = () => {
   const [newDept, setNewDept] = useState({ name: "", description: "" });
   const [newHoliday, setNewHoliday] = useState({ name: "", date: "", is_recurring: false });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   // ========== FETCH DATA ==========
   const fetchData = useCallback(async () => {
@@ -709,39 +710,101 @@ const VacationManagementSystem = () => {
   // ==================== LOGIN VIEW ====================
   if (currentView === "login") {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-900 flex items-center justify-center p-6" dir="rtl">
-        <div className="w-full max-w-4xl grid md:grid-cols-2 rounded-[2.5rem] overflow-hidden shadow-2xl border border-slate-700/50">
-          <div className="p-12 bg-slate-800/80">
-            <Users className="text-indigo-400 mb-6" size={48} />
-            <h2 className="text-3xl font-bold text-white mb-8">دخول الموظفين</h2>
-            <input
-              className="w-full bg-slate-700/50 p-4 rounded-2xl text-white mb-4 outline-none border border-slate-600 focus:border-indigo-500"
-              placeholder="الكود الوظيفي"
-              value={empCodeInput}
-              onChange={(e) => setEmpCodeInput(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleLogin(e as any)}
-            />
-            <button onClick={handleLogin} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white p-4 rounded-2xl font-bold">دخول</button>
+      <div dir="rtl" style={{
+        minHeight: "100vh",
+        background: "linear-gradient(135deg, #0f0c29, #302b63, #24243e)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "24px",
+        position: "relative",
+        overflow: "hidden",
+        fontFamily: "Cairo, sans-serif",
+      }}>
+        {/* خلفية دوائر متحركة */}
+        <style>{`
+          @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap');
+          @keyframes float1 { 0%,100%{transform:translate(0,0) scale(1)} 50%{transform:translate(30px,-40px) scale(1.05)} }
+          @keyframes float2 { 0%,100%{transform:translate(0,0) scale(1)} 50%{transform:translate(-20px,30px) scale(0.95)} }
+          @keyframes float3 { 0%,100%{transform:translate(0,0)} 50%{transform:translate(15px,-20px)} }
+          @keyframes shimmer { 0%{opacity:0.3} 50%{opacity:0.7} 100%{opacity:0.3} }
+          .orb1 { animation: float1 8s ease-in-out infinite; }
+          .orb2 { animation: float2 10s ease-in-out infinite; }
+          .orb3 { animation: float3 6s ease-in-out infinite; }
+          .login-card { backdrop-filter: blur(20px); transition: all 0.3s ease; }
+          .login-btn { transition: all 0.2s ease; }
+          .login-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0,0,0,0.3); }
+          .login-input:focus { outline: none; }
+        `}</style>
+
+        {/* كرات ضوئية في الخلفية */}
+        <div className="orb1" style={{ position:"absolute", top:"-10%", right:"-5%", width:"500px", height:"500px", borderRadius:"50%", background:"radial-gradient(circle, rgba(99,102,241,0.4) 0%, transparent 70%)", filter:"blur(40px)" }} />
+        <div className="orb2" style={{ position:"absolute", bottom:"-15%", left:"-10%", width:"600px", height:"600px", borderRadius:"50%", background:"radial-gradient(circle, rgba(16,185,129,0.3) 0%, transparent 70%)", filter:"blur(50px)" }} />
+        <div className="orb3" style={{ position:"absolute", top:"40%", left:"30%", width:"300px", height:"300px", borderRadius:"50%", background:"radial-gradient(circle, rgba(139,92,246,0.25) 0%, transparent 70%)", filter:"blur(30px)" }} />
+
+        {/* شبكة نقاط خلفية */}
+        <div style={{ position:"absolute", inset:0, backgroundImage:"radial-gradient(rgba(255,255,255,0.05) 1px, transparent 1px)", backgroundSize:"40px 40px", pointerEvents:"none" }} />
+
+        {/* الكارت الرئيسي */}
+        <div style={{ width:"100%", maxWidth:"900px", display:"grid", gridTemplateColumns:"1fr 1fr", borderRadius:"32px", overflow:"hidden", boxShadow:"0 30px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.05)", position:"relative", zIndex:10 }}>
+          
+          {/* قسم الموظفين - يمين */}
+          <div className="login-card" style={{ padding:"52px 40px", background:"rgba(255,255,255,0.04)", borderLeft:"1px solid rgba(255,255,255,0.08)" }}>
+            <div style={{ width:"60px", height:"60px", borderRadius:"18px", background:"linear-gradient(135deg, #6366f1, #8b5cf6)", display:"flex", alignItems:"center", justifyContent:"center", marginBottom:"24px", boxShadow:"0 8px 20px rgba(99,102,241,0.4)" }}>
+              <Users className="text-white" size={28} />
+            </div>
+            <h2 style={{ color:"white", fontSize:"26px", fontWeight:"900", marginBottom:"8px", fontFamily:"Cairo, sans-serif" }}>دخول الموظفين</h2>
+            <p style={{ color:"rgba(255,255,255,0.4)", fontSize:"14px", marginBottom:"32px" }}>أدخل كودك الوظيفي للمتابعة</p>
+            <div style={{ position:"relative", marginBottom:"16px" }}>
+              <input
+                className="login-input"
+                style={{ width:"100%", background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.12)", borderRadius:"14px", padding:"14px 18px", color:"white", fontSize:"15px", boxSizing:"border-box", fontFamily:"Cairo, sans-serif" }}
+                placeholder="الكود الوظيفي"
+                value={empCodeInput}
+                onChange={(e) => setEmpCodeInput(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleLogin(e as any)}
+              />
+            </div>
+            <button className="login-btn" onClick={handleLogin} style={{ width:"100%", background:"linear-gradient(135deg, #6366f1, #8b5cf6)", border:"none", borderRadius:"14px", padding:"15px", color:"white", fontSize:"16px", fontWeight:"700", cursor:"pointer", fontFamily:"Cairo, sans-serif" }}>
+              دخول
+            </button>
           </div>
-          <div className="p-12 bg-slate-900/80">
-            <ShieldCheck className="text-emerald-400 mb-6" size={48} />
-            <h2 className="text-3xl font-bold text-white mb-8">لوحة الإدارة</h2>
+
+          {/* قسم الإدارة - يسار */}
+          <div className="login-card" style={{ padding:"52px 40px", background:"rgba(0,0,0,0.25)" }}>
+            <div style={{ width:"60px", height:"60px", borderRadius:"18px", background:"linear-gradient(135deg, #10b981, #059669)", display:"flex", alignItems:"center", justifyContent:"center", marginBottom:"24px", boxShadow:"0 8px 20px rgba(16,185,129,0.4)" }}>
+              <ShieldCheck className="text-white" size={28} />
+            </div>
+            <h2 style={{ color:"white", fontSize:"26px", fontWeight:"900", marginBottom:"8px", fontFamily:"Cairo, sans-serif" }}>لوحة الإدارة</h2>
+            <p style={{ color:"rgba(255,255,255,0.4)", fontSize:"14px", marginBottom:"32px" }}>صلاحيات خاصة للمسؤولين فقط</p>
             <input
-              className="w-full bg-slate-800/50 p-4 rounded-2xl text-white mb-4 border border-slate-700 outline-none focus:border-emerald-500"
+              className="login-input"
+              style={{ width:"100%", background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.12)", borderRadius:"14px", padding:"14px 18px", color:"white", fontSize:"15px", marginBottom:"12px", display:"block", boxSizing:"border-box", fontFamily:"Cairo, sans-serif" }}
               placeholder="البريد الإلكتروني"
               value={loginData.email}
               onChange={(e) => setLoginData({ ...loginData, email: e.target.value })}
             />
             <input
               type="password"
-              className="w-full bg-slate-800/50 p-4 rounded-2xl text-white mb-6 border border-slate-700 outline-none focus:border-emerald-500"
+              className="login-input"
+              style={{ width:"100%", background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.12)", borderRadius:"14px", padding:"14px 18px", color:"white", fontSize:"15px", marginBottom:"16px", display:"block", boxSizing:"border-box", fontFamily:"Cairo, sans-serif" }}
               placeholder="كلمة المرور"
               value={loginData.password}
               onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
               onKeyDown={(e) => e.key === "Enter" && handleLogin(e as any)}
             />
-            <button onClick={handleLogin} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white p-4 rounded-2xl font-bold">دخول</button>
+            <button className="login-btn" onClick={handleLogin} style={{ width:"100%", background:"linear-gradient(135deg, #10b981, #059669)", border:"none", borderRadius:"14px", padding:"15px", color:"white", fontSize:"16px", fontWeight:"700", cursor:"pointer", fontFamily:"Cairo, sans-serif" }}>
+              دخول
+            </button>
           </div>
+        </div>
+
+        {/* شعار النظام */}
+        <div style={{ position:"absolute", top:"32px", right:"50%", transform:"translateX(50%)", display:"flex", alignItems:"center", gap:"12px", zIndex:10 }}>
+          <div style={{ width:"40px", height:"40px", borderRadius:"12px", background:"linear-gradient(135deg, #6366f1, #8b5cf6)", display:"flex", alignItems:"center", justifyContent:"center" }}>
+            <CalendarDays size={20} className="text-white" />
+          </div>
+          <span style={{ color:"white", fontWeight:"900", fontSize:"18px", fontFamily:"Cairo, sans-serif" }}>نظام إدارة الإجازات</span>
         </div>
       </div>
     );
@@ -751,10 +814,32 @@ const VacationManagementSystem = () => {
   if (currentView === "admin") {
     return (
       <div className="min-h-screen bg-slate-50 flex" dir="rtl">
+
+        {/* Overlay للموبايل */}
+        {sidebarOpen && (
+          <div
+            className="fixed inset-0 bg-black/50 z-10 lg:hidden"
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
+
+        {/* زرار toggle دايماً ظاهر في الكورنر */}
+        <button
+          onClick={() => setSidebarOpen(!sidebarOpen)}
+          className="fixed top-4 right-4 z-30 text-white p-3 rounded-2xl shadow-lg transition-all"
+          style={{ background: sidebarOpen ? "rgba(99,102,241,0.9)" : "#6366f1", backdropFilter:"blur(10px)" }}
+          title={sidebarOpen ? "إغلاق القائمة" : "فتح القائمة"}
+        >
+          {sidebarOpen ? <X size={22} /> : <LayoutDashboard size={22} />}
+        </button>
+
         {/* Sidebar */}
-        <aside className="w-72 bg-slate-900 text-slate-300 fixed h-full p-6 flex flex-col shadow-2xl z-20">
-          <div className="mb-10 text-center">
-            <div className="bg-indigo-600 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
+        <aside
+          className={`w-72 bg-slate-900 text-slate-300 fixed h-full p-6 flex flex-col shadow-2xl z-20 transition-transform duration-300`}
+          style={{ right: 0, transform: sidebarOpen ? "translateX(0)" : "translateX(100%)" }}
+        >
+          <div className="mb-8 text-center relative">
+            <div className="bg-indigo-600 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg" style={{marginTop:"48px"}}>
               <CalendarDays className="text-white" size={32} />
             </div>
             <h1 className="text-white font-black text-xl">نظام إدارة الإجازات</h1>
@@ -773,7 +858,7 @@ const VacationManagementSystem = () => {
             ].map((item) => (
               <button
                 key={item.id}
-                onClick={() => setActiveTab(item.id)}
+                onClick={() => { setActiveTab(item.id); if (window.innerWidth < 1024) setSidebarOpen(false); }}
                 className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-all ${activeTab === item.id ? "bg-indigo-600 text-white shadow-lg" : "hover:bg-slate-800 hover:text-white"}`}
               >
                 <item.icon size={20} />
@@ -790,7 +875,7 @@ const VacationManagementSystem = () => {
         </aside>
 
         {/* Main Content */}
-        <main className="mr-72 p-10 w-full">
+        <main className="transition-all duration-300 p-4 lg:p-10 w-full" style={{ marginRight: sidebarOpen ? "18rem" : "0" }}>
           {loading && <div className="flex items-center justify-center h-screen"><Loader2 className="animate-spin text-indigo-600" size={48} /></div>}
 
           {!loading && (
