@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
 import * as XLSX from "xlsx";
-import emailjs from "emailjs-com";
+import emailjs from "@emailjs/browser";
 import {
   LayoutDashboard, Users, LogOut, Plus, Trash2, Calendar, CheckCircle,
   Clock, Search, Edit3, ShieldCheck, Download, Loader2,
