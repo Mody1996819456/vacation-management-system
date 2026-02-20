@@ -5,10 +5,11 @@ import emailjs from "@emailjs/browser";
 import {
   LayoutDashboard, Users, LogOut, Plus, Trash2, Calendar, CheckCircle,
   Clock, Search, Edit3, ShieldCheck, Download, Loader2,
-  ArrowUpRight, CalendarDays, X, UserPlus, Upload, Bell,  MessageSquare,
+  ArrowUpRight, CalendarDays, X, UserPlus, Upload, Bell, MessageSquare,
   FileDown, Zap, BarChart3, Building2, TrendingUp,
   AlertCircle, RefreshCw, PieChart, BarChart2,
-  History, Mail, Briefcase,
+  History, Mail, Briefcase, Smartphone, Wifi, WifiOff,
+  TrendingDown, Activity, Award, Target, Flame, Eye,
 } from "lucide-react";
 
 // ==================== SUPABASE CONFIG ====================
@@ -153,6 +154,13 @@ const VacationManagementSystem = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [showAIChat, setShowAIChat] = useState(false);
   const [backupLoading, setBackupLoading] = useState(false);
+  // ===== NEW FEATURES STATES =====
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [showInsights, setShowInsights] = useState(false);
+  const [aiInsights, setAiInsights] = useState<string>("");
+  const [insightsLoading, setInsightsLoading] = useState(false);
+  const [pushEnabled, setPushEnabled] = useState(false);
+  const [showPWAGuide, setShowPWAGuide] = useState(false);
   const [lastBackup, setLastBackup] = useState<string>("");
   const GOOGLE_SCRIPT_URL = process.env.REACT_APP_GOOGLE_SCRIPT_URL || "";
   const [aiMessages, setAiMessages] = useState<{role:string, content:string}[]>([
@@ -168,6 +176,94 @@ const VacationManagementSystem = () => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
+
+  // ===== Online/Offline Detection =====
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => { window.removeEventListener('online', handleOnline); window.removeEventListener('offline', handleOffline); };
+  }, []);
+
+  // ===== AI Monthly Insights Generator =====
+  const generateAIInsights = async () => {
+    setInsightsLoading(true);
+    setShowInsights(true);
+    const GROQ_KEY = process.env.REACT_APP_GROQ_API_KEY || "";
+    if (!GROQ_KEY) { setAiInsights("⚠️ لم يتم إعداد REACT_APP_GROQ_API_KEY"); setInsightsLoading(false); return; }
+
+    const today = new Date().toISOString().split("T")[0];
+    const onVacNow = requests.filter(r => {
+      if (r.status !== "approved") return false;
+      const end = new Date(r.start_date); end.setDate(end.getDate() + Number(r.days));
+      return r.start_date <= today && end.toISOString().split("T")[0] > today;
+    });
+
+    const lowBal = employees.filter(e => e.balance < 5).map(e => e.name);
+    const deptStats = departments.map(d => ({
+      dept: d.name,
+      emps: employees.filter(e => e.department_id === d.id).length,
+      vacations: requests.filter(r => r.status === "approved" && employees.find(e => e.id === r.employee_id)?.department_id === d.id).length,
+    }));
+
+    const summaryData = {
+      totalEmployees: employees.length,
+      onVacationNow: onVacNow.length,
+      onVacationNames: onVacNow.map(r => r.employee_name),
+      pendingRequests: requests.filter(r => r.status === "pending").length,
+      lowBalanceEmployees: lowBal,
+      approvedThisMonth: requests.filter(r => { const d = new Date(r.created_at); const n = new Date(); return r.status === "approved" && d.getMonth() === n.getMonth() && d.getFullYear() === n.getFullYear(); }).length,
+      totalVacDays: requests.filter(r => r.status === "approved").reduce((s, r) => s + Number(r.days), 0),
+      deptStats,
+    };
+
+    try {
+      const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${GROQ_KEY}` },
+        body: JSON.stringify({
+          model: "llama-3.3-70b-versatile",
+          max_tokens: 800,
+          messages: [
+            { role: "system", content: "أنت محلل بيانات HR خبير. اكتب تقرير تحليلي احترافي باللغة العربية مختصر ومفيد." },
+            { role: "user", content: `حلل هذه البيانات واكتب تقرير شهري مختصر مع توصيات:
+${JSON.stringify(summaryData)}
+
+اكتب:
+1. ملخص الوضع الحالي
+2. نقاط تحتاج انتباه
+3. توصيات عملية
+4. توقعات للفترة القادمة` }
+          ]
+        })
+      });
+      const data = await res.json();
+      setAiInsights(data.choices?.[0]?.message?.content || "تعذر توليد التقرير");
+    } catch { setAiInsights("❌ خطأ في الاتصال"); }
+    setInsightsLoading(false);
+  };
+
+  // ===== Push Notifications Setup =====
+  const enablePushNotifications = async () => {
+    if (!("Notification" in window)) { alert("متصفحك لا يدعم الإشعارات"); return; }
+    const permission = await Notification.requestPermission();
+    if (permission === "granted") {
+      setPushEnabled(true);
+      new Notification("✅ تم تفعيل الإشعارات", {
+        body: "ستصلك إشعارات عند وجود طلبات جديدة",
+        icon: "/icon-192.png",
+        dir: "rtl",
+      });
+    }
+  };
+
+  // ===== Send Local Notification =====
+  const sendLocalNotification = (title: string, body: string) => {
+    if (pushEnabled && Notification.permission === "granted") {
+      new Notification(title, { body, icon: "/icon-192.png", dir: "rtl" });
+    }
+  };
 
   // الحكم اليومية
   const dailyWisdoms = [
@@ -1170,8 +1266,17 @@ ACTION: {"type":"نوع","data":{...}}
             ))}
           </nav>
 
-          {/* خروج */}
-          <div style={{ padding:"10px", borderTop:"1px solid rgba(255,255,255,0.07)" }}>
+          {/* PWA + خروج */}
+          <div style={{ padding:"10px", borderTop:"1px solid rgba(255,255,255,0.07)", display:"flex", flexDirection:"column", gap:"6px" }}>
+            {/* زر تثبيت التطبيق */}
+            <button onClick={() => setShowPWAGuide(true)} style={{
+              width:"100%", display:"flex", alignItems:"center", gap:"10px",
+              padding:"10px 12px", borderRadius:"10px", border:"1px solid rgba(99,102,241,0.3)",
+              background:"rgba(99,102,241,0.1)", color:"#a5b4fc", cursor:"pointer",
+              fontWeight:"700", fontSize:"13px",
+            }}>
+              <Smartphone size={17}/><span>تثبيت التطبيق 📱</span>
+            </button>
             <button onClick={() => setCurrentView("login")} style={{
               width:"100%", display:"flex", alignItems:"center", gap:"10px",
               padding:"10px 12px", borderRadius:"10px", border:"1px solid rgba(239,68,68,0.2)",
@@ -1181,6 +1286,45 @@ ACTION: {"type":"نوع","data":{...}}
               <LogOut size={17} /><span>خروج</span>
             </button>
           </div>
+
+          {/* PWA Guide Modal */}
+          {showPWAGuide && (
+            <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", zIndex:999, display:"flex", alignItems:"center", justifyContent:"center", padding:"20px" }} onClick={() => setShowPWAGuide(false)}>
+              <div style={{ background:"white", borderRadius:"24px", padding:"32px", maxWidth:"440px", width:"100%", direction:"rtl" }} onClick={e => e.stopPropagation()}>
+                <div style={{ textAlign:"center", marginBottom:"24px" }}>
+                  <div style={{ fontSize:"48px", marginBottom:"12px" }}>📱</div>
+                  <h2 style={{ margin:0, fontWeight:"900", fontSize:"22px", color:"#1e293b" }}>تثبيت التطبيق</h2>
+                  <p style={{ color:"#64748b", fontSize:"14px", marginTop:"8px" }}>وصول سريع من شاشتك الرئيسية</p>
+                </div>
+                <div style={{ display:"flex", flexDirection:"column", gap:"16px" }}>
+                  <div style={{ background:"#f8fafc", borderRadius:"16px", padding:"16px" }}>
+                    <p style={{ fontWeight:"800", fontSize:"14px", color:"#1e293b", marginBottom:"8px" }}>🤖 Android (Chrome):</p>
+                    <ol style={{ margin:0, padding:"0 20px", fontSize:"13px", color:"#475569", lineHeight:"2" }}>
+                      <li>اضغط على ⋮ (القائمة) في Chrome</li>
+                      <li>اختر "إضافة إلى الشاشة الرئيسية"</li>
+                      <li>اضغط "إضافة"</li>
+                    </ol>
+                  </div>
+                  <div style={{ background:"#f8fafc", borderRadius:"16px", padding:"16px" }}>
+                    <p style={{ fontWeight:"800", fontSize:"14px", color:"#1e293b", marginBottom:"8px" }}>🍎 iPhone (Safari):</p>
+                    <ol style={{ margin:0, padding:"0 20px", fontSize:"13px", color:"#475569", lineHeight:"2" }}>
+                      <li>اضغط على زر المشاركة ⬆️</li>
+                      <li>اختر "إضافة إلى الشاشة الرئيسية"</li>
+                      <li>اضغط "إضافة"</li>
+                    </ol>
+                  </div>
+                  <div style={{ background:"#ede9fe", borderRadius:"16px", padding:"16px", textAlign:"center" }}>
+                    <p style={{ margin:0, fontSize:"13px", color:"#7c3aed", fontWeight:"700" }}>
+                      ✅ بعد التثبيت: التطبيق هيشتغل زي أي app عادي حتى بدون نت!
+                    </p>
+                  </div>
+                </div>
+                <button onClick={() => setShowPWAGuide(false)} style={{ width:"100%", marginTop:"20px", background:"#4f46e5", color:"white", border:"none", borderRadius:"14px", padding:"14px", fontWeight:"900", fontSize:"15px", cursor:"pointer", fontFamily:"inherit" }}>
+                  فهمت! ✅
+                </button>
+              </div>
+            </div>
+          )}
         </aside>
 
         {/* Main Content */}
@@ -1259,32 +1403,72 @@ ACTION: {"type":"نوع","data":{...}}
                       </div>
                     );
                   })()}
-                  {/* زرار النسخ الاحتياطي */}
-                  <div style={{ display:"flex", justifyContent:"flex-end", alignItems:"center", gap:"16px" }}>
-                    {lastBackup && (
-                      <span style={{ color:"#64748b", fontSize:"13px" }}>
-                        آخر نسخة: {lastBackup}
-                      </span>
-                    )}
-                    <button
-                      onClick={handleBackup}
-                      disabled={backupLoading}
-                      style={{
+                  {/* شريط الأدوات العلوي */}
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:"12px", flexWrap:"wrap" }}>
+                    {/* حالة الاتصال */}
+                    <div style={{ display:"flex", alignItems:"center", gap:"8px", padding:"8px 16px", borderRadius:"20px", background: isOnline ? "#dcfce7" : "#fee2e2", color: isOnline ? "#16a34a" : "#dc2626", fontSize:"13px", fontWeight:"700" }}>
+                      {isOnline ? <Wifi size={16}/> : <WifiOff size={16}/>}
+                      {isOnline ? "متصل" : "غير متصل"}
+                    </div>
+
+                    <div style={{ display:"flex", gap:"10px", flexWrap:"wrap" }}>
+                      {/* زر الإشعارات */}
+                      <button onClick={enablePushNotifications} style={{
+                        display:"flex", alignItems:"center", gap:"8px",
+                        background: pushEnabled ? "#dcfce7" : "#f1f5f9",
+                        color: pushEnabled ? "#16a34a" : "#64748b",
+                        border:"none", borderRadius:"14px", padding:"10px 18px",
+                        fontWeight:"700", cursor:"pointer", fontSize:"13px", fontFamily:"inherit",
+                      }}>
+                        <Bell size={16}/> {pushEnabled ? "الإشعارات مفعّلة ✅" : "تفعيل الإشعارات"}
+                      </button>
+
+                      {/* زر التقرير الذكي */}
+                      <button onClick={generateAIInsights} style={{
+                        display:"flex", alignItems:"center", gap:"8px",
+                        background: "linear-gradient(135deg, #7c3aed, #6366f1)",
+                        color:"white", border:"none", borderRadius:"14px",
+                        padding:"10px 18px", fontWeight:"700", cursor:"pointer",
+                        fontSize:"13px", fontFamily:"inherit",
+                      }}>
+                        <Activity size={16}/> تقرير AI ذكي
+                      </button>
+
+                      {/* زر النسخ الاحتياطي */}
+                      {lastBackup && <span style={{ color:"#64748b", fontSize:"12px", alignSelf:"center" }}>آخر نسخة: {lastBackup}</span>}
+                      <button onClick={handleBackup} disabled={backupLoading} style={{
                         display:"flex", alignItems:"center", gap:"8px",
                         background: backupLoading ? "#94a3b8" : "linear-gradient(135deg, #10b981, #059669)",
                         color:"white", border:"none", borderRadius:"14px",
-                        padding:"12px 24px", fontWeight:"700", cursor: backupLoading ? "not-allowed" : "pointer",
-                        fontSize:"14px", boxShadow:"0 4px 15px rgba(16,185,129,0.3)",
-                        fontFamily:"inherit",
-                      }}
-                    >
-                      {backupLoading ? (
-                        <><RefreshCw size={18} style={{animation:"spin 1s linear infinite"}} /> جاري النسخ...</>
-                      ) : (
-                        <><Download size={18} /> نسخ احتياطي Google Sheets</>
-                      )}
-                    </button>
+                        padding:"10px 18px", fontWeight:"700", cursor: backupLoading ? "not-allowed" : "pointer",
+                        fontSize:"13px", fontFamily:"inherit",
+                      }}>
+                        {backupLoading ? <><RefreshCw size={16} style={{animation:"spin 1s linear infinite"}}/> جاري...</> : <><Download size={16}/> Google Sheets</>}
+                      </button>
+                    </div>
                   </div>
+
+                  {/* AI Insights Modal */}
+                  {showInsights && (
+                    <div style={{ background:"white", borderRadius:"20px", border:"1px solid #e2e8f0", padding:"24px", boxShadow:"0 4px 20px rgba(0,0,0,0.08)" }}>
+                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"16px" }}>
+                        <h3 style={{ margin:0, fontWeight:"900", fontSize:"18px", display:"flex", alignItems:"center", gap:"8px" }}>
+                          <Activity size={20} style={{color:"#7c3aed"}}/> التقرير التحليلي الذكي
+                        </h3>
+                        <button onClick={() => setShowInsights(false)} style={{ background:"#f1f5f9", border:"none", borderRadius:"8px", padding:"6px 12px", cursor:"pointer", fontWeight:"700", color:"#64748b" }}>✕ إغلاق</button>
+                      </div>
+                      {insightsLoading ? (
+                        <div style={{ textAlign:"center", padding:"40px", color:"#7c3aed" }}>
+                          <Loader2 size={36} style={{ animation:"spin 1s linear infinite", margin:"0 auto 12px" }}/>
+                          <p style={{ fontWeight:"700" }}>جاري تحليل البيانات بالذكاء الاصطناعي...</p>
+                        </div>
+                      ) : (
+                        <div style={{ whiteSpace:"pre-wrap", lineHeight:"1.8", fontSize:"14px", color:"#374151", background:"#f8fafc", padding:"20px", borderRadius:"12px" }}>
+                          {aiInsights}
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   <div className="grid grid-cols-4 gap-6">
                     <div className="bg-white p-6 rounded-[2rem] shadow-sm border flex items-center gap-4">
@@ -1304,6 +1488,65 @@ ACTION: {"type":"نوع","data":{...}}
                       <div><p className="text-slate-500 font-bold text-sm">متوسط الرصيد</p><h3 className="text-3xl font-black text-purple-600">{stats.avgBalance}</h3></div>
                     </div>
                   </div>
+                  {/* ===== Advanced Analytics Strip ===== */}
+                  <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:"16px" }}>
+                    {/* نسبة الحضور */}
+                    {(() => {
+                      const attendRate = stats.totalEmployees > 0 ? Math.round((stats.atWorkNow / stats.totalEmployees) * 100) : 0;
+                      return (
+                        <div style={{ background:"white", borderRadius:"16px", padding:"20px", border:"1px solid #e2e8f0", boxShadow:"0 1px 4px rgba(0,0,0,0.05)" }}>
+                          <div style={{ display:"flex", alignItems:"center", gap:"8px", marginBottom:"12px" }}>
+                            <Target size={16} style={{color:"#4f46e5"}}/>
+                            <span style={{ fontSize:"12px", color:"#64748b", fontWeight:"700" }}>نسبة الحضور</span>
+                          </div>
+                          <div style={{ fontSize:"28px", fontWeight:"900", color:"#4f46e5" }}>{attendRate}%</div>
+                          <div style={{ marginTop:"8px", height:"6px", background:"#e2e8f0", borderRadius:"3px" }}>
+                            <div style={{ height:"100%", width:`${attendRate}%`, background:"linear-gradient(90deg,#4f46e5,#7c3aed)", borderRadius:"3px" }}/>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                    {/* إجمالي أيام الإجازات */}
+                    <div style={{ background:"white", borderRadius:"16px", padding:"20px", border:"1px solid #e2e8f0", boxShadow:"0 1px 4px rgba(0,0,0,0.05)" }}>
+                      <div style={{ display:"flex", alignItems:"center", gap:"8px", marginBottom:"12px" }}>
+                        <Award size={16} style={{color:"#f59e0b"}}/>
+                        <span style={{ fontSize:"12px", color:"#64748b", fontWeight:"700" }}>إجمالي أيام الإجازات</span>
+                      </div>
+                      <div style={{ fontSize:"28px", fontWeight:"900", color:"#f59e0b" }}>{stats.totalVacationDays}</div>
+                      <div style={{ fontSize:"11px", color:"#94a3b8", marginTop:"4px" }}>يوم مجموع مُوافق عليه</div>
+                    </div>
+                    {/* موظفين رصيدهم منخفض */}
+                    {(() => {
+                      const lowCount = employees.filter(e => e.balance < 5).length;
+                      return (
+                        <div style={{ background: lowCount > 0 ? "#fff7ed" : "white", borderRadius:"16px", padding:"20px", border:`1px solid ${lowCount > 0 ? "#fed7aa" : "#e2e8f0"}`, boxShadow:"0 1px 4px rgba(0,0,0,0.05)" }}>
+                          <div style={{ display:"flex", alignItems:"center", gap:"8px", marginBottom:"12px" }}>
+                            <Flame size={16} style={{color: lowCount > 0 ? "#ea580c" : "#64748b"}}/>
+                            <span style={{ fontSize:"12px", color:"#64748b", fontWeight:"700" }}>رصيد منخفض</span>
+                          </div>
+                          <div style={{ fontSize:"28px", fontWeight:"900", color: lowCount > 0 ? "#ea580c" : "#10b981" }}>{lowCount}</div>
+                          <div style={{ fontSize:"11px", color:"#94a3b8", marginTop:"4px" }}>موظف أقل من 5 أيام</div>
+                        </div>
+                      );
+                    })()}
+                    {/* معدل الموافقة */}
+                    {(() => {
+                      const total = requests.length;
+                      const approved = requests.filter(r => r.status === "approved").length;
+                      const rate = total > 0 ? Math.round((approved / total) * 100) : 0;
+                      return (
+                        <div style={{ background:"white", borderRadius:"16px", padding:"20px", border:"1px solid #e2e8f0", boxShadow:"0 1px 4px rgba(0,0,0,0.05)" }}>
+                          <div style={{ display:"flex", alignItems:"center", gap:"8px", marginBottom:"12px" }}>
+                            <Eye size={16} style={{color:"#10b981"}}/>
+                            <span style={{ fontSize:"12px", color:"#64748b", fontWeight:"700" }}>معدل الموافقة</span>
+                          </div>
+                          <div style={{ fontSize:"28px", fontWeight:"900", color:"#10b981" }}>{rate}%</div>
+                          <div style={{ fontSize:"11px", color:"#94a3b8", marginTop:"4px" }}>{approved} من {total} طلب</div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+
                   <div className="grid grid-cols-2 gap-8">
                     <div className="bg-white rounded-[2rem] shadow-sm border">
                       <div className="p-6 border-b bg-slate-50/50"><h4 className="font-black text-slate-800 flex items-center gap-2"><ArrowUpRight className="text-indigo-600" size={20} /> الأعلى رصيداً</h4></div>
