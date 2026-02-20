@@ -30,27 +30,39 @@ const EMAILJS_TEMPLATES = {
 const ADMIN_EMAIL = "mohamedgamal199681945@gmail.com";
 
 // ==================== EMAIL SENDER ====================
-// Cache عشان نمنع التكرار في نفس الجلسة
-const sentEmailsCache = new Set<string>();
-
-// مفتاح مركّب من templateId + toEmail + بيانات الطلب لمنع التكرار
+// نمنع التكرار بـ localStorage (يدوم حتى بعد refresh)
 const buildEmailKey = (templateId: string, toEmail: string, params: Record<string, any>) => {
-  const uniqueField = params.request_id || params.start_date || JSON.stringify(params).slice(0, 80);
-  return `${templateId}|${toEmail}|${uniqueField}`;
+  const today = new Date().toISOString().split("T")[0];
+  const uniqueField = params.request_id || params.start_date || "";
+  return `email_sent|${today}|${templateId}|${toEmail}|${uniqueField}`;
 };
 
 const sendEmail = async (templateId: string, toEmail: string, params: Record<string, any>) => {
-  const cacheKey = buildEmailKey(templateId, toEmail, params);
-  if (sentEmailsCache.has(cacheKey)) {
-    console.log(`⏭️ إيميل سبق إرساله، تم التخطي: ${toEmail} - ${templateId}`);
+  if (!toEmail || !templateId) {
+    console.log("⚠️ sendEmail: toEmail أو templateId فارغ");
     return;
   }
+
+  // تحقق إن الإيميل مش اتبعت النهارده لنفس الطلب
+  const cacheKey = buildEmailKey(templateId, toEmail, params);
+  if (localStorage.getItem(cacheKey)) {
+    console.log(`⏭️ إيميل سبق إرساله اليوم: ${toEmail} - ${templateId}`);
+    return;
+  }
+
   try {
-    await emailjs.send(EMAILJS_SERVICE_ID, templateId, { to_email: toEmail, ...params }, EMAILJS_PUBLIC_KEY);
-    sentEmailsCache.add(cacheKey);
-    console.log(`✅ إيميل أُرسل لـ ${toEmail}`);
-  } catch (err) {
-    console.error(`❌ فشل إرسال الإيميل لـ ${toEmail}:`, err);
+    console.log(`📧 جاري إرسال إيميل لـ ${toEmail} - template: ${templateId}`);
+    const result = await emailjs.send(
+      EMAILJS_SERVICE_ID,
+      templateId,
+      { to_email: toEmail, ...params },
+      EMAILJS_PUBLIC_KEY
+    );
+    // احفظ في localStorage إن الإيميل اتبعت
+    localStorage.setItem(cacheKey, "1");
+    console.log(`✅ إيميل أُرسل بنجاح لـ ${toEmail}`, result.status);
+  } catch (err: any) {
+    console.error(`❌ فشل إرسال الإيميل لـ ${toEmail}:`, err?.text || err?.message || err);
   }
 };
 
@@ -160,7 +172,7 @@ const VacationManagementSystem = () => {
   const [aiInsights, setAiInsights] = useState<string>("");
   const [insightsLoading, setInsightsLoading] = useState(false);
   const [pushEnabled, setPushEnabled] = useState(() => {
-    try { return Notification.permission === "granted"; } catch { return false; }
+    try { return typeof Notification !== "undefined" && Notification.permission === "granted"; } catch { return false; }
   });
   const [showPWAGuide, setShowPWAGuide] = useState(false);
   const [lastBackup, setLastBackup] = useState<string>("");
@@ -284,15 +296,20 @@ ${JSON.stringify(summaryData)}
     }
   };
 
-  // ===== Send Local Notification =====
+  // ===== Send Local Notification - بيتحقق من الإذن مباشرة مش من الـ state =====
   const sendLocalNotification = (title: string, body: string) => {
-    if (Notification.permission === "granted") {
+    try {
+      if (!("Notification" in window)) return;
+      if (Notification.permission !== "granted") return;
       new Notification(title, {
         body,
         icon: "/icon-192.png",
         dir: "rtl",
-        tag: Date.now().toString(),
+        tag: `${title}-${Date.now()}`,
+        requireInteraction: false,
       });
+    } catch (err) {
+      console.log("Notification error:", err);
     }
   };
 
