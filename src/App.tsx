@@ -833,42 +833,46 @@ const VacationManagementSystem = () => {
       return;
     }
 
-    // بيانات النظام الحالية للـ AI
-    const systemData = {
-      employees: employees.map(e => ({
-        id: e.id, name: e.name, code: e.code, position: e.position,
-        email: e.email, balance: e.balance, monthly_balance: e.monthly_balance,
-        department: departments.find(d => d.id === e.department_id)?.name || "-",
-        status: getEmployeeStatus(e), return_date: e.return_date,
-      })),
-      requests: requests.map(r => ({
-        id: r.id, employee_name: r.employee_name, status: r.status,
-        start_date: r.start_date, days: r.days,
-        type: vacationTypes.find(v => v.id === r.vacation_type_id)?.name || "-",
-      })),
-      stats,
-      departments: departments.map(d => ({ id: d.id, name: d.name })),
-      vacationTypes: vacationTypes.map(v => ({ id: v.id, name: v.name })),
+    // ✅ بيانات ذكية مضغوطة حسب سؤال المستخدم
+    const msgLower = userMsg;
+    const needsRequests = ["طلب","إجازة","معلق","موافق","رفض","approve","reject"].some(w => msgLower.includes(w));
+    const needsEmployees = ["موظف","رصيد","حذف","اضف","إضافة","احذف"].some(w => msgLower.includes(w));
+
+    const compactStats = {
+      total: stats.totalEmployees,
+      on_vacation: stats.onVacationNow,
+      at_work: stats.atWorkNow,
+      pending: stats.pendingRequests,
+      approved_month: stats.approvedThisMonth,
     };
 
-    const systemPrompt = `أنت مساعد ذكي لنظام إدارة الإجازات. لديك صلاحيات كاملة للاطلاع على البيانات وتنفيذ الأوامر.
+    const compactEmployees = employees.slice(0, 40).map(e => ({
+      id: e.id, name: e.name, code: e.code,
+      balance: e.balance,
+      dept: departments.find(d => d.id === e.department_id)?.name || "-",
+      status: getEmployeeStatus(e),
+    }));
 
-بيانات النظام الحالية:
-${JSON.stringify(systemData, null, 2)}
+    const compactRequests = needsRequests
+      ? requests.filter(r => r.status === "pending").slice(0, 15).map(r => ({
+          id: r.id, emp: r.employee_name, status: r.status,
+          date: r.start_date, days: r.days,
+        }))
+      : [];
 
-قواعد الرد:
-1. أجب بالعربي دائماً
-2. إذا كان الطلب استعلاماً، أجب مباشرة بالمعلومات
-3. إذا كان الطلب تنفيذ أمر (إضافة/حذف/تعديل)، اشرح ما ستفعله وأضف في نهاية ردك السطر التالي بالضبط:
-   ACTION: {"type": "نوع_الأمر", "data": {البيانات}}
-   أنواع الأوامر المتاحة:
-   - add_employee: {"name","code","position","email","balance","department_id"}
-   - delete_employee: {"id"}
-   - update_balance: {"id","balance"}
-   - approve_request: {"id"}
-   - reject_request: {"id"}
-4. كن مختصراً وواضحاً
-5. إذا سُئلت عن إحصائيات، احسبها من البيانات`;
+    const systemData = {
+      stats: compactStats,
+      employees: needsEmployees || !needsRequests ? compactEmployees : `${employees.length} موظف`,
+      pending_requests: compactRequests,
+      departments: departments.map(d => ({ id: d.id, name: d.name })),
+      vacation_types: vacationTypes.map(v => ({ id: v.id, name: v.name })),
+    };
+
+    const systemPrompt = `أنت مساعد ذكي لإدارة الإجازات. بيانات النظام:
+${JSON.stringify(systemData)}
+قواعد: أجب بالعربي باختصار. للتنفيذ أضف في النهاية:
+ACTION: {"type":"نوع","data":{...}}
+الأوامر: add_employee={name,code,position,email,balance,department_id} | delete_employee={id} | update_balance={id,balance} | approve_request={id} | reject_request={id}`;
 
     try {
       // بناء تاريخ المحادثة بصيغة OpenAI المتوافقة مع Groq
