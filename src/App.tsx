@@ -712,7 +712,7 @@ const VacationManagementSystem = () => {
       );
     }
     return (
-      <div className="bg-white p-6 rounded-[2rem] shadow-sm border">
+      <div style={{ width:"100%", boxSizing:"border-box" }} className="bg-white p-6 rounded-[2rem] shadow-sm border">
         <div className="flex items-center justify-between mb-4">
           <button onClick={() => setCurrentMonth(new Date(year, month-1))} className="p-2 hover:bg-slate-100 rounded-xl">❯</button>
           <h3 className="text-lg font-black">{currentMonth.toLocaleDateString('ar-EG', { month: 'long', year: 'numeric' })}</h3>
@@ -1108,19 +1108,36 @@ ACTION: {"type":"نوع","data":{...}}
           {sidebarOpen ? <X size={22} /> : <LayoutDashboard size={22} />}
         </button>
 
-        {/* Sidebar */}
-        <aside
-          className={`w-72 bg-slate-900 text-slate-300 fixed h-full p-6 flex flex-col shadow-2xl z-20 transition-transform duration-300`}
-          style={{ right: 0, transform: sidebarOpen ? "translateX(0)" : "translateX(100%)" }}
-        >
-          <div className="mb-8 text-center relative">
-            <div className="bg-indigo-600 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg" style={{marginTop:"48px"}}>
-              <CalendarDays className="text-white" size={32} />
+        {/* Sidebar - ضيق واحترافي */}
+        <aside style={{
+          width: sidebarOpen ? "220px" : "0",
+          minWidth: sidebarOpen ? "220px" : "0",
+          background:"#0f172a",
+          height:"100vh",
+          position:"fixed",
+          right:0, top:0,
+          display:"flex",
+          flexDirection:"column",
+          zIndex:20,
+          transition:"all 0.3s ease",
+          overflow:"hidden",
+          boxShadow: sidebarOpen ? "4px 0 24px rgba(0,0,0,0.3)" : "none",
+        }}>
+          {/* الشعار */}
+          <div style={{ padding:"24px 16px 16px", borderBottom:"1px solid rgba(255,255,255,0.07)", marginTop:"48px" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:"10px" }}>
+              <div style={{ background:"#4f46e5", borderRadius:"10px", padding:"8px", flexShrink:0 }}>
+                <CalendarDays size={18} className="text-white" />
+              </div>
+              <div>
+                <div style={{ color:"white", fontWeight:"900", fontSize:"13px", lineHeight:"1.2" }}>نظام الإجازات</div>
+                <div style={{ color:"#475569", fontSize:"10px" }}>لوحة الإدارة</div>
+              </div>
             </div>
-            <h1 className="text-white font-black text-xl">نظام إدارة الإجازات</h1>
-            <p className="text-slate-500 text-xs mt-1">النسخة المتقدمة</p>
           </div>
-          <nav className="flex-1 space-y-2">
+
+          {/* القائمة */}
+          <nav style={{ flex:1, padding:"12px 10px", display:"flex", flexDirection:"column", gap:"4px", overflowY:"auto" }}>
             {[
               { id: "dashboard", label: "الرئيسية", icon: LayoutDashboard },
               { id: "employees", label: "الموظفين", icon: Users },
@@ -1131,33 +1148,58 @@ ACTION: {"type":"نوع","data":{...}}
               { id: "holidays", label: "العطلات", icon: CalendarDays },
               { id: "history", label: "السجل", icon: History },
             ].map((item) => (
-              <button
-                key={item.id}
+              <button key={item.id}
                 onClick={() => { setActiveTab(item.id); if (window.innerWidth < 1024) setSidebarOpen(false); }}
-                className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-all ${activeTab === item.id ? "bg-indigo-600 text-white shadow-lg" : "hover:bg-slate-800 hover:text-white"}`}
+                style={{
+                  width:"100%", display:"flex", alignItems:"center", gap:"10px",
+                  padding:"10px 12px", borderRadius:"10px", border:"none", cursor:"pointer",
+                  background: activeTab === item.id ? "#4f46e5" : "transparent",
+                  color: activeTab === item.id ? "white" : "#94a3b8",
+                  fontWeight:"700", fontSize:"13px", transition:"all 0.15s", textAlign:"right",
+                  position:"relative",
+                }}
+                onMouseEnter={e => { if(activeTab !== item.id) e.currentTarget.style.background = "#1e293b"; e.currentTarget.style.color = "white"; }}
+                onMouseLeave={e => { if(activeTab !== item.id) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#94a3b8"; } }}
               >
-                <item.icon size={20} />
-                <span className="font-bold">{item.label}</span>
+                <item.icon size={17} style={{ flexShrink:0 }} />
+                <span style={{ whiteSpace:"nowrap" }}>{item.label}</span>
                 {item.id === "requests" && notifications.length > 0 && (
-                  <span className="mr-auto bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">{notifications.length}</span>
+                  <span style={{ marginRight:"auto", background:"#ef4444", color:"white", fontSize:"10px", padding:"1px 6px", borderRadius:"10px", fontWeight:"900" }}>{notifications.length}</span>
                 )}
               </button>
             ))}
           </nav>
-          <button onClick={() => setCurrentView("login")} className="p-4 text-red-400 hover:bg-red-500/10 rounded-2xl flex items-center gap-4 transition-all mt-auto border border-red-500/20">
-            <LogOut size={20} /><span className="font-bold">خروج</span>
-          </button>
+
+          {/* خروج */}
+          <div style={{ padding:"10px", borderTop:"1px solid rgba(255,255,255,0.07)" }}>
+            <button onClick={() => setCurrentView("login")} style={{
+              width:"100%", display:"flex", alignItems:"center", gap:"10px",
+              padding:"10px 12px", borderRadius:"10px", border:"1px solid rgba(239,68,68,0.2)",
+              background:"rgba(239,68,68,0.05)", color:"#f87171", cursor:"pointer",
+              fontWeight:"700", fontSize:"13px",
+            }}>
+              <LogOut size={17} /><span>خروج</span>
+            </button>
+          </div>
         </aside>
 
         {/* Main Content */}
-        <main className="transition-all duration-300 p-4 lg:p-10 w-full" style={{ marginRight: sidebarOpen ? "18rem" : "0" }}>
+        <main style={{ 
+          marginRight: sidebarOpen ? "220px" : "0", 
+          width: sidebarOpen ? "calc(100% - 220px)" : "100%",
+          transition:"all 0.3s ease", 
+          padding:"16px 24px", 
+          minHeight:"100vh", 
+          paddingTop:"60px",
+          boxSizing:"border-box",
+        }}>
           {loading && <div className="flex items-center justify-center h-screen"><Loader2 className="animate-spin text-indigo-600" size={48} /></div>}
 
           {!loading && (
             <>
               {/* ===== DASHBOARD ===== */}
               {activeTab === "dashboard" && (
-                <div className="space-y-8">
+                <div style={{ width:"100%", boxSizing:"border-box" }} className="space-y-8">
                   {/* ===== رسالة الترحيب ===== */}
                   {(() => {
                     const greeting = getGreeting();
@@ -1319,94 +1361,144 @@ ACTION: {"type":"نوع","data":{...}}
 
               {/* ===== EMPLOYEES ===== */}
               {activeTab === "employees" && (
-                <div className="space-y-6">
-                  <div className="flex justify-between items-center">
-                    <div className="relative w-1/3">
-                      <Search className="absolute right-4 top-3.5 text-slate-400" size={20} />
-                      <input className="w-full pr-12 p-3.5 bg-white border rounded-2xl shadow-sm outline-none" placeholder="ابحث عن موظف..." value={empSearch} onChange={(e) => setEmpSearch(e.target.value)} />
+                <div className="space-y-5">
+                  {/* شريط الأدوات */}
+                  <div style={{ background:"white", borderRadius:"20px", padding:"16px 20px", border:"1px solid #e2e8f0", display:"flex", alignItems:"center", gap:"12px", flexWrap:"wrap", boxShadow:"0 1px 4px rgba(0,0,0,0.05)" }}>
+                    {/* بحث */}
+                    <div style={{ position:"relative", flex:"1", minWidth:"200px" }}>
+                      <Search style={{ position:"absolute", right:"14px", top:"50%", transform:"translateY(-50%)", color:"#94a3b8" }} size={16} />
+                      <input
+                        style={{ width:"100%", paddingRight:"40px", paddingLeft:"14px", paddingTop:"10px", paddingBottom:"10px", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:"12px", fontSize:"13px", outline:"none", boxSizing:"border-box" }}
+                        placeholder="ابحث بالاسم أو الكود..."
+                        value={empSearch}
+                        onChange={(e) => setEmpSearch(e.target.value)}
+                      />
                     </div>
-                    <div className="flex gap-3">
-                      {departments.length > 0 && (
-                        <select className="px-4 py-3 bg-white border rounded-xl outline-none" value={departmentFilter} onChange={(e) => setDepartmentFilter(e.target.value)}>
-                          <option value="all">كل الأقسام</option>
-                          {departments.map(dept => <option key={dept.id} value={dept.id}>{dept.name}</option>)}
-                        </select>
-                      )}
-                      <select className="px-4 py-3 bg-white border rounded-xl outline-none" value={empStatusFilter} onChange={(e) => setEmpStatusFilter(e.target.value)}>
-                        <option value="all">كل الحالات</option>
-                        <option value="عمل">عمل</option>
-                        <option value="إجازة">إجازة</option>
+                    {/* فلاتر */}
+                    {departments.length > 0 && (
+                      <select style={{ padding:"10px 14px", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:"12px", fontSize:"13px", outline:"none", color:"#475569" }} value={departmentFilter} onChange={(e) => setDepartmentFilter(e.target.value)}>
+                        <option value="all">كل الأقسام</option>
+                        {departments.map(dept => <option key={dept.id} value={dept.id}>{dept.name}</option>)}
                       </select>
-                      <button onClick={() => setShowImportModal(true)} className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-2xl flex items-center gap-2 font-bold shadow-lg"><Upload size={20} /> استيراد Excel</button>
-                      <button onClick={() => setShowAddEmp(true)} className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-2xl flex items-center gap-2 font-bold shadow-lg"><UserPlus size={20} /> إضافة موظف</button>
-                      <button onClick={() => exportToExcel(filteredEmployees, "قائمة_الموظفين")} className="bg-slate-800 hover:bg-slate-900 text-white px-6 py-3 rounded-2xl flex items-center gap-2 font-bold"><Download size={20} /> تصدير</button>
+                    )}
+                    <select style={{ padding:"10px 14px", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:"12px", fontSize:"13px", outline:"none", color:"#475569" }} value={empStatusFilter} onChange={(e) => setEmpStatusFilter(e.target.value)}>
+                      <option value="all">كل الحالات</option>
+                      <option value="عمل">🟢 في العمل</option>
+                      <option value="إجازة">🟡 في إجازة</option>
+                    </select>
+                    {/* أزرار */}
+                    <div style={{ display:"flex", gap:"8px", marginRight:"auto" }}>
+                      <button onClick={() => setShowImportModal(true)} style={{ display:"flex", alignItems:"center", gap:"6px", padding:"10px 16px", background:"#059669", color:"white", border:"none", borderRadius:"12px", fontSize:"13px", fontWeight:"700", cursor:"pointer" }}>
+                        <Upload size={15} /> Excel
+                      </button>
+                      <button onClick={() => setShowAddEmp(true)} style={{ display:"flex", alignItems:"center", gap:"6px", padding:"10px 16px", background:"#4f46e5", color:"white", border:"none", borderRadius:"12px", fontSize:"13px", fontWeight:"700", cursor:"pointer" }}>
+                        <UserPlus size={15} /> موظف جديد
+                      </button>
+                      <button onClick={() => exportToExcel(filteredEmployees, "قائمة_الموظفين")} style={{ display:"flex", alignItems:"center", gap:"6px", padding:"10px 16px", background:"#1e293b", color:"white", border:"none", borderRadius:"12px", fontSize:"13px", fontWeight:"700", cursor:"pointer" }}>
+                        <Download size={15} /> تصدير
+                      </button>
                     </div>
                   </div>
-                  <div className="bg-white rounded-[2rem] shadow-sm border overflow-hidden">
-                    <table className="w-full">
-                      <thead className="bg-slate-50 text-slate-500 border-b text-xs">
-                        <tr>
-                          <th className="p-4 text-right">الاسم</th>
-                          <th className="p-4">الكود</th>
-                          <th className="p-4">المنصب</th>
-                          <th className="p-4">القسم</th>
-                          <th className="p-4 text-center">البريد</th>
-                          <th className="p-4 text-center">تاريخ التعيين</th>
-                          <th className="p-4 text-center">تاريخ العودة</th>
-                          <th className="p-4 text-center">الرصيد</th>
-                          <th className="p-4 text-center">الرصيد الشهري</th>
-                          <th className="p-4 text-center">أيام العمل</th>
-                          <th className="p-4 text-center">الحالة</th>
-                          <th className="p-4 text-center">إجراءات</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filteredEmployees.map(emp => {
-                          // أيام العمل = من تاريخ العودة لليوم
-                          const workedDays = calculateWorkedDays(emp.return_date);
-                          const dept = departments.find(d => d.id === emp.department_id);
-                          const empStatus = getEmployeeStatus(emp);
-                          return (
-                            <tr key={emp.id} className="border-b hover:bg-slate-50">
-                              <td className="p-4 font-bold text-slate-800">{emp.name}</td>
-                              <td className="p-4 font-mono text-sm text-slate-500">{emp.code}</td>
-                              <td className="p-4 text-slate-600">{emp.position || "-"}</td>
-                              <td className="p-4 text-slate-600">{dept?.name || "-"}</td>
-                              <td className="p-4 text-center">
-                                {emp.email ? (
-                                  <a href={`mailto:${emp.email}`} className="text-indigo-600 hover:underline text-xs flex items-center justify-center gap-1"><Mail size={12} />{emp.email}</a>
-                                ) : <span className="text-slate-300 text-xs">-</span>}
-                              </td>
-                              <td className="p-4 text-center text-sm text-slate-500">{formatDate(emp.hire_date)}</td>
-                              <td className="p-4 text-center text-sm font-bold text-indigo-600">{formatDate(emp.return_date)}</td>
-                              <td className="p-4 text-center"><span className="font-black text-indigo-600">{emp.balance}</span></td>
-                              <td className="p-4 text-center">
-                                <span className="bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full text-xs font-bold flex items-center justify-center gap-1 w-fit mx-auto"><Zap size={12} /> {emp.monthly_balance || 0}</span>
-                              </td>
-                              <td className="p-4 text-center font-bold text-purple-600">{workedDays}</td>
-                              <td className="p-4 text-center">
-                                <span className={`px-3 py-1 rounded-full text-xs font-black ${empStatus === "عمل" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
-                                  {empStatus === "عمل" ? "🟢 عمل" : "🟡 إجازة"}
-                                </span>
-                              </td>
-                              <td className="p-4 text-center">
-                                <div className="flex justify-center gap-2">
-                                  <button onClick={() => setEditingEmp(emp)} className="p-2 text-blue-500 hover:bg-blue-50 rounded-xl"><Edit3 size={16} /></button>
-                                  <button onClick={() => handleDeleteEmployee(emp.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-xl"><Trash2 size={16} /></button>
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
+
+                  {/* عداد النتائج */}
+                  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 4px" }}>
+                    <span style={{ fontSize:"13px", color:"#64748b", fontWeight:"600" }}>
+                      إجمالي: <span style={{ color:"#4f46e5", fontWeight:"900" }}>{filteredEmployees.length}</span> موظف
+                      {filteredEmployees.filter(e => getEmployeeStatus(e) === "إجازة").length > 0 && (
+                        <span style={{ marginRight:"12px", color:"#d97706" }}>
+                          🟡 في إجازة: <strong>{filteredEmployees.filter(e => getEmployeeStatus(e) === "إجازة").length}</strong>
+                        </span>
+                      )}
+                    </span>
+                  </div>
+
+                  {/* الجدول مع scroll أفقي */}
+                  <div style={{ background:"white", borderRadius:"20px", border:"1px solid #e2e8f0", boxShadow:"0 1px 4px rgba(0,0,0,0.05)", overflow:"hidden" }}>
+                    <div style={{ overflowX:"auto", overflowY:"auto", maxHeight:"calc(100vh - 280px)" }}>
+                      <table style={{ width:"100%", borderCollapse:"collapse", minWidth:"900px", fontSize:"13px" }}>
+                        <thead>
+                          <tr style={{ background:"#f8fafc", borderBottom:"2px solid #e2e8f0", position:"sticky", top:0, zIndex:5 }}>
+                            <th style={{ padding:"14px 16px", textAlign:"right", fontWeight:"800", color:"#374151", whiteSpace:"nowrap", minWidth:"180px" }}>الاسم</th>
+                            <th style={{ padding:"14px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>الكود</th>
+                            <th style={{ padding:"14px 12px", textAlign:"right", fontWeight:"800", color:"#374151", whiteSpace:"nowrap", minWidth:"140px" }}>المنصب</th>
+                            <th style={{ padding:"14px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>القسم</th>
+                            <th style={{ padding:"14px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>الرصيد</th>
+                            <th style={{ padding:"14px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>شهري</th>
+                            <th style={{ padding:"14px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>أيام العمل</th>
+                            <th style={{ padding:"14px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>الحالة</th>
+                            <th style={{ padding:"14px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>إجراءات</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filteredEmployees.map((emp, idx) => {
+                            const workedDays = calculateWorkedDays(emp.return_date);
+                            const dept = departments.find(d => d.id === emp.department_id);
+                            const empStatus = getEmployeeStatus(emp);
+                            const isOnLeave = empStatus === "إجازة";
+                            return (
+                              <tr key={emp.id} style={{ borderBottom:"1px solid #f1f5f9", background: isOnLeave ? "#fffbeb" : (idx % 2 === 0 ? "white" : "#fafafa"), transition:"background 0.15s" }}
+                                onMouseEnter={e => (e.currentTarget.style.background = "#f0f4ff")}
+                                onMouseLeave={e => (e.currentTarget.style.background = isOnLeave ? "#fffbeb" : (idx % 2 === 0 ? "white" : "#fafafa"))}>
+                                {/* الاسم */}
+                                <td style={{ padding:"12px 16px" }}>
+                                  <div style={{ fontWeight:"700", color:"#1e293b", fontSize:"13px" }}>{emp.name}</div>
+                                  {emp.email && <a href={`mailto:${emp.email}`} style={{ color:"#6366f1", fontSize:"11px", textDecoration:"none" }}>{emp.email}</a>}
+                                </td>
+                                {/* الكود */}
+                                <td style={{ padding:"12px", textAlign:"center" }}>
+                                  <span style={{ fontFamily:"monospace", background:"#f1f5f9", padding:"3px 8px", borderRadius:"6px", fontSize:"12px", color:"#475569", fontWeight:"600" }}>{emp.code}</span>
+                                </td>
+                                {/* المنصب */}
+                                <td style={{ padding:"12px", color:"#64748b", fontSize:"12px" }}>{emp.position || "-"}</td>
+                                {/* القسم */}
+                                <td style={{ padding:"12px", textAlign:"center" }}>
+                                  {dept ? <span style={{ background:"#ede9fe", color:"#7c3aed", padding:"3px 10px", borderRadius:"20px", fontSize:"11px", fontWeight:"700" }}>{dept.name}</span> : <span style={{ color:"#cbd5e1" }}>-</span>}
+                                </td>
+                                {/* الرصيد */}
+                                <td style={{ padding:"12px", textAlign:"center" }}>
+                                  <span style={{ fontWeight:"900", fontSize:"16px", color: emp.balance < 5 ? "#dc2626" : emp.balance < 10 ? "#d97706" : "#4f46e5" }}>{emp.balance}</span>
+                                  <div style={{ fontSize:"10px", color:"#94a3b8" }}>يوم</div>
+                                </td>
+                                {/* شهري */}
+                                <td style={{ padding:"12px", textAlign:"center" }}>
+                                  {emp.monthly_balance > 0
+                                    ? <span style={{ background:"#dcfce7", color:"#16a34a", padding:"3px 8px", borderRadius:"20px", fontSize:"11px", fontWeight:"700" }}>+{emp.monthly_balance}</span>
+                                    : <span style={{ color:"#cbd5e1", fontSize:"12px" }}>-</span>}
+                                </td>
+                                {/* أيام العمل */}
+                                <td style={{ padding:"12px", textAlign:"center", fontWeight:"700", color:"#7c3aed", fontSize:"13px" }}>{workedDays > 0 ? workedDays : "-"}</td>
+                                {/* الحالة */}
+                                <td style={{ padding:"12px", textAlign:"center" }}>
+                                  <span style={{ padding:"4px 12px", borderRadius:"20px", fontSize:"11px", fontWeight:"800", background: isOnLeave ? "#fef3c7" : "#dcfce7", color: isOnLeave ? "#92400e" : "#166534" }}>
+                                    {isOnLeave ? "🟡 إجازة" : "🟢 عمل"}
+                                  </span>
+                                </td>
+                                {/* إجراءات */}
+                                <td style={{ padding:"12px", textAlign:"center" }}>
+                                  <div style={{ display:"flex", justifyContent:"center", gap:"6px" }}>
+                                    <button onClick={() => setEditingEmp(emp)} style={{ padding:"6px", background:"#eff6ff", border:"none", borderRadius:"8px", cursor:"pointer", color:"#3b82f6", display:"flex", alignItems:"center" }} title="تعديل"><Edit3 size={14} /></button>
+                                    <button onClick={() => handleDeleteEmployee(emp.id)} style={{ padding:"6px", background:"#fff1f2", border:"none", borderRadius:"8px", cursor:"pointer", color:"#ef4444", display:"flex", alignItems:"center" }} title="حذف"><Trash2 size={14} /></button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                      {filteredEmployees.length === 0 && (
+                        <div style={{ padding:"60px", textAlign:"center", color:"#94a3b8" }}>
+                          <Users size={48} style={{ margin:"0 auto 16px", opacity:0.3 }} />
+                          <p style={{ fontWeight:"700", fontSize:"16px" }}>لا يوجد موظفون مطابقون للبحث</p>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               )}
 
               {/* ===== REQUESTS ===== */}
               {activeTab === "requests" && (
-                <div className="space-y-6">
+                <div style={{ width:"100%", boxSizing:"border-box" }} className="space-y-6">
                   <div className="flex justify-between items-center">
                     <h2 className="text-2xl font-black">طلبات الإجازات المعلقة</h2>
                     <select className="px-4 py-3 bg-white border rounded-xl" value={vacationTypeFilter} onChange={(e) => setVacationTypeFilter(e.target.value)}>
@@ -1454,7 +1546,7 @@ ACTION: {"type":"نوع","data":{...}}
 
               {/* ===== CALENDAR ===== */}
               {activeTab === "calendar" && (
-                <div className="space-y-6">
+                <div style={{ width:"100%", boxSizing:"border-box" }} className="space-y-6">
                   <h2 className="text-2xl font-black">التقويم الشهري</h2>
                   {renderCalendar()}
                 </div>
@@ -1462,7 +1554,7 @@ ACTION: {"type":"نوع","data":{...}}
 
               {/* ===== REPORTS ===== */}
               {activeTab === "reports" && (
-                <div className="space-y-6">
+                <div style={{ width:"100%", boxSizing:"border-box" }} className="space-y-6">
                   <div className="flex justify-between items-center">
                     <h2 className="text-2xl font-black">التقارير والإحصائيات</h2>
                     <button onClick={exportDetailedReport} className="bg-emerald-600 text-white px-6 py-3 rounded-2xl flex items-center gap-2 font-bold shadow-lg"><Download size={20} /> تصدير التقرير الشامل</button>
@@ -1501,7 +1593,7 @@ ACTION: {"type":"نوع","data":{...}}
 
               {/* ===== DEPARTMENTS ===== */}
               {activeTab === "departments" && (
-                <div className="space-y-6">
+                <div style={{ width:"100%", boxSizing:"border-box" }} className="space-y-6">
                   <div className="flex justify-between items-center">
                     <h2 className="text-2xl font-black">إدارة الأقسام</h2>
                     <button onClick={() => setShowAddDept(true)} className="bg-indigo-600 text-white px-6 py-3 rounded-2xl flex items-center gap-2 font-bold"><Plus size={20} /> إضافة قسم</button>
@@ -1528,7 +1620,7 @@ ACTION: {"type":"نوع","data":{...}}
 
               {/* ===== HOLIDAYS ===== */}
               {activeTab === "holidays" && (
-                <div className="space-y-6">
+                <div style={{ width:"100%", boxSizing:"border-box" }} className="space-y-6">
                   <div className="flex justify-between items-center">
                     <h2 className="text-2xl font-black">العطلات الرسمية</h2>
                     <button onClick={() => setShowAddHoliday(true)} className="bg-indigo-600 text-white px-6 py-3 rounded-2xl flex items-center gap-2 font-bold"><Plus size={20} /> إضافة عطلة</button>
