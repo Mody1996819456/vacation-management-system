@@ -833,42 +833,59 @@ const VacationManagementSystem = () => {
       return;
     }
 
-    // ✅ بيانات ذكية مضغوطة حسب سؤال المستخدم
-    const msgLower = userMsg;
-    const needsRequests = ["طلب","إجازة","معلق","موافق","رفض","approve","reject"].some(w => msgLower.includes(w));
-    const needsEmployees = ["موظف","رصيد","حذف","اضف","إضافة","احذف"].some(w => msgLower.includes(w));
+    // ✅ بيانات شاملة ومضغوطة - كل الموظفين مع حالتهم دايماً
+    const today = new Date().toISOString().split("T")[0];
 
-    const compactStats = {
-      total: stats.totalEmployees,
-      on_vacation: stats.onVacationNow,
-      at_work: stats.atWorkNow,
-      pending: stats.pendingRequests,
-      approved_month: stats.approvedThisMonth,
-    };
+    // حساب من في إجازة دلوقتي
+    const onVacationEmployees = employees.filter(e => {
+      return requests.some(r => {
+        if (r.employee_id !== e.id || r.status !== "approved") return false;
+        const endDate = new Date(r.start_date);
+        endDate.setDate(endDate.getDate() + Number(r.days));
+        const endStr = endDate.toISOString().split("T")[0];
+        return r.start_date <= today && endStr > today;
+      });
+    });
 
-    const compactEmployees = employees.slice(0, 40).map(e => ({
-      id: e.id, name: e.name, code: e.code,
+    const onVacationIds = new Set(onVacationEmployees.map(e => e.id));
+
+    // كل الموظفين بشكل مضغوط مع حالتهم الحقيقية
+    const compactEmployees = employees.slice(0, 50).map(e => ({
+      id: e.id,
+      name: e.name,
+      code: e.code,
       balance: e.balance,
       dept: departments.find(d => d.id === e.department_id)?.name || "-",
-      status: getEmployeeStatus(e),
+      status: onVacationIds.has(e.id) ? "إجازة" : "عمل",
     }));
 
-    const compactRequests = needsRequests
-      ? requests.filter(r => r.status === "pending").slice(0, 15).map(r => ({
-          id: r.id, emp: r.employee_name, status: r.status,
-          date: r.start_date, days: r.days,
-        }))
-      : [];
+    // الطلبات المعلقة + المقبولة الحالية
+    const activeRequests = requests
+      .filter(r => r.status === "pending" || (r.status === "approved" && r.start_date <= today))
+      .slice(0, 20)
+      .map(r => ({
+        id: r.id,
+        emp: r.employee_name,
+        status: r.status,
+        from: r.start_date,
+        days: r.days,
+      }));
 
     const systemData = {
-      stats: compactStats,
-      employees: needsEmployees || !needsRequests ? compactEmployees : `${employees.length} موظف`,
-      pending_requests: compactRequests,
+      stats: {
+        total: stats.totalEmployees,
+        on_vacation: onVacationEmployees.length,
+        on_vacation_names: onVacationEmployees.map(e => e.name),
+        at_work: stats.totalEmployees - onVacationEmployees.length,
+        pending_requests: stats.pendingRequests,
+      },
+      employees: compactEmployees,
+      active_requests: activeRequests,
       departments: departments.map(d => ({ id: d.id, name: d.name })),
       vacation_types: vacationTypes.map(v => ({ id: v.id, name: v.name })),
     };
 
-    const systemPrompt = `أنت مساعد ذكي لإدارة الإجازات. بيانات النظام:
+    const systemPrompt = `أنت مساعد ذكي لإدارة الإجازات. بيانات النظام الحالية:
 ${JSON.stringify(systemData)}
 قواعد: أجب بالعربي باختصار. للتنفيذ أضف في النهاية:
 ACTION: {"type":"نوع","data":{...}}
