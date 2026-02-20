@@ -160,7 +160,7 @@ const VacationManagementSystem = () => {
   ]);
   const [aiInput, setAiInput] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
-  const GEMINI_API_KEY = process.env.REACT_APP_GEMINI_API_KEY || "AIzaSyC_rw5v06CA-rEzGvhqHQWBrH2Dit_4IFM";
+  const GEMINI_API_KEY = process.env.REACT_APP_GEMINI_API_KEY || "";
   const [currentTime, setCurrentTime] = useState(new Date());
 
   // تحديث الساعة كل ثانية
@@ -823,6 +823,16 @@ const VacationManagementSystem = () => {
     setAiMessages(prev => [...prev, { role: "user", content: userMsg }]);
     setAiLoading(true);
 
+    // ✅ تحقق من وجود الـ API Key أولاً
+    if (!GEMINI_API_KEY) {
+      setAiMessages(prev => [...prev, {
+        role: "assistant",
+        content: "⚠️ لم يتم إعداد REACT_APP_GEMINI_API_KEY.\n\nالحل:\n1. روح Vercel → Project Settings → Environment Variables\n2. أضف: REACT_APP_GEMINI_API_KEY = مفتاحك\n3. اعمل Redeploy للمشروع\n\n⚠️ مهم: بعد إضافة المتغير لازم تعمل Redeploy عشان يتطبق!"
+      }]);
+      setAiLoading(false);
+      return;
+    }
+
     // بيانات النظام الحالية للـ AI
     const systemData = {
       employees: employees.map(e => ({
@@ -884,7 +894,29 @@ ${JSON.stringify(systemData, null, 2)}
       );
 
       const data = await response.json();
-      const replyText = data.candidates?.[0]?.content?.parts?.[0]?.text || "عذراً، حدث خطأ في الاتصال.";
+
+      // ✅ التعامل مع أخطاء API بشكل واضح
+      if (data.error) {
+        const errCode = data.error.code;
+        const errMsg = data.error.message || "";
+        let arabicError = `❌ خطأ من Gemini API:\n${errMsg}`;
+
+        if (errCode === 400) {
+          arabicError = "❌ الطلب غلط - تأكد إن الـ API Key صح وإن نموذج gemini-2.0-flash متاح في حسابك.";
+        } else if (errCode === 401 || errCode === 403) {
+          arabicError = "❌ الـ API Key غلط أو منتهي الصلاحية.\n\nالحل:\n1. روح Google AI Studio واعمل API Key جديد\n2. حدّثه في Vercel → Environment Variables\n3. اعمل Redeploy";
+        } else if (errCode === 429) {
+          arabicError = "⚠️ تجاوزت الحد المسموح به من الطلبات. انتظر شوية وحاول مجدداً.";
+        } else if (errCode === 404) {
+          arabicError = "❌ موديل gemini-2.0-flash غير متاح. جرب تغييره لـ gemini-1.5-flash في الكود.";
+        }
+
+        setAiMessages(prev => [...prev, { role: "assistant", content: arabicError }]);
+        setAiLoading(false);
+        return;
+      }
+
+      const replyText = data.candidates?.[0]?.content?.parts?.[0]?.text || "عذراً، لم يرجع رد من الـ AI.";
       
       // تحقق من وجود ACTION في الرد
       const actionMatch = replyText.match(/ACTION:\s*(\{.*\})/s);
@@ -926,8 +958,13 @@ ${JSON.stringify(systemData, null, 2)}
           }
         } catch(e) { console.error("Action parse error:", e); }
       }
-    } catch (err) {
-      setAiMessages(prev => [...prev, { role: "assistant", content: "❌ خطأ في الاتصال. تأكد من إعداد REACT_APP_GEMINI_API_KEY في Vercel." }]);
+    } catch (err: any) {
+      // ✅ تحديد نوع الخطأ بدقة
+      let errorMsg = "❌ خطأ في الاتصال بـ Gemini API.";
+      if (err?.message?.includes("Failed to fetch") || err?.message?.includes("NetworkError")) {
+        errorMsg = "❌ خطأ في الشبكة - تأكد من اتصالك بالإنترنت.\n\nإذا المشكلة مستمرة: تأكد إن Gemini API غير محجوب في بيئة Vercel.";
+      }
+      setAiMessages(prev => [...prev, { role: "assistant", content: errorMsg }]);
     }
     setAiLoading(false);
   };
