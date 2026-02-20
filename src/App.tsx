@@ -159,7 +159,9 @@ const VacationManagementSystem = () => {
   const [showInsights, setShowInsights] = useState(false);
   const [aiInsights, setAiInsights] = useState<string>("");
   const [insightsLoading, setInsightsLoading] = useState(false);
-  const [pushEnabled, setPushEnabled] = useState(false);
+  const [pushEnabled, setPushEnabled] = useState(() => {
+    try { return Notification.permission === "granted"; } catch { return false; }
+  });
   const [showPWAGuide, setShowPWAGuide] = useState(false);
   const [lastBackup, setLastBackup] = useState<string>("");
   const GOOGLE_SCRIPT_URL = process.env.REACT_APP_GOOGLE_SCRIPT_URL || "";
@@ -246,22 +248,56 @@ ${JSON.stringify(summaryData)}
 
   // ===== Push Notifications Setup =====
   const enablePushNotifications = async () => {
-    if (!("Notification" in window)) { alert("متصفحك لا يدعم الإشعارات"); return; }
-    const permission = await Notification.requestPermission();
-    if (permission === "granted") {
+    if (!("Notification" in window)) {
+      alert("متصفحك لا يدعم الإشعارات. جرب Chrome أو Edge.");
+      return;
+    }
+    // لو مرفوض مسبقاً
+    if (Notification.permission === "denied") {
+      alert("الإشعارات محجوبة في إعدادات المتصفح.
+
+عشان تفعّلها:
+1. اضغط على 🔒 في شريط العنوان
+2. اختر إعدادات الموقع
+3. فعّل الإشعارات");
+      return;
+    }
+    // لو مفعّل أصلاً
+    if (Notification.permission === "granted") {
       setPushEnabled(true);
-      new Notification("✅ تم تفعيل الإشعارات", {
-        body: "ستصلك إشعارات عند وجود طلبات جديدة",
+      new Notification("🔔 الإشعارات مفعّلة", {
+        body: "الإشعارات شغالة بالفعل!",
         icon: "/icon-192.png",
         dir: "rtl",
       });
+      return;
+    }
+    // طلب الإذن
+    const permission = await Notification.requestPermission();
+    if (permission === "granted") {
+      setPushEnabled(true);
+      setTimeout(() => {
+        new Notification("✅ تم تفعيل الإشعارات بنجاح!", {
+          body: "هتوصلك إشعارات لما يتقبل أو يترفض أي طلب إجازة",
+          icon: "/icon-192.png",
+          dir: "rtl",
+          tag: "welcome",
+        });
+      }, 500);
+    } else {
+      alert("لم يتم السماح بالإشعارات. يمكنك تفعيلها لاحقاً من إعدادات المتصفح.");
     }
   };
 
   // ===== Send Local Notification =====
   const sendLocalNotification = (title: string, body: string) => {
-    if (pushEnabled && Notification.permission === "granted") {
-      new Notification(title, { body, icon: "/icon-192.png", dir: "rtl" });
+    if (Notification.permission === "granted") {
+      new Notification(title, {
+        body,
+        icon: "/icon-192.png",
+        dir: "rtl",
+        tag: Date.now().toString(),
+      });
     }
   };
 
@@ -645,6 +681,20 @@ ${JSON.stringify(summaryData)}
     }
 
     await supabase.from("vacation_requests").update({ status: action, admin_notes: adminNotes || null }).eq("id", id);
+    
+    // ===== إشعار فوري للأدمن =====
+    if (action === "approved") {
+      sendLocalNotification(
+        "✅ تمت الموافقة على إجازة",
+        `${emp?.name} - ${currentRequest.days} يوم من ${formatDate(currentRequest.start_date)}`
+      );
+    } else {
+      sendLocalNotification(
+        "❌ تم رفض طلب إجازة",
+        `${emp?.name} - ${formatDate(currentRequest.start_date)}`
+      );
+    }
+
     setShowApprovalModal(false);
     setCurrentRequest(null);
     setAdminNotes("");
@@ -720,6 +770,11 @@ ${JSON.stringify(summaryData)}
         days: newRequest.days,
         notes: newRequest.notes || "لا توجد ملاحظات",
       });
+      // إشعار browser للأدمن لو مفتوح
+      sendLocalNotification(
+        "🔔 طلب إجازة جديد",
+        `${currentUser.name} طلب ${newRequest.days} يوم من ${formatDate(newRequest.start_date)}`
+      );
       setNewRequest({ start_date: "", days: 1, notes: "", vacation_type_id: "" });
       fetchData();
       alert("تم الإرسال وتم إشعار الإدارة ✅");
