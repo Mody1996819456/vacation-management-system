@@ -160,7 +160,7 @@ const VacationManagementSystem = () => {
   ]);
   const [aiInput, setAiInput] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
-  const GEMINI_API_KEY = process.env.REACT_APP_GEMINI_API_KEY || "";
+  const GROQ_API_KEY = process.env.REACT_APP_GROQ_API_KEY || "";
   const [currentTime, setCurrentTime] = useState(new Date());
 
   // تحديث الساعة كل ثانية
@@ -824,10 +824,10 @@ const VacationManagementSystem = () => {
     setAiLoading(true);
 
     // ✅ تحقق من وجود الـ API Key أولاً
-    if (!GEMINI_API_KEY) {
+    if (!GROQ_API_KEY) {
       setAiMessages(prev => [...prev, {
         role: "assistant",
-        content: "⚠️ لم يتم إعداد REACT_APP_GEMINI_API_KEY.\n\nالحل:\n1. روح Vercel → Project Settings → Environment Variables\n2. أضف: REACT_APP_GEMINI_API_KEY = مفتاحك\n3. اعمل Redeploy للمشروع\n\n⚠️ مهم: بعد إضافة المتغير لازم تعمل Redeploy عشان يتطبق!"
+        content: "⚠️ لم يتم إعداد REACT_APP_GROQ_API_KEY.\n\nالحل:\n1. روح Vercel → Project Settings → Environment Variables\n2. أضف: REACT_APP_GROQ_API_KEY = مفتاحك من console.groq.com\n3. اعمل Redeploy للمشروع"
       }]);
       setAiLoading(false);
       return;
@@ -863,7 +863,7 @@ ${JSON.stringify(systemData, null, 2)}
    ACTION: {"type": "نوع_الأمر", "data": {البيانات}}
    أنواع الأوامر المتاحة:
    - add_employee: {"name","code","position","email","balance","department_id"}
-   - delete_employee: {"id"}  
+   - delete_employee: {"id"}
    - update_balance: {"id","balance"}
    - approve_request: {"id"}
    - reject_request: {"id"}
@@ -871,44 +871,40 @@ ${JSON.stringify(systemData, null, 2)}
 5. إذا سُئلت عن إحصائيات، احسبها من البيانات`;
 
     try {
-      // بناء تاريخ المحادثة لـ Gemini
+      // بناء تاريخ المحادثة بصيغة OpenAI المتوافقة مع Groq
       const conversationHistory = aiMessages
         .filter((m, idx) => !(m.role === "assistant" && idx === 0))
-        .map(m => ({
-          role: m.role === "assistant" ? "model" : "user",
-          parts: [{ text: m.content }],
-        }));
-      conversationHistory.push({ role: "user", parts: [{ text: userMsg }] });
+        .map(m => ({ role: m.role, content: m.content }));
+      conversationHistory.push({ role: "user", content: userMsg });
 
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            system_instruction: { parts: [{ text: systemPrompt }] },
-            contents: conversationHistory,
-            generationConfig: { maxOutputTokens: 1024 },
-          }),
-        }
-      );
+      const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${GROQ_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: "llama-3.3-70b-versatile",
+          messages: [
+            { role: "system", content: systemPrompt },
+            ...conversationHistory,
+          ],
+          max_tokens: 1024,
+          temperature: 0.7,
+        }),
+      });
 
       const data = await response.json();
 
-      // ✅ التعامل مع أخطاء API بشكل واضح
+      // ✅ التعامل مع أخطاء API
       if (data.error) {
-        const errCode = data.error.code;
-        const errMsg = data.error.message || "";
-        let arabicError = `❌ خطأ من Gemini API:\n${errMsg}`;
+        const errCode = data.error.code || "";
+        let arabicError = `❌ خطأ من Groq API:\n${data.error.message}`;
 
-        if (errCode === 400) {
-          arabicError = "❌ الطلب غلط - تأكد إن الـ API Key صح وإن نموذج gemini-2.0-flash متاح في حسابك.";
-        } else if (errCode === 401 || errCode === 403) {
-          arabicError = "❌ الـ API Key غلط أو منتهي الصلاحية.\n\nالحل:\n1. روح Google AI Studio واعمل API Key جديد\n2. حدّثه في Vercel → Environment Variables\n3. اعمل Redeploy";
-        } else if (errCode === 429) {
-          arabicError = "⚠️ تجاوزت الحد المسموح به من الطلبات. انتظر شوية وحاول مجدداً.";
-        } else if (errCode === 404) {
-          arabicError = "❌ موديل gemini-2.0-flash غير متاح. جرب تغييره لـ gemini-1.5-flash في الكود.";
+        if (errCode === "invalid_api_key" || response.status === 401) {
+          arabicError = "❌ الـ API Key غلط أو منتهي.\n\nالحل:\n1. روح console.groq.com واعمل Key جديد\n2. حدّثه في Vercel → Environment Variables\n3. اعمل Redeploy";
+        } else if (response.status === 429) {
+          arabicError = "⚠️ تجاوزت الحد المسموح. انتظر ثواني وحاول مجدداً.";
         }
 
         setAiMessages(prev => [...prev, { role: "assistant", content: arabicError }]);
@@ -916,12 +912,12 @@ ${JSON.stringify(systemData, null, 2)}
         return;
       }
 
-      const replyText = data.candidates?.[0]?.content?.parts?.[0]?.text || "عذراً، لم يرجع رد من الـ AI.";
-      
+      const replyText = data.choices?.[0]?.message?.content || "عذراً، لم يرجع رد من الـ AI.";
+
       // تحقق من وجود ACTION في الرد
       const actionMatch = replyText.match(/ACTION:\s*(\{.*\})/s);
       const cleanReply = replyText.replace(/ACTION:\s*\{.*\}/s, "").trim();
-      
+
       setAiMessages(prev => [...prev, { role: "assistant", content: cleanReply }]);
 
       // تنفيذ الأمر لو موجود
@@ -959,11 +955,7 @@ ${JSON.stringify(systemData, null, 2)}
         } catch(e) { console.error("Action parse error:", e); }
       }
     } catch (err: any) {
-      // ✅ تحديد نوع الخطأ بدقة
-      let errorMsg = "❌ خطأ في الاتصال بـ Gemini API.";
-      if (err?.message?.includes("Failed to fetch") || err?.message?.includes("NetworkError")) {
-        errorMsg = "❌ خطأ في الشبكة - تأكد من اتصالك بالإنترنت.\n\nإذا المشكلة مستمرة: تأكد إن Gemini API غير محجوب في بيئة Vercel.";
-      }
+      let errorMsg = "❌ خطأ في الاتصال بـ Groq API. تأكد من اتصالك بالإنترنت.";
       setAiMessages(prev => [...prev, { role: "assistant", content: errorMsg }]);
     }
     setAiLoading(false);
