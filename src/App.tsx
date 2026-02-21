@@ -86,6 +86,27 @@ const getCalculatedDates = (startDate: string, days: number) => {
   };
 };
 
+// حساب أول يوم إجازة فعلي بناءً على موعد النزول
+const getActualStartDate = (startDate: string, departureTime: string): string => {
+  if (!startDate) return "";
+  const d = new Date(startDate);
+  if (departureTime === "after_work") {
+    // نزل بعد العمل: يوم التاريخ = عمل، ثاني يوم = سفر، ثالث يوم = أول إجازة
+    d.setDate(d.getDate() + 2);
+  } else if (departureTime === "morning") {
+    // نزل الصبح: يوم التاريخ = سفر، ثاني يوم = أول إجازة
+    d.setDate(d.getDate() + 1);
+  }
+  // 'actual' = نفس اليوم بدون تغيير
+  return d.toISOString().split("T")[0];
+};
+
+const getDepartureLabel = (dep: string) => {
+  if (dep === "after_work") return "بعد العمل (+يومان)";
+  if (dep === "morning") return "صباحاً (+يوم)";
+  return "بداية الإجازة الفعلي";
+};
+
 // أيام العمل = من تاريخ العودة حتى اليوم فقط
 const calculateWorkedDays = (returnDate: string) => {
   if (!returnDate) return 0;
@@ -149,6 +170,7 @@ const VacationManagementSystem = () => {
 
   const [newRequest, setNewRequest] = useState({
     start_date: "", days: 1, notes: "", vacation_type_id: "",
+    departure_time: "actual", // 'morning' | 'after_work' | 'actual'
   });
 
   const [newDept, setNewDept] = useState({ name: "", description: "" });
@@ -758,14 +780,21 @@ ${JSON.stringify(summaryData)}
     if (!newRequest.start_date) return alert("حدد تاريخ البداية");
     if (!newRequest.vacation_type_id) return alert("اختر نوع الإجازة");
     setIsSubmitting(true);
+
+    // حساب أول يوم إجازة فعلي بناءً على موعد النزول
+    const actualStartDate = getActualStartDate(newRequest.start_date, newRequest.departure_time);
+
     const { error } = await supabase.from("vacation_requests").insert([{
       employee_id: currentUser.id, employee_name: currentUser.name,
-      start_date: newRequest.start_date, days: newRequest.days,
+      start_date: actualStartDate,           // أول يوم إجازة الفعلي
+      departure_date: newRequest.start_date, // تاريخ النزول الذي حدده الموظف
+      departure_time: newRequest.departure_time,
+      days: newRequest.days,
       notes: newRequest.notes, vacation_type_id: newRequest.vacation_type_id, status: "pending",
     }]);
     if (!error) {
       // أظهر التأكيد فوراً بدون انتظار الإيميل
-      setNewRequest({ start_date: "", days: 1, notes: "", vacation_type_id: "" });
+      setNewRequest({ start_date: "", days: 1, notes: "", vacation_type_id: "", departure_time: "actual" });
       setIsSubmitting(false);
       fetchData();
       alert("✅ تم إرسال طلب الإجازة بنجاح!");
@@ -773,13 +802,13 @@ ${JSON.stringify(summaryData)}
       // إرسال الإيميل والإشعار في الخلفية (مش بيوقف الواجهة)
       sendEmail(EMAILJS_TEMPLATES.new_request_admin, ADMIN_EMAIL, {
         employee_name: currentUser.name,
-        start_date: formatDate(newRequest.start_date),
+        start_date: formatDate(actualStartDate),
         days: newRequest.days,
         notes: newRequest.notes || "لا توجد ملاحظات",
       });
       sendLocalNotification(
         "🔔 طلب إجازة جديد",
-        `${currentUser.name} طلب ${newRequest.days} يوم من ${formatDate(newRequest.start_date)}`
+        `${currentUser.name} طلب ${newRequest.days} يوم من ${formatDate(actualStartDate)}`
       );
       logAction("create", "vacation_requests", null, null, newRequest);
       return;
@@ -2413,8 +2442,75 @@ ACTION: {"type":"نوع","data":{...}}
                 </select>
               </div>
               <div>
-                <label className="text-sm font-bold text-slate-400 mb-2 block">تاريخ البدء</label>
+                <label className="text-sm font-bold text-slate-400 mb-2 block">تاريخ النزول</label>
                 <input type="date" className="w-full p-4 bg-slate-50 border-none rounded-2xl outline-none" value={newRequest.start_date} onChange={(e) => setNewRequest({...newRequest, start_date: e.target.value})} />
+              </div>
+              <div>
+                <label className="text-sm font-bold text-slate-400 mb-2 block">موعد النزول</label>
+                <div className="grid grid-cols-3 gap-3">
+                  {[
+                    { value: "after_work", label: "بعد العمل", icon: "🌆", desc: "يوم التاريخ = عمل\nثاني يوم = سفر\nثالث يوم = أول إجازة" },
+                    { value: "morning",    label: "صباحاً",    icon: "🌅", desc: "يوم التاريخ = سفر\nثاني يوم = أول إجازة" },
+                    { value: "actual",     label: "بداية الإجازة الفعلي", icon: "✅", desc: "يوم التاريخ = أول يوم إجازة" },
+                  ].map(opt => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setNewRequest({...newRequest, departure_time: opt.value})}
+                      title={opt.desc}
+                      style={{
+                        padding: "12px 8px",
+                        borderRadius: "16px",
+                        border: `2px solid ${newRequest.departure_time === opt.value ? "#6366f1" : "#e2e8f0"}`,
+                        background: newRequest.departure_time === opt.value ? "#ede9fe" : "#f8fafc",
+                        color: newRequest.departure_time === opt.value ? "#6366f1" : "#64748b",
+                        fontWeight: "700",
+                        fontSize: "12px",
+                        cursor: "pointer",
+                        textAlign: "center" as const,
+                        transition: "all 0.2s",
+                      }}
+                    >
+                      <div style={{ fontSize: "20px", marginBottom: "4px" }}>{opt.icon}</div>
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+                {/* معاينة أول يوم إجازة فعلي */}
+                {newRequest.start_date && (
+                  <div style={{
+                    marginTop: "12px", padding: "14px 16px", borderRadius: "14px",
+                    background: "linear-gradient(135deg, #ede9fe, #ddd6fe)",
+                    border: "1px solid #c4b5fd",
+                  }}>
+                    <p style={{ fontSize: "12px", color: "#7c3aed", fontWeight: "700", marginBottom: "4px" }}>📅 ملخص الإجازة</p>
+                    <div style={{ display: "flex", flexDirection: "column" as const, gap: "4px", fontSize: "13px" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between" }}>
+                        <span style={{ color: "#6d28d9" }}>تاريخ النزول:</span>
+                        <span style={{ fontWeight: "800", color: "#4c1d95" }}>{formatDate(newRequest.start_date)}</span>
+                      </div>
+                      <div style={{ display: "flex", justifyContent: "space-between" }}>
+                        <span style={{ color: "#6d28d9" }}>موعد النزول:</span>
+                        <span style={{ fontWeight: "800", color: "#4c1d95" }}>{getDepartureLabel(newRequest.departure_time)}</span>
+                      </div>
+                      <div style={{ height: "1px", background: "#c4b5fd", margin: "4px 0" }} />
+                      <div style={{ display: "flex", justifyContent: "space-between" }}>
+                        <span style={{ color: "#6d28d9" }}>أول يوم إجازة فعلي:</span>
+                        <span style={{ fontWeight: "900", color: "#4c1d95", fontSize: "14px" }}>
+                          {formatDate(getActualStartDate(newRequest.start_date, newRequest.departure_time))}
+                        </span>
+                      </div>
+                      {newRequest.days > 0 && (
+                        <div style={{ display: "flex", justifyContent: "space-between" }}>
+                          <span style={{ color: "#6d28d9" }}>تاريخ العودة:</span>
+                          <span style={{ fontWeight: "900", color: "#059669", fontSize: "14px" }}>
+                            {formatDate(getCalculatedDates(getActualStartDate(newRequest.start_date, newRequest.departure_time), newRequest.days).back)}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
               <div>
                 <label className="text-sm font-bold text-slate-400 mb-2 block">عدد الأيام</label>
@@ -2440,6 +2536,12 @@ ACTION: {"type":"نوع","data":{...}}
                     <div>
                       <p className="font-bold text-slate-800">{formatDate(req.start_date)}</p>
                       <p className="text-xs text-slate-400">{req.days} يوم</p>
+                      {req.departure_time && req.departure_time !== "actual" && (
+                        <p className="text-xs text-purple-600 font-bold mt-1">
+                          🛫 نزول: {req.departure_time === "after_work" ? "بعد العمل" : "صباحاً"}
+                          {req.departure_date && ` (${formatDate(req.departure_date)})`}
+                        </p>
+                      )}
                       {vacType && <span className="inline-block mt-2 px-2 py-1 rounded-full text-xs font-bold" style={{ backgroundColor: vacType.color+'20', color: vacType.color }}>{vacType.name}</span>}
                     </div>
                     <span className={`px-4 py-1.5 rounded-full text-xs font-black ${req.status === 'approved' ? 'bg-emerald-100 text-emerald-700' : req.status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
