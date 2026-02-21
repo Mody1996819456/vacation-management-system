@@ -30,39 +30,30 @@ const EMAILJS_TEMPLATES = {
 const ADMIN_EMAIL = "mohamedgamal199681945@gmail.com";
 
 // ==================== EMAIL SENDER ====================
-// نمنع التكرار بـ localStorage (يدوم حتى بعد refresh)
-const buildEmailKey = (templateId: string, toEmail: string, params: Record<string, any>) => {
-  const today = new Date().toISOString().split("T")[0];
-  const uniqueField = params.request_id || params.start_date || "";
-  return `email_sent|${today}|${templateId}|${toEmail}|${uniqueField}`;
-};
+// ==================== EMAIL SENDER ====================
+// منع تكرار إيميلات تلقائية (return_reminder) بس - مش إيميلات الموافقة/الرفض
+const autoEmailCache = new Set<string>();
 
-const sendEmail = async (templateId: string, toEmail: string, params: Record<string, any>) => {
-  if (!toEmail || !templateId) {
-    console.log("⚠️ sendEmail: toEmail أو templateId فارغ");
-    return;
-  }
+const sendEmail = async (templateId: string, toEmail: string, params: Record<string, any>, preventDuplicate = false) => {
+  if (!toEmail || !templateId) return;
 
-  // تحقق إن الإيميل مش اتبعت النهارده لنفس الطلب
-  const cacheKey = buildEmailKey(templateId, toEmail, params);
-  if (localStorage.getItem(cacheKey)) {
-    console.log(`⏭️ إيميل سبق إرساله اليوم: ${toEmail} - ${templateId}`);
-    return;
+  // منع التكرار فقط للإيميلات التلقائية (زي return_reminder)
+  if (preventDuplicate) {
+    const key = `${templateId}|${toEmail}|${params.request_id || params.start_date || ""}`;
+    if (autoEmailCache.has(key)) return;
+    autoEmailCache.add(key);
   }
 
   try {
-    console.log(`📧 جاري إرسال إيميل لـ ${toEmail} - template: ${templateId}`);
-    const result = await emailjs.send(
+    await emailjs.send(
       EMAILJS_SERVICE_ID,
       templateId,
       { to_email: toEmail, ...params },
       EMAILJS_PUBLIC_KEY
     );
-    // احفظ في localStorage إن الإيميل اتبعت
-    localStorage.setItem(cacheKey, "1");
-    console.log(`✅ إيميل أُرسل بنجاح لـ ${toEmail}`, result.status);
+    console.log(`✅ إيميل أُرسل لـ ${toEmail} - ${templateId}`);
   } catch (err: any) {
-    console.error(`❌ فشل إرسال الإيميل لـ ${toEmail}:`, err?.text || err?.message || err);
+    console.error(`❌ فشل إرسال الإيميل:`, err?.text || err?.message || err);
   }
 };
 
@@ -406,7 +397,7 @@ ${JSON.stringify(summaryData)}
           sendEmail(EMAILJS_TEMPLATES.return_reminder, emp.email, {
             employee_name: emp.name,
             back_date: formatDate(back),
-          });
+          }, true); // منع التكرار للإيميل التلقائي
         }
       }
     });
@@ -663,13 +654,11 @@ ${JSON.stringify(summaryData)}
 
     if (action === "approved") {
       if (emp.balance < days) { alert("رصيد غير كافٍ!"); setShowApprovalModal(false); return; }
-      // خصم الرصيد + تغيير الحالة لإجازة
-      // نخصم الرصيد + نغير الحالة لإجازة + نعمل reset لـ return_date عشان أيام العمل تبقى صفر
       await supabase.from("employees").update({ balance: emp.balance - days, status: "إجازة", return_date: null }).eq("id", emp.id);
-      // إرسال إيميل للموظف بالموافقة
+      // إيميل في الخلفية
       if (emp.email) {
         const { back } = getCalculatedDates(currentRequest.start_date, days);
-        await sendEmail(EMAILJS_TEMPLATES.approved, emp.email, {
+        sendEmail(EMAILJS_TEMPLATES.approved, emp.email, {
           employee_name: emp.name,
           start_date: formatDate(currentRequest.start_date),
           days: days,
@@ -681,9 +670,9 @@ ${JSON.stringify(summaryData)}
     }
 
     if (action === "rejected") {
-      // إرسال إيميل للموظف بالرفض
+      // إيميل في الخلفية
       if (emp?.email) {
-        await sendEmail(EMAILJS_TEMPLATES.rejected, emp.email, {
+        sendEmail(EMAILJS_TEMPLATES.rejected, emp.email, {
           employee_name: emp.name,
           start_date: formatDate(currentRequest.start_date),
           admin_notes: adminNotes || "لا توجد ملاحظات",
@@ -775,22 +764,25 @@ ${JSON.stringify(summaryData)}
       notes: newRequest.notes, vacation_type_id: newRequest.vacation_type_id, status: "pending",
     }]);
     if (!error) {
-      // إشعار المدير بالطلب الجديد
-      await sendEmail(EMAILJS_TEMPLATES.new_request_admin, ADMIN_EMAIL, {
+      // أظهر التأكيد فوراً بدون انتظار الإيميل
+      setNewRequest({ start_date: "", days: 1, notes: "", vacation_type_id: "" });
+      setIsSubmitting(false);
+      fetchData();
+      alert("✅ تم إرسال طلب الإجازة بنجاح!");
+      
+      // إرسال الإيميل والإشعار في الخلفية (مش بيوقف الواجهة)
+      sendEmail(EMAILJS_TEMPLATES.new_request_admin, ADMIN_EMAIL, {
         employee_name: currentUser.name,
         start_date: formatDate(newRequest.start_date),
         days: newRequest.days,
         notes: newRequest.notes || "لا توجد ملاحظات",
       });
-      // إشعار browser للأدمن لو مفتوح
       sendLocalNotification(
         "🔔 طلب إجازة جديد",
         `${currentUser.name} طلب ${newRequest.days} يوم من ${formatDate(newRequest.start_date)}`
       );
-      setNewRequest({ start_date: "", days: 1, notes: "", vacation_type_id: "" });
-      fetchData();
-      alert("تم الإرسال وتم إشعار الإدارة ✅");
-      await logAction("create", "vacation_requests", null, null, newRequest);
+      logAction("create", "vacation_requests", null, null, newRequest);
+      return;
     }
     setIsSubmitting(false);
   };
@@ -1068,13 +1060,13 @@ ACTION: {"type":"نوع","data":{...}}
           "Authorization": `Bearer ${GROQ_API_KEY}`,
         },
         body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
+          model: "llama-3.1-8b-instant",
           messages: [
             { role: "system", content: systemPrompt },
             ...conversationHistory,
           ],
-          max_tokens: 1024,
-          temperature: 0.7,
+          max_tokens: 512,
+          temperature: 0.3,
         }),
       });
 
@@ -1479,16 +1471,25 @@ ACTION: {"type":"نوع","data":{...}}
                     </div>
 
                     <div style={{ display:"flex", gap:"10px", flexWrap:"wrap" }}>
-                      {/* زر الإشعارات */}
-                      <button onClick={enablePushNotifications} style={{
-                        display:"flex", alignItems:"center", gap:"8px",
-                        background: pushEnabled ? "#dcfce7" : "#f1f5f9",
-                        color: pushEnabled ? "#16a34a" : "#64748b",
-                        border:"none", borderRadius:"14px", padding:"10px 18px",
-                        fontWeight:"700", cursor:"pointer", fontSize:"13px", fontFamily:"inherit",
-                      }}>
-                        <Bell size={16}/> {pushEnabled ? "الإشعارات مفعّلة ✅" : "تفعيل الإشعارات"}
-                      </button>
+                      {/* زر الإشعارات - بيعرض الحالة الحقيقية */}
+                      {(() => {
+                        const permission = typeof Notification !== "undefined" ? Notification.permission : "default";
+                        const isGranted = permission === "granted";
+                        const isDenied = permission === "denied";
+                        return (
+                          <button onClick={enablePushNotifications} style={{
+                            display:"flex", alignItems:"center", gap:"8px",
+                            background: isGranted ? "#dcfce7" : isDenied ? "#fee2e2" : "#f1f5f9",
+                            color: isGranted ? "#16a34a" : isDenied ? "#dc2626" : "#64748b",
+                            border: `1px solid ${isGranted ? "#bbf7d0" : isDenied ? "#fecaca" : "#e2e8f0"}`,
+                            borderRadius:"14px", padding:"10px 18px",
+                            fontWeight:"700", cursor:"pointer", fontSize:"13px", fontFamily:"inherit",
+                          }}>
+                            <Bell size={16}/>
+                            {isGranted ? "إشعارات المتصفح مفعّلة ✅" : isDenied ? "الإشعارات محجوبة ⚠️" : "تفعيل إشعارات المتصفح 🔔"}
+                          </button>
+                        );
+                      })()}
 
                       {/* زر التقرير الذكي */}
                       <button onClick={generateAIInsights} style={{
