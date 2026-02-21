@@ -1336,7 +1336,7 @@ ACTION: {"type":"نوع","data":{...}}
             }}>
               <Smartphone size={17}/><span>تثبيت التطبيق 📱</span>
             </button>
-            <button onClick={() => setCurrentView("login")} style={{
+            <button onClick={() => { setCurrentView("login"); setCurrentUser(null); setLoginData({ email: "", password: "" }); setEmpCodeInput(""); }} style={{
               width:"100%", display:"flex", alignItems:"center", gap:"10px",
               padding:"10px 12px", borderRadius:"10px", border:"1px solid rgba(239,68,68,0.2)",
               background:"rgba(239,68,68,0.05)", color:"#f87171", cursor:"pointer",
@@ -2396,7 +2396,7 @@ ACTION: {"type":"نوع","data":{...}}
               {empStatus === "عمل" ? "🟢 في العمل" : "🟡 في إجازة"}
             </span>
           </div>
-          <button onClick={() => setCurrentView("login")} className="text-red-500 font-bold flex items-center gap-2 hover:bg-red-50 px-4 py-2 rounded-xl">
+          <button onClick={() => { setCurrentView("login"); setCurrentUser(null); setLoginData({ email: "", password: "" }); setEmpCodeInput(""); }} className="text-red-500 font-bold flex items-center gap-2 hover:bg-red-50 px-4 py-2 rounded-xl">
             <LogOut size={20} /> خروج
           </button>
         </header>
