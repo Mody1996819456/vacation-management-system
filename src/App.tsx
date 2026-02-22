@@ -467,43 +467,53 @@ ${JSON.stringify(summaryData)}
       const currentMonthName = monthNames[today.getMonth()];
       const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split("T")[0];
 
-      for (const emp of employees) {
-        if (emp.monthly_balance > 0 && (!emp.last_balance_update || emp.last_balance_update < firstDayOfMonth)) {
-          const newBalance = parseFloat((emp.balance + emp.monthly_balance).toFixed(2));
-          const description = `تم إضافة ${emp.monthly_balance} يوم للموظف ${emp.name} - رصيد دوري لشهر ${currentMonthName}`;
+      // فلتر الموظفين المحتاجين تحديث فقط
+      const toUpdate = employees.filter(emp =>
+        emp.monthly_balance > 0 &&
+        (!emp.last_balance_update || emp.last_balance_update < firstDayOfMonth)
+      );
 
-          // تحديث رصيد الموظف
-          const { error: updateError } = await supabase
-            .from("employees")
-            .update({ balance: newBalance, last_balance_update: firstDayOfMonth })
-            .eq("id", emp.id);
+      if (toUpdate.length === 0) return; // مفيش حاجة تتعمل
 
-          if (updateError) {
-            console.error(`❌ خطأ في تحديث رصيد ${emp.name}:`, updateError.message);
-            continue;
-          }
+      console.log(`🔄 جاري تحديث رصيد ${toUpdate.length} موظف...`);
 
-          // تسجيل في جدول balance_updates مع وصف تفصيلي
-          await supabase.from("balance_updates").insert([{
+      // Bulk update — كل الموظفين دفعة واحدة بدل واحد واحد
+      await Promise.all(toUpdate.map(async (emp) => {
+        const newBalance = parseFloat((emp.balance + emp.monthly_balance).toFixed(2));
+        const description = `تم إضافة ${emp.monthly_balance} يوم للموظف ${emp.name} - رصيد دوري لشهر ${currentMonthName}`;
+
+        const { error: updateError } = await supabase
+          .from("employees")
+          .update({ balance: newBalance, last_balance_update: firstDayOfMonth })
+          .eq("id", emp.id);
+
+        if (updateError) {
+          console.error(`❌ خطأ في تحديث رصيد ${emp.name}:`, updateError.message);
+          return;
+        }
+
+        await Promise.all([
+          supabase.from("balance_updates").insert([{
             employee_id: emp.id,
             amount: emp.monthly_balance,
             update_date: firstDayOfMonth,
             description,
-          }]);
-
-          // تسجيل في audit_log بوصف واضح
-          await logAction(
+          }]),
+          logAction(
             "monthly_balance_update",
             "employees",
             emp.id,
             { balance: emp.balance },
             { balance: newBalance, description }
-          );
+          ),
+        ]);
 
-          console.log(`✅ ${description}`);
-        }
-      }
+        console.log(`✅ ${description}`);
+      }));
+
+      console.log(`🎉 تم تحديث رصيد ${toUpdate.length} موظف بنجاح`);
     };
+
     if (employees.length > 0 && currentView === "admin") updateMonthlyBalances();
   }, [employees, currentView]);
 
