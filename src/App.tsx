@@ -152,6 +152,9 @@ const VacationManagementSystem = () => {
   const [showAddDept, setShowAddDept] = useState(false);
   const [showAddHoliday, setShowAddHoliday] = useState(false);
   const [showAuditLog, setShowAuditLog] = useState(false);
+  const [showBalanceLog, setShowBalanceLog] = useState(false);
+  const [balanceLogs, setBalanceLogs] = useState<any[]>([]);
+  const [balanceLogLoading, setBalanceLogLoading] = useState(false);
 
   // Calendar
   const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -444,17 +447,60 @@ ${JSON.stringify(summaryData)}
     } catch (err) { console.error("Audit log error:", err); }
   };
 
+  // ========== FETCH BALANCE LOGS ==========
+  const fetchBalanceLogs = async () => {
+    setBalanceLogLoading(true);
+    const { data } = await supabase
+      .from("balance_updates")
+      .select("*, employees(name, code)")
+      .order("update_date", { ascending: false })
+      .limit(200);
+    if (data) setBalanceLogs(data);
+    setBalanceLogLoading(false);
+  };
+
   // ========== MONTHLY BALANCE UPDATE ==========
   useEffect(() => {
     const updateMonthlyBalances = async () => {
       const today = new Date();
+      const monthNames = ['يناير','فبراير','مارس','إبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+      const currentMonthName = monthNames[today.getMonth()];
       const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split("T")[0];
+
       for (const emp of employees) {
         if (emp.monthly_balance > 0 && (!emp.last_balance_update || emp.last_balance_update < firstDayOfMonth)) {
-          const newBalance = emp.balance + emp.monthly_balance;
-          await supabase.from("employees").update({ balance: newBalance, last_balance_update: firstDayOfMonth }).eq("id", emp.id);
-          await supabase.from("balance_updates").insert([{ employee_id: emp.id, amount: emp.monthly_balance, update_date: firstDayOfMonth }]);
-          await logAction("monthly_balance_update", "employees", emp.id, { balance: emp.balance }, { balance: newBalance });
+          const newBalance = parseFloat((emp.balance + emp.monthly_balance).toFixed(2));
+          const description = `تم إضافة ${emp.monthly_balance} يوم للموظف ${emp.name} - رصيد دوري لشهر ${currentMonthName}`;
+
+          // تحديث رصيد الموظف
+          const { error: updateError } = await supabase
+            .from("employees")
+            .update({ balance: newBalance, last_balance_update: firstDayOfMonth })
+            .eq("id", emp.id);
+
+          if (updateError) {
+            console.error(`❌ خطأ في تحديث رصيد ${emp.name}:`, updateError.message);
+            continue;
+          }
+
+          // تسجيل في جدول balance_updates مع وصف تفصيلي
+          await supabase.from("balance_updates").insert([{
+            employee_id: emp.id,
+            amount: emp.monthly_balance,
+            update_date: firstDayOfMonth,
+            description,
+          }]);
+
+          // تسجيل في audit_log بوصف واضح
+          await logAction(
+            "monthly_balance_update",
+            "employees",
+            emp.id,
+            { balance: emp.balance },
+            { balance: newBalance, description }
+          );
+
+          console.log(`✅ ${description}`);
         }
       }
     };
@@ -1805,6 +1851,9 @@ ACTION: {"type":"نوع","data":{...}}
                       <button onClick={() => exportToExcel(filteredEmployees, "قائمة_الموظفين")} style={{ display:"flex", alignItems:"center", gap:"6px", padding:"10px 16px", background:"#1e293b", color:"white", border:"none", borderRadius:"12px", fontSize:"13px", fontWeight:"700", cursor:"pointer" }}>
                         <Download size={15} /> تصدير
                       </button>
+                      <button onClick={() => { setShowBalanceLog(true); fetchBalanceLogs(); }} style={{ display:"flex", alignItems:"center", gap:"6px", padding:"10px 16px", background:"#059669", color:"white", border:"none", borderRadius:"12px", fontSize:"13px", fontWeight:"700", cursor:"pointer" }}>
+                        💰 سجل حركات الرصيد
+                      </button>
                     </div>
                   </div>
 
@@ -2162,6 +2211,7 @@ ACTION: {"type":"نوع","data":{...}}
                         <option value="rejected">مرفوض</option>
                       </select>
                       <button onClick={() => setShowAuditLog(true)} className="bg-purple-600 text-white px-6 py-3 rounded-xl flex items-center gap-2 font-bold"><History size={20} /> سجل التعديلات</button>
+                      <button onClick={() => { setShowBalanceLog(true); fetchBalanceLogs(); }} className="bg-emerald-600 text-white px-6 py-3 rounded-xl flex items-center gap-2 font-bold">💰 سجل حركات الرصيد</button>
                     </div>
                   </div>
                   <div className="bg-white rounded-[2rem] shadow-sm border overflow-hidden">
@@ -2460,13 +2510,72 @@ ACTION: {"type":"نوع","data":{...}}
                 {auditLog.map((log, idx) => (
                   <div key={idx} className="p-4 bg-slate-50 rounded-xl border border-slate-100">
                     <div className="flex justify-between items-start mb-2">
-                      <div><span className="font-bold text-slate-800">{log.user_name}</span><span className="text-sm text-slate-500 mr-2">{log.action}</span></div>
+                      <div>
+                        <span className="font-bold text-slate-800">{log.user_name}</span>
+                        <span className="text-sm text-slate-500 mr-2">{log.action === "monthly_balance_update" ? "💰 تحديث رصيد شهري" : log.action}</span>
+                      </div>
                       <span className="text-xs text-slate-400">{formatDateTime(log.created_at)}</span>
                     </div>
-                    <p className="text-sm text-slate-600"><span className="font-bold">{log.table_name}</span>{log.record_id && <span> - {log.record_id}</span>}</p>
+                    {log.new_data?.description ? (
+                      <p className="text-sm text-emerald-700 font-bold bg-emerald-50 rounded-lg px-3 py-2">✅ {log.new_data.description}</p>
+                    ) : (
+                      <p className="text-sm text-slate-600"><span className="font-bold">{log.table_name}</span>{log.record_id && <span> - {log.record_id}</span>}</p>
+                    )}
                   </div>
                 ))}
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Balance Log Modal */}
+        {showBalanceLog && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-6 z-[100]" onClick={() => setShowBalanceLog(false)}>
+            <div className="bg-white p-10 rounded-[2.5rem] w-full max-w-4xl shadow-2xl max-h-[80vh] overflow-auto" dir="rtl" onClick={(e) => e.stopPropagation()}>
+              <div className="flex justify-between items-center mb-8">
+                <div>
+                  <h3 className="text-2xl font-black">💰 سجل حركات الرصيد الشهري</h3>
+                  <p className="text-slate-500 text-sm mt-1">كل مرة أضاف فيها النظام رصيداً تلقائياً لموظف</p>
+                </div>
+                <button onClick={() => setShowBalanceLog(false)} className="text-slate-400 hover:text-slate-700"><X size={28} /></button>
+              </div>
+              {balanceLogLoading ? (
+                <div className="text-center py-16 text-slate-400 text-lg">جاري التحميل...</div>
+              ) : balanceLogs.length === 0 ? (
+                <div className="text-center py-16">
+                  <div className="text-5xl mb-4">📭</div>
+                  <p className="text-slate-400 font-bold">لا توجد سجلات حتى الآن</p>
+                  <p className="text-slate-300 text-sm mt-2">سيتم التسجيل تلقائياً كل أول شهر عند إضافة الرصيد الدوري</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {balanceLogs.map((log, idx) => {
+                    const empName = log.employees?.name || "—";
+                    const empCode = log.employees?.code || "";
+                    const dateStr = log.update_date ? new Date(log.update_date).toLocaleDateString("ar-EG", { year: "numeric", month: "long" }) : "—";
+                    const desc = log.description || `تم إضافة ${log.amount} يوم للموظف ${empName} - رصيد دوري`;
+                    return (
+                      <div key={idx} style={{ background: "linear-gradient(135deg, #f0fdf4, #dcfce7)", borderRadius: "16px", padding: "16px 20px", border: "1px solid #bbf7d0" }}>
+                        <div className="flex justify-between items-start">
+                          <div className="flex items-start gap-3">
+                            <div style={{ fontSize: "28px" }}>✅</div>
+                            <div>
+                              <p className="font-bold text-slate-800 text-sm">{desc}</p>
+                              <div className="flex gap-4 mt-1">
+                                <span className="text-xs text-emerald-600 font-bold">+{log.amount} يوم</span>
+                                <span className="text-xs text-slate-500">{empCode && `#${empCode}`}</span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="text-left">
+                            <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full">{dateStr}</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
         )}
