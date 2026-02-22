@@ -1152,23 +1152,25 @@ ${JSON.stringify(summaryData)}
 
     const onVacationIds = new Set(onVacationEmployees.map(e => e.id));
 
-    // كل الموظفين بشكل مضغوط مع حالتهم الحقيقية
-    const compactEmployees = employees.slice(0, 50).map(e => ({
+    // كل الموظفين بدون حدود مع حالتهم الحقيقية
+    const compactEmployees = employees.map(e => ({
       id: e.id,
       name: e.name,
       code: e.code,
+      position: e.position,
       balance: e.balance,
       dept: departments.find(d => d.id === e.department_id)?.name || "-",
+      department_id: e.department_id,
       status: onVacationIds.has(e.id) ? "إجازة" : "عمل",
     }));
 
-    // الطلبات المعلقة + المقبولة الحالية
+    // كل الطلبات المعلقة والحالية بدون حدود
     const activeRequests = requests
       .filter(r => r.status === "pending" || (r.status === "approved" && r.start_date <= today))
-      .slice(0, 20)
       .map(r => ({
         id: r.id,
         emp: r.employee_name,
+        employee_id: r.employee_id,
         status: r.status,
         from: r.start_date,
         days: r.days,
@@ -1190,9 +1192,21 @@ ${JSON.stringify(summaryData)}
 
     const systemPrompt = `أنت مساعد ذكي لإدارة الإجازات. بيانات النظام الحالية:
 ${JSON.stringify(systemData)}
-قواعد: أجب بالعربي باختصار. للتنفيذ أضف في النهاية:
-ACTION: {"type":"نوع","data":{...}}
-الأوامر: add_employee={name,code,position,email,balance,department_id} | delete_employee={id} | update_balance={id,balance} | approve_request={id} | reject_request={id}`;
+
+قواعد مهمة جداً:
+1. أجب بالعربي باختصار
+2. لما تنفذ أمر، اكتب ACTION في السطر الأخير فقط بالشكل الصحيح
+3. للأوامر الجماعية (مثل: ضم كل عمال الري لقسم معين) استخدم bulk_update_department
+4. لا تقل "تم" إلا لو كتبت ACTION فعلاً
+
+الأوامر المتاحة:
+- إضافة موظف: ACTION: {"type":"add_employee","data":{"name":"","code":"","position":"","email":"","balance":21,"department_id":""}}
+- حذف موظف: ACTION: {"type":"delete_employee","data":{"id":""}}
+- تعديل رصيد: ACTION: {"type":"update_balance","data":{"id":"","balance":0}}
+- قبول طلب: ACTION: {"type":"approve_request","data":{"id":""}}
+- رفض طلب: ACTION: {"type":"reject_request","data":{"id":""}}
+- نقل موظفين جماعي لقسم: ACTION: {"type":"bulk_update_department","data":{"employee_ids":["id1","id2"],"department_id":""}}
+- تعديل منصب موظفين: ACTION: {"type":"bulk_update_position","data":{"employee_ids":["id1","id2"],"position":""}}`;
 
     try {
       // بناء تاريخ المحادثة بصيغة OpenAI المتوافقة مع Groq
@@ -1208,13 +1222,13 @@ ACTION: {"type":"نوع","data":{...}}
           "Authorization": `Bearer ${GROQ_API_KEY}`,
         },
         body: JSON.stringify({
-          model: "llama-3.1-8b-instant",
+          model: "llama-3.3-70b-versatile",
           messages: [
             { role: "system", content: systemPrompt },
             ...conversationHistory,
           ],
-          max_tokens: 512,
-          temperature: 0.3,
+          max_tokens: 1024,
+          temperature: 0.2,
         }),
       });
 
@@ -1274,6 +1288,21 @@ ACTION: {"type":"نوع","data":{...}}
           } else if (action.type === "reject_request" && action.data?.id) {
             await supabase.from("vacation_requests").update({ status: "rejected" }).eq("id", action.data.id);
             setAiMessages(prev => [...prev, { role: "assistant", content: "✅ تم رفض الطلب!" }]);
+            fetchData();
+          } else if (action.type === "bulk_update_department" && action.data?.employee_ids && action.data?.department_id) {
+            const ids = action.data.employee_ids;
+            await Promise.all(ids.map((id: string) =>
+              supabase.from("employees").update({ department_id: action.data.department_id }).eq("id", id)
+            ));
+            const deptName = departments.find(d => d.id === action.data.department_id)?.name || action.data.department_id;
+            setAiMessages(prev => [...prev, { role: "assistant", content: `✅ تم نقل ${ids.length} موظف لقسم ${deptName} بنجاح!` }]);
+            fetchData();
+          } else if (action.type === "bulk_update_position" && action.data?.employee_ids && action.data?.position) {
+            const ids = action.data.employee_ids;
+            await Promise.all(ids.map((id: string) =>
+              supabase.from("employees").update({ position: action.data.position }).eq("id", id)
+            ));
+            setAiMessages(prev => [...prev, { role: "assistant", content: `✅ تم تعديل منصب ${ids.length} موظف بنجاح!` }]);
             fetchData();
           }
         } catch(e) { console.error("Action parse error:", e); }
