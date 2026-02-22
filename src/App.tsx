@@ -102,14 +102,16 @@ const getDepartureLabel = (dep: string) => {
   return "بداية الإجازة الفعلي";
 };
 
-// أيام العمل = من تاريخ العودة حتى اليوم فقط
+// أيام العمل = من يوم العودة نفسه حتى اليوم
 const calculateWorkedDays = (returnDate: string) => {
   if (!returnDate) return 0;
   const start = new Date(returnDate);
+  start.setHours(0, 0, 0, 0);
   const today = new Date();
+  today.setHours(0, 0, 0, 0);
   if (start > today) return 0;
   const diffTime = today.getTime() - start.getTime();
-  return Math.floor(diffTime / (1000 * 60 * 60 * 24));
+  return Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
 };
 
 // ==================== MAIN COMPONENT ====================
@@ -153,6 +155,7 @@ const VacationManagementSystem = () => {
   const [showAddHoliday, setShowAddHoliday] = useState(false);
   const [showAuditLog, setShowAuditLog] = useState(false);
   const [showBalanceLog, setShowBalanceLog] = useState(false);
+  const balanceUpdatedRef = React.useRef(false);
   const [balanceLogs, setBalanceLogs] = useState<any[]>([]);
   const [balanceLogLoading, setBalanceLogLoading] = useState(false);
 
@@ -359,6 +362,21 @@ ${JSON.stringify(summaryData)}
     } catch { return ""; }
   };
 
+  // ========== RESTORE SESSION ==========
+  useEffect(() => {
+    try {
+      const savedUser = localStorage.getItem("vms_currentUser");
+      const savedView = localStorage.getItem("vms_currentView");
+      if (savedUser && savedView && savedView !== "login") {
+        setCurrentUser(JSON.parse(savedUser));
+        setCurrentView(savedView);
+      }
+    } catch (e) {
+      localStorage.removeItem("vms_currentUser");
+      localStorage.removeItem("vms_currentView");
+    }
+  }, []);
+
   // ========== FETCH DATA ==========
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -514,7 +532,10 @@ ${JSON.stringify(summaryData)}
       console.log(`🎉 تم تحديث رصيد ${toUpdate.length} موظف بنجاح`);
     };
 
-    if (employees.length > 0 && currentView === "admin") updateMonthlyBalances();
+    if (employees.length > 0 && currentView === "admin" && !balanceUpdatedRef.current) {
+      balanceUpdatedRef.current = true;
+      updateMonthlyBalances();
+    }
   }, [employees, currentView]);
 
   // ========== STATISTICS ==========
@@ -545,7 +566,7 @@ ${JSON.stringify(summaryData)}
     const today = new Date().toISOString().split("T")[0];
     return requests.filter(r => r.status === "approved")
       .map(r => ({ ...r, backDate: getCalculatedDates(r.start_date, r.days).back }))
-      .filter(r => r.backDate >= today).sort((a, b) => a.backDate.localeCompare(b.backDate)).slice(0, 8);
+      .filter(r => r.backDate > today).sort((a, b) => a.backDate.localeCompare(b.backDate)).slice(0, 8);
   }, [requests]);
 
   const vacationByMonth = useMemo(() => {
@@ -573,8 +594,11 @@ ${JSON.stringify(summaryData)}
 
     // 1️⃣ Owner
     if (loginData.email === ADMIN_EMAIL && loginData.password === "Mg1996819456") {
-      setCurrentUser({ role: "owner", name: "محمد جمال" });
+      const ownerUser = { role: "owner", name: "محمد جمال" };
+      setCurrentUser(ownerUser);
       setCurrentView("admin");
+      localStorage.setItem("vms_currentUser", JSON.stringify(ownerUser));
+      localStorage.setItem("vms_currentView", "admin");
       await logAction("login", "users", null, null, { role: "owner" });
       return;
     }
@@ -588,15 +612,18 @@ ${JSON.stringify(summaryData)}
         .eq("password", loginData.password)
         .single();
       if (mgr) {
-        setCurrentUser({
+        const mgrUser = {
           role: "dept_manager",
           id: mgr.id,
           name: mgr.name,
           email: mgr.email,
           dept_id: mgr.department_id,
           dept_name: mgr.departments?.name || "",
-        });
+        };
+        setCurrentUser(mgrUser);
         setCurrentView("admin");
+        localStorage.setItem("vms_currentUser", JSON.stringify(mgrUser));
+        localStorage.setItem("vms_currentView", "admin");
         await logAction("login", "department_managers", mgr.id, null, { role: "dept_manager" });
         return;
       }
@@ -606,8 +633,11 @@ ${JSON.stringify(summaryData)}
     if (empCodeInput.trim()) {
       const { data: emp } = await supabase.from("employees").select("*").eq("code", empCodeInput.trim()).single();
       if (emp) {
-        setCurrentUser({ ...emp, role: "employee" });
+        const empUser = { ...emp, role: "employee" };
+        setCurrentUser(empUser);
         setCurrentView("employee");
+        localStorage.setItem("vms_currentUser", JSON.stringify(empUser));
+        localStorage.setItem("vms_currentView", "employee");
         await logAction("login", "employees", emp.id);
         return;
       }
@@ -1518,7 +1548,7 @@ ${JSON.stringify(systemData)}
             }}>
               <Smartphone size={17}/><span>تثبيت التطبيق 📱</span>
             </button>
-            <button onClick={() => { setCurrentView("login"); setCurrentUser(null); setLoginData({ email: "", password: "" }); setEmpCodeInput(""); }} style={{
+            <button onClick={() => { localStorage.removeItem("vms_currentUser"); localStorage.removeItem("vms_currentView"); setCurrentView("login"); setCurrentUser(null); setLoginData({ email: "", password: "" }); setEmpCodeInput(""); }} style={{
               width:"100%", display:"flex", alignItems:"center", gap:"10px",
               padding:"10px 12px", borderRadius:"10px", border:"1px solid rgba(239,68,68,0.2)",
               background:"rgba(239,68,68,0.05)", color:"#f87171", cursor:"pointer",
@@ -2732,7 +2762,7 @@ ${JSON.stringify(systemData)}
               {empStatus === "عمل" ? "🟢 في العمل" : "🟡 في إجازة"}
             </span>
           </div>
-          <button onClick={() => { setCurrentView("login"); setCurrentUser(null); setLoginData({ email: "", password: "" }); setEmpCodeInput(""); }} className="text-red-500 font-bold flex items-center gap-2 hover:bg-red-50 px-4 py-2 rounded-xl">
+          <button onClick={() => { localStorage.removeItem("vms_currentUser"); localStorage.removeItem("vms_currentView"); setCurrentView("login"); setCurrentUser(null); setLoginData({ email: "", password: "" }); setEmpCodeInput(""); }} className="text-red-500 font-bold flex items-center gap-2 hover:bg-red-50 px-4 py-2 rounded-xl">
             <LogOut size={20} /> خروج
           </button>
         </header>
