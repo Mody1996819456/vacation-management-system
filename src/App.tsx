@@ -788,35 +788,45 @@ ${JSON.stringify(summaryData)}
     const emp = employees.find(e => e.id === employee_id);
 
     // ===== مدير القسم: موافقة مبدئية فقط → تنتقل للـ Owner =====
-    if (isDeptMgr && action === "approved") {
-      await supabase.from("vacation_requests").update({
+    const isDeptMgrNow = currentUser?.role === "dept_manager";
+    if (isDeptMgrNow && action === "approved") {
+      const { error: deptErr } = await supabase.from("vacation_requests").update({
         status: "dept_approved",
         dept_manager_notes: adminNotes || null,
         dept_approved_by: currentUser?.name,
         dept_approved_at: new Date().toISOString(),
       }).eq("id", id);
+      if (deptErr) {
+        alert("❌ حصل خطأ: " + deptErr.message);
+        setAiLoading(false);
+        return;
+      }
       setShowApprovalModal(false); setCurrentRequest(null); setAdminNotes("");
-      fetchData();
+      await fetchData();
       alert("✅ تمت الموافقة المبدئية — الطلب منتظر موافقة المالك");
       await logAction("dept_approved", "vacation_requests", id, oldData, { status: "dept_approved" });
       return;
     }
 
     // مدير القسم يرفض نهائياً
-    if (isDeptMgr && action === "rejected") {
+    if (isDeptMgrNow && action === "rejected") {
       if (emp?.email) sendEmail(EMAILJS_TEMPLATES.rejected, emp.email, {
         employee_name: emp.name,
         start_date: formatDate(currentRequest.start_date),
         admin_notes: adminNotes || "تم رفض الطلب من مدير القسم",
         request_id: id,
       });
-      await supabase.from("vacation_requests").update({
+      const { error: rejectErr } = await supabase.from("vacation_requests").update({
         status: "rejected",
         admin_notes: adminNotes || null,
         dept_approved_by: currentUser?.name,
       }).eq("id", id);
+      if (rejectErr) {
+        alert("❌ حصل خطأ: " + rejectErr.message);
+        return;
+      }
       setShowApprovalModal(false); setCurrentRequest(null); setAdminNotes("");
-      fetchData();
+      await fetchData();
       await logAction("rejected", "vacation_requests", id, oldData);
       return;
     }
@@ -847,12 +857,16 @@ ${JSON.stringify(summaryData)}
       });
     }
 
-    await supabase.from("vacation_requests").update({
+    const { error: ownerErr } = await supabase.from("vacation_requests").update({
       status: action,
       admin_notes: adminNotes || null,
       owner_approved_by: currentUser?.name,
       owner_approved_at: new Date().toISOString(),
     }).eq("id", id);
+    if (ownerErr) {
+      alert("❌ حصل خطأ في الموافقة النهائية: " + ownerErr.message);
+      return;
+    }
 
     sendLocalNotification(
       action === "approved" ? "✅ تمت الموافقة النهائية" : "❌ تم رفض طلب إجازة",
