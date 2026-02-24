@@ -691,9 +691,15 @@ ${JSON.stringify(summaryData)}
       });
       const validEmployees = employeesToAdd.filter(emp => emp.name && emp.code);
       if (validEmployees.length === 0) { alert("لم يتم العثور على بيانات صحيحة!"); setUploadingFile(false); return; }
-      const { error } = await supabase.from("employees").insert(validEmployees);
+      const { error } = await supabase.from("employees").upsert(validEmployees, {
+        onConflict: "code",
+        ignoreDuplicates: false,
+      });
       if (!error) {
-        alert(`تم إضافة ${validEmployees.length} موظف ✅`);
+        alert(`✅ تمت المعالجة بنجاح!
+- تم إضافة أو تحديث ${validEmployees.length} موظف
+- الموظفين الموجودين مسبقاً تم تحديث بياناتهم
+- الموظفين الجدد تمت إضافتهم`);
         setShowImportModal(false);
         fetchData();
         await logAction("bulk_import", "employees", null, null, { count: validEmployees.length });
