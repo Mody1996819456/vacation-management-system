@@ -1,0 +1,45 @@
+==========================================
+أوامر البناء - انسخ والصق بالترتيب
+==========================================
+
+الخطوة 1: حذف الملفات القديمة
+================================
+rmdir /s /q node_modules
+del package-lock.json
+
+
+الخطوة 2: تنظيف npm
+===================
+npm cache clean --force
+
+
+الخطوة 3: تثبيت المكتبات
+========================
+npm install
+
+
+الخطوة 4: البناء
+===============
+npm run build
+
+
+==========================================
+إذا نجح، ستشوف:
+✓ Compiled successfully!
+
+إذا فشل، جرب:
+npm install --legacy-peer-deps
+npm run build
+==========================================
+
+
+أوامر دفعة واحدة (اختياري):
+============================
+rmdir /s /q node_modules && del package-lock.json && npm cache clean --force && npm install && npm run build
+
+
+للـ Git (بعد النجاح):
+====================
+git add .
+git commit -m "Fix: Update dependencies and fix build errors"
+git push origin main
