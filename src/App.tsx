@@ -255,7 +255,14 @@ const VacationManagementSystem = () => {
           max_tokens: 800,
           messages: [
             { role: "system", content: "أنت محلل بيانات HR خبير. اكتب تقرير تحليلي احترافي باللغة العربية مختصر ومفيد." },
-            { role: "user", content: `حلل هذه البيانات واكتب تقرير شهري مختصر مع توصيات:\n${JSON.stringify(summaryData)}\n\nاكتب:\n1. ملخص الوضع الحالي\n2. نقاط تحتاج انتباه\n3. توصيات عملية\n4. توقعات للفترة القادمة` }
+            { role: "user", content: `حلل هذه البيانات واكتب تقرير شهري مختصر مع توصيات:
+${JSON.stringify(summaryData)}
+
+اكتب:
+1. ملخص الوضع الحالي
+2. نقاط تحتاج انتباه
+3. توصيات عملية
+4. توقعات للفترة القادمة` }
           ]
         })
       });
@@ -1308,7 +1315,23 @@ const VacationManagementSystem = () => {
       vacation_types: vacationTypes.map(v => ({ id: v.id, name: v.name })),
     };
 
-    const systemPrompt = `أنت مساعد ذكي لإدارة الإجازات. بيانات النظام الحالية:\n${JSON.stringify(systemData)}\n\nقواعد مهمة جداً:\n1. أجب بالعربي باختصار\n2. لما تنفذ أمر، اكتب ACTION في السطر الأخير فقط بالشكل الصحيح\n3. للأوامر الجماعية (مثل: ضم كل عمال الري لقسم معين) استخدم bulk_update_department\n4. لا تقل "تم" إلا لو كتبت ACTION فعلاً\n\nالأوامر المتاحة:\n- إضافة موظف: ACTION: {"type":"add_employee","data":{"name":"","code":"","position":"","email":"","balance":21,"department_id":""}}\n- حذف موظف: ACTION: {"type":"delete_employee","data":{"id":""}}\n- تعديل رصيد: ACTION: {"type":"update_balance","data":{"id":"","balance":0}}\n- قبول طلب: ACTION: {"type":"approve_request","data":{"id":""}}\n- رفض طلب: ACTION: {"type":"reject_request","data":{"id":""}}\n- نقل موظفين جماعي لقسم: ACTION: {"type":"bulk_update_department","data":{"employee_ids":["id1","id2"],"department_id":""}}\n- تعديل منصب موظفين: ACTION: {"type":"bulk_update_position","data":{"employee_ids":["id1","id2"],"position":""}}`;
+    const systemPrompt = `أنت مساعد ذكي لإدارة الإجازات. بيانات النظام الحالية:
+${JSON.stringify(systemData)}
+
+قواعد مهمة جداً:
+1. أجب بالعربي باختصار
+2. لما تنفذ أمر، اكتب ACTION في السطر الأخير فقط بالشكل الصحيح
+3. للأوامر الجماعية (مثل: ضم كل عمال الري لقسم معين) استخدم bulk_update_department
+4. لا تقل "تم" إلا لو كتبت ACTION فعلاً
+
+الأوامر المتاحة:
+- إضافة موظف: ACTION: {"type":"add_employee","data":{"name":"","code":"","position":"","email":"","balance":21,"department_id":""}}
+- حذف موظف: ACTION: {"type":"delete_employee","data":{"id":""}}
+- تعديل رصيد: ACTION: {"type":"update_balance","data":{"id":"","balance":0}}
+- قبول طلب: ACTION: {"type":"approve_request","data":{"id":""}}
+- رفض طلب: ACTION: {"type":"reject_request","data":{"id":""}}
+- نقل موظفين جماعي لقسم: ACTION: {"type":"bulk_update_department","data":{"employee_ids":["id1","id2"],"department_id":""}}
+- تعديل منصب موظفين: ACTION: {"type":"bulk_update_position","data":{"employee_ids":["id1","id2"],"position":""}}`;
 
     try {
       // بناء تاريخ المحادثة بصيغة OpenAI المتوافقة مع Groq
@@ -1431,7 +1454,20 @@ const VacationManagementSystem = () => {
         fontFamily: "Cairo, sans-serif",
       }}>
         {/* خلفية دوائر متحركة */}
-        <style>{`@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap'); @keyframes float1 { 0%,100%{transform:translate(0,0) scale(1)} 50%{transform:translate(30px,-40px) scale(1.05)} } @keyframes float2 { 0%,100%{transform:translate(0,0) scale(1)} 50%{transform:translate(-20px,30px) scale(0.95)} } @keyframes float3 { 0%,100%{transform:translate(0,0)} 50%{transform:translate(15px,-20px)} } @keyframes shimmer { 0%{opacity:0.3} 50%{opacity:0.7} 100%{opacity:0.3} } .orb1 { animation: float1 8s ease-in-out infinite; } .orb2 { animation: float2 10s ease-in-out infinite; } .orb3 { animation: float3 6s ease-in-out infinite; } .login-card { backdrop-filter: blur(20px); transition: all 0.3s ease; } .login-btn { transition: all 0.2s ease; } .login-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0,0,0,0.3); } .login-input:focus { outline: none; }`}</style>
+        <style>{`
+          @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap');
+          @keyframes float1 { 0%,100%{transform:translate(0,0) scale(1)} 50%{transform:translate(30px,-40px) scale(1.05)} }
+          @keyframes float2 { 0%,100%{transform:translate(0,0) scale(1)} 50%{transform:translate(-20px,30px) scale(0.95)} }
+          @keyframes float3 { 0%,100%{transform:translate(0,0)} 50%{transform:translate(15px,-20px)} }
+          @keyframes shimmer { 0%{opacity:0.3} 50%{opacity:0.7} 100%{opacity:0.3} }
+          .orb1 { animation: float1 8s ease-in-out infinite; }
+          .orb2 { animation: float2 10s ease-in-out infinite; }
+          .orb3 { animation: float3 6s ease-in-out infinite; }
+          .login-card { backdrop-filter: blur(20px); transition: all 0.3s ease; }
+          .login-btn { transition: all 0.2s ease; }
+          .login-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0,0,0,0.3); }
+          .login-input:focus { outline: none; }
+        `}</style>
 
         {/* كرات ضوئية في الخلفية */}
         <div className="orb1" style={{ position:"absolute", top:"-10%", right:"-5%", width:"500px", height:"500px", borderRadius:"50%", background:"radial-gradient(circle, rgba(99,102,241,0.4) 0%, transparent 70%)", filter:"blur(40px)" }} />
