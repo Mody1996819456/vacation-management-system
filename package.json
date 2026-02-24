@@ -13,12 +13,13 @@
     "web-vitals": "^2.1.4"
   },
   "devDependencies": {
-    "@types/node": "^16.18.0",
+    "@types/node": "^18.18.0",
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
-    "typescript": "^4.9.5",
-    "@eslint/config-array": "^0.15.1",
-    "eslint": "^9.0.0"
+    "typescript": "^5.3.3",
+    "@eslint/eslintrc": "^2.1.4",
+    "@eslint/js": "^8.55.0",
+    "eslint": "^8.55.0"
   },
   "scripts": {
     "start": "react-scripts start",
@@ -43,5 +44,9 @@
       "last 1 firefox version",
       "last 1 safari version"
     ]
+  },
+  "engines": {
+    "node": ">=14.0.0",
+    "npm": ">=6.0.0"
   }
 }
