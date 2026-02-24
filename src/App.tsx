@@ -677,29 +677,52 @@ ${JSON.stringify(summaryData)}
       const employeesToAdd = jsonData.map((row: any) => {
         const deptName = row["القسم"] || "";
         const dept = departments.find(d => d.name === deptName);
-        return {
-          name: row["الاسم الكامل"] || row.name || "",
-          code: String(row["الكود الوظيفي"] || row.code || ""),
-          position: row["المنصب"] || row.position || "",
-          email: row["البريد الإلكتروني"] || row.email || "",
-          balance: Number(row["الرصيد الحالي"] || row.balance || 21),
-          monthly_balance: Number(row["الرصيد الشهري"] || row.monthly_balance || 0),
-          hire_date: row["تاريخ التعيين"] || row.hire_date || null,
-          return_date: row["تاريخ العودة"] || row.return_date || null,
-          department_id: dept?.id || null,
-        };
-      });
-      const validEmployees = employeesToAdd.filter(emp => emp.name && emp.code);
+        const code = String(row["الكود الوظيفي"] || row.code || "").trim();
+        if (!code) return null;
+
+        // بناء الأوبجكت بالحقول المكتوبة فقط — مش بنبعت حقول فاضية
+        const empData: any = { code };
+        if (row["الاسم الكامل"] || row.name)           empData.name = row["الاسم الكامل"] || row.name;
+        if (row["المنصب"] || row.position)             empData.position = row["المنصب"] || row.position;
+        if (row["البريد الإلكتروني"] || row.email)     empData.email = row["البريد الإلكتروني"] || row.email;
+        if (row["الرصيد الحالي"] !== undefined && row["الرصيد الحالي"] !== "")
+                                                         empData.balance = Number(row["الرصيد الحالي"]);
+        if (row["الرصيد الشهري"] !== undefined && row["الرصيد الشهري"] !== "")
+                                                         empData.monthly_balance = Number(row["الرصيد الشهري"]);
+        if (row["تاريخ التعيين"] || row.hire_date)    empData.hire_date = row["تاريخ التعيين"] || row.hire_date;
+        if (row["تاريخ العودة"] || row.return_date)   empData.return_date = row["تاريخ العودة"] || row.return_date;
+        if (deptName && dept)                            empData.department_id = dept.id;
+
+        return empData;
+      }).filter(Boolean);
+
+      const validEmployees = employeesToAdd.filter((emp: any) => emp.code);
       if (validEmployees.length === 0) { alert("لم يتم العثور على بيانات صحيحة!"); setUploadingFile(false); return; }
-      const { error } = await supabase.from("employees").upsert(validEmployees, {
-        onConflict: "code",
-        ignoreDuplicates: false,
-      });
+
+      // تقسيم: موظفين جدد (لازم اسم) ومحدّثين (كود بس كافي)
+      const existingCodes = new Set(employees.map(e => e.code));
+      const toInsert = validEmployees.filter((e: any) => !existingCodes.has(e.code) && e.name);
+      const toUpdate = validEmployees.filter((e: any) => existingCodes.has(e.code));
+
+      let errorMsg = "";
+      if (toInsert.length > 0) {
+        const { error: insertErr } = await supabase.from("employees").insert(toInsert);
+        if (insertErr) errorMsg += "خطأ في الإضافة: " + insertErr.message + "
+";
+      }
+      if (toUpdate.length > 0) {
+        await Promise.all(toUpdate.map((emp: any) => {
+          const { code, ...updateData } = emp;
+          return supabase.from("employees").update(updateData).eq("code", code);
+        }));
+      }
+
+      const { error } = { error: errorMsg || null };
       if (!error) {
         alert(`✅ تمت المعالجة بنجاح!
-- تم إضافة أو تحديث ${validEmployees.length} موظف
-- الموظفين الموجودين مسبقاً تم تحديث بياناتهم
-- الموظفين الجدد تمت إضافتهم`);
+- تمت إضافة: ${toInsert.length} موظف جديد
+- تم تحديث: ${toUpdate.length} موظف موجود
+- الحقول الفاضية في الملف لم تُمسح`);
         setShowImportModal(false);
         fetchData();
         await logAction("bulk_import", "employees", null, null, { count: validEmployees.length });
