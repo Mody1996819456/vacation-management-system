@@ -769,9 +769,11 @@ ${JSON.stringify(summaryData)}
     if (window.confirm("حذف الموظف نهائياً؟")) {
       const emp = employees.find(e => e.id === id);
       await supabase.from("vacation_requests").delete().eq("employee_id", id);
+      await supabase.from("balance_updates").delete().eq("employee_id", id);
       await supabase.from("employees").delete().eq("id", id);
       await logAction("delete", "employees", id, emp);
       fetchData();
+      alert("تم حذف الموظف وكل بياناته ✅");
     }
   };
 
@@ -817,7 +819,6 @@ ${JSON.stringify(summaryData)}
       }).eq("id", id);
       if (deptErr) {
         alert("❌ حصل خطأ: " + deptErr.message);
-        setAiLoading(false);
         return;
       }
       setShowApprovalModal(false); setCurrentRequest(null); setAdminNotes("");
@@ -916,12 +917,14 @@ ${JSON.stringify(summaryData)}
       start_date: editingVac.start_date, days: editingVac.days,
       notes: editingVac.notes, vacation_type_id: editingVac.vacation_type_id,
     }).eq("id", editingVac.id);
-    if (!error) {
-      setEditingVac(null);
-      fetchData();
-      alert("تم التحديث ✅");
-      await logAction("update", "vacation_requests", editingVac.id, oldData, editingVac);
+    if (error) {
+      alert("❌ حصل خطأ في التحديث: " + error.message);
+      return;
     }
+    setEditingVac(null);
+    fetchData();
+    alert("تم التحديث ✅");
+    await logAction("update", "vacation_requests", editingVac.id, oldData, editingVac);
   };
 
   // ========== RETURN FROM VACATION ==========
@@ -982,6 +985,7 @@ ${JSON.stringify(summaryData)}
       logAction("create", "vacation_requests", null, null, newRequest);
       return;
     }
+    alert("❌ حصل خطأ في إرسال الطلب — حاول تاني");
     setIsSubmitting(false);
   };
 
@@ -989,13 +993,15 @@ ${JSON.stringify(summaryData)}
   const handleAddDepartment = async () => {
     if (!newDept.name) return alert("أدخل اسم القسم");
     const { error } = await supabase.from("departments").insert([newDept]);
-    if (!error) {
-      setShowAddDept(false);
-      setNewDept({ name: "", description: "" });
-      fetchData();
-      await logAction("create", "departments", null, null, newDept);
-      alert("تم إضافة القسم ✅");
+    if (error) {
+      alert("❌ حصل خطأ: " + error.message);
+      return;
     }
+    setShowAddDept(false);
+    setNewDept({ name: "", description: "" });
+    fetchData();
+    await logAction("create", "departments", null, null, newDept);
+    alert("تم إضافة القسم ✅");
   };
 
   const deleteDepartment = async (id: string) => {
