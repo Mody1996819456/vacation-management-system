@@ -742,7 +742,7 @@ const VacationManagementSystem = () => {
 
       const error = errorMsg || null;
       if (!error) {
-        alert("✅ تمت المعالجة بنجاح!\n- تمت إضافة: " + toInsert.length + " موظف جديد\n- تم تحديث: " + toUpdate.length + " موظف موجود\n- الحقول الفاضية في الملف لم تُمسح");
+        alert("✅ تمت المعالجة بنجاح!\\n- تمت إضافة: " + toInsert.length + " موظف جديد\\n- تم تحديث: " + toUpdate.length + " موظف موجود\\n- الحقول الفاضية في الملف لم تُمسح");
         setShowImportModal(false);
         fetchData();
         await logAction("bulk_import", "employees", null, null, { count: validEmployees.length });
