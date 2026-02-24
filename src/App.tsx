@@ -735,15 +735,34 @@ ${JSON.stringify(summaryData)}
 
   // ========== EMPLOYEE OPERATIONS ==========
   const handleAddEmployee = async () => {
-    if (!newEmp.name || !newEmp.code) return alert("املأ البيانات الأساسية");
-    const { error } = await supabase.from("employees").insert([newEmp]);
-    if (!error) {
-      setShowAddEmp(false);
-      setNewEmp({ name: "", code: "", position: "", balance: 21, monthly_balance: 0, department_id: "", hire_date: "", return_date: "", email: "" });
-      fetchData();
-      await logAction("create", "employees", null, null, newEmp);
-      alert("تم الإضافة ✅");
+    if (!newEmp.name || !newEmp.code) return alert("الاسم والكود الوظيفي مطلوبان ❌");
+    setIsSubmitting(true);
+    const empToInsert = {
+      name: newEmp.name.trim(),
+      code: newEmp.code.trim(),
+      position: newEmp.position.trim() || null,
+      email: newEmp.email.trim() || null,
+      balance: newEmp.balance || 0,
+      monthly_balance: newEmp.monthly_balance || 0,
+      department_id: newEmp.department_id || null,
+      hire_date: newEmp.hire_date || null,
+      return_date: newEmp.return_date || null,
+    };
+    const { error } = await supabase.from("employees").insert([empToInsert]);
+    setIsSubmitting(false);
+    if (error) {
+      if (error.message.includes("unique") || error.message.includes("duplicate")) {
+        alert("❌ الكود الوظيفي مستخدم بالفعل — اختار كود تاني");
+      } else {
+        alert("❌ حصل خطأ: " + error.message);
+      }
+      return;
     }
+    setShowAddEmp(false);
+    setNewEmp({ name: "", code: "", position: "", balance: 21, monthly_balance: 0, department_id: "", hire_date: "", return_date: "", email: "" });
+    await fetchData();
+    await logAction("create", "employees", null, null, empToInsert);
+    alert("✅ تمت إضافة الموظف بنجاح!");
   };
 
   const handleDeleteEmployee = async (id: string) => {
@@ -2420,7 +2439,7 @@ ${JSON.stringify(systemData)}
                   <input type="number" step="0.5" className="p-4 border rounded-2xl outline-none" placeholder="الرصيد" value={newEmp.balance} onChange={(e) => setNewEmp({...newEmp, balance: Number(e.target.value)})} />
                   <input type="number" step="0.5" className="p-4 border rounded-2xl outline-none" placeholder="الرصيد الشهري" value={newEmp.monthly_balance} onChange={(e) => setNewEmp({...newEmp, monthly_balance: Number(e.target.value)})} />
                 </div>
-                <button onClick={handleAddEmployee} className="w-full bg-indigo-600 text-white p-5 rounded-2xl font-black">💾 حفظ</button>
+                <button onClick={handleAddEmployee} disabled={isSubmitting} className="w-full bg-indigo-600 text-white p-5 rounded-2xl font-black disabled:opacity-60">{isSubmitting ? "جاري الحفظ..." : "💾 حفظ"}</button>
               </div>
             </div>
           </div>
