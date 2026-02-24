@@ -593,9 +593,7 @@ ${JSON.stringify(summaryData)}
     e.preventDefault();
 
     // 1️⃣ Owner
-    const ADMIN_PASSWORD = process.env.REACT_APP_ADMIN_PASSWORD || "";
-    if (!ADMIN_PASSWORD) { alert("❌ النظام غير مهيأ — تواصل مع المطور"); return; }
-    if (loginData.email === ADMIN_EMAIL && loginData.password === ADMIN_PASSWORD) {
+    if (loginData.email === ADMIN_EMAIL && loginData.password === "Mg1996819456") {
       const ownerUser = { role: "owner", name: "محمد جمال" };
       setCurrentUser(ownerUser);
       setCurrentView("admin");
@@ -611,7 +609,7 @@ ${JSON.stringify(summaryData)}
         .from("department_managers")
         .select("*, departments(name)")
         .eq("email", loginData.email.trim())
-        .eq("password", btoa(loginData.password))
+        .eq("password", loginData.password)
         .single();
       if (mgr) {
         const mgrUser = {
@@ -667,33 +665,6 @@ ${JSON.stringify(summaryData)}
     XLSX.writeFile(wb, "نموذج_الموظفين.xlsx");
   };
 
-  // ========== تحويل تاريخ Excel (serial أو نص) لـ YYYY-MM-DD ==========
-  const parseExcelDate = (val: any): string | null => {
-    if (!val) return null;
-    // لو رقم serial من Excel (زي 42423)
-    if (typeof val === "number") {
-      const excelEpoch = new Date(1899, 11, 30);
-      const date = new Date(excelEpoch.getTime() + val * 86400000);
-      return date.toISOString().split("T")[0];
-    }
-    // لو نص — نحاول نحوله
-    const str = String(val).trim();
-    if (!str) return null;
-    // صيغة YYYY-MM-DD
-    if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
-    // صيغة DD/MM/YYYY أو MM/DD/YYYY
-    const parts = str.split(/[\/\-\.]/);
-    if (parts.length === 3) {
-      const [a, b, c] = parts;
-      if (c.length === 4) return `${c}-${b.padStart(2,"0")}-${a.padStart(2,"0")}`;
-      if (a.length === 4) return `${a}-${b.padStart(2,"0")}-${c.padStart(2,"0")}`;
-    }
-    // آخر محاولة
-    const d = new Date(str);
-    if (!isNaN(d.getTime())) return d.toISOString().split("T")[0];
-    return null;
-  };
-
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -706,53 +677,29 @@ ${JSON.stringify(summaryData)}
       const employeesToAdd = jsonData.map((row: any) => {
         const deptName = row["القسم"] || "";
         const dept = departments.find(d => d.name === deptName);
-        const code = String(row["الكود الوظيفي"] || row.code || "").trim();
-        if (!code) return null;
-
-        // بناء الأوبجكت بالحقول المكتوبة فقط — مش بنبعت حقول فاضية
-        const empData: any = { code };
-        if (row["الاسم الكامل"] || row.name)           empData.name = row["الاسم الكامل"] || row.name;
-        if (row["المنصب"] || row.position)             empData.position = row["المنصب"] || row.position;
-        if (row["البريد الإلكتروني"] || row.email)     empData.email = row["البريد الإلكتروني"] || row.email;
-        if (row["الرصيد الحالي"] !== undefined && row["الرصيد الحالي"] !== "")
-                                                         empData.balance = Number(row["الرصيد الحالي"]);
-        if (row["الرصيد الشهري"] !== undefined && row["الرصيد الشهري"] !== "")
-                                                         empData.monthly_balance = Number(row["الرصيد الشهري"]);
-        const hireVal = row["تاريخ التعيين"] ?? row.hire_date;
-        const returnVal = row["تاريخ العودة"] ?? row.return_date;
-        if (hireVal !== undefined && hireVal !== "")   empData.hire_date = parseExcelDate(hireVal);
-        if (returnVal !== undefined && returnVal !== "") empData.return_date = parseExcelDate(returnVal);
-        if (deptName && dept)                            empData.department_id = dept.id;
-
-        return empData;
-      }).filter(Boolean);
-
-      const validEmployees = employeesToAdd.filter((emp: any) => emp.code);
+        return {
+          name: row["الاسم الكامل"] || row.name || "",
+          code: String(row["الكود الوظيفي"] || row.code || ""),
+          position: row["المنصب"] || row.position || "",
+          email: row["البريد الإلكتروني"] || row.email || "",
+          balance: Number(row["الرصيد الحالي"] || row.balance || 21),
+          monthly_balance: Number(row["الرصيد الشهري"] || row.monthly_balance || 0),
+          hire_date: row["تاريخ التعيين"] || row.hire_date || null,
+          return_date: row["تاريخ العودة"] || row.return_date || null,
+          department_id: dept?.id || null,
+        };
+      });
+      const validEmployees = employeesToAdd.filter(emp => emp.name && emp.code);
       if (validEmployees.length === 0) { alert("لم يتم العثور على بيانات صحيحة!"); setUploadingFile(false); return; }
-
-      // تقسيم: موظفين جدد (لازم اسم) ومحدّثين (كود بس كافي)
-      const existingCodes = new Set(employees.map(e => e.code));
-      const toInsert = validEmployees.filter((e: any) => !existingCodes.has(e.code) && e.name);
-      const toUpdate = validEmployees.filter((e: any) => existingCodes.has(e.code));
-
-      let errorMsg = "";
-      if (toInsert.length > 0) {
-        const { error: insertErr } = await supabase.from("employees").insert(toInsert);
-        if (insertErr) errorMsg += "Insert Error: " + insertErr.message;
-      }
-      if (toUpdate.length > 0) {
-        await Promise.all(toUpdate.map((emp: any) => {
-          const { code, ...updateData } = emp;
-          return supabase.from("employees").update(updateData).eq("code", code);
-        }));
-      }
-
-      const error = errorMsg || null;
+      const { error } = await supabase.from("employees").upsert(validEmployees, {
+        onConflict: "code",
+        ignoreDuplicates: false,
+      });
       if (!error) {
         alert(`✅ تمت المعالجة بنجاح!
-- تمت إضافة: ${toInsert.length} موظف جديد
-- تم تحديث: ${toUpdate.length} موظف موجود
-- الحقول الفاضية في الملف لم تُمسح`);
+- تم إضافة أو تحديث ${validEmployees.length} موظف
+- الموظفين الموجودين مسبقاً تم تحديث بياناتهم
+- الموظفين الجدد تمت إضافتهم`);
         setShowImportModal(false);
         fetchData();
         await logAction("bulk_import", "employees", null, null, { count: validEmployees.length });
@@ -3019,9 +2966,9 @@ const ManagersTab = ({ departments, supabase, logAction, currentUser }: {
     if (!form.name || !form.email || !form.password || !form.department_id) return alert("جميع الحقول مطلوبة");
     setSaving(true);
     if (editingMgr) {
-      await supabase.from("department_managers").update({ ...form, password: btoa(form.password) }).eq("id", editingMgr.id);
+      await supabase.from("department_managers").update(form).eq("id", editingMgr.id);
     } else {
-      const { error } = await supabase.from("department_managers").insert([{ ...form, password: btoa(form.password) }]);
+      const { error } = await supabase.from("department_managers").insert([form]);
       if (error) { alert("خطأ: " + error.message); setSaving(false); return; }
     }
     await logAction(editingMgr ? "update" : "create", "department_managers", editingMgr?.id ?? null);
