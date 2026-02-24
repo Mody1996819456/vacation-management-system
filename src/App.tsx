@@ -738,7 +738,7 @@ ${JSON.stringify(summaryData)}
       let errorMsg = "";
       if (toInsert.length > 0) {
         const { error: insertErr } = await supabase.from("employees").insert(toInsert);
-        if (insertErr) errorMsg += "خطأ في الإضافة: " + insertErr.message + "\n";
+        if (insertErr) errorMsg += "Insert Error: " + insertErr.message;
       }
       if (toUpdate.length > 0) {
         await Promise.all(toUpdate.map((emp: any) => {
@@ -747,7 +747,7 @@ ${JSON.stringify(summaryData)}
         }));
       }
 
-      const { error } = { error: errorMsg || null };
+      const error = errorMsg || null;
       if (!error) {
         alert(`✅ تمت المعالجة بنجاح!
 - تمت إضافة: ${toInsert.length} موظف جديد
