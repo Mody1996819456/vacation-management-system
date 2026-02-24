@@ -593,7 +593,9 @@ ${JSON.stringify(summaryData)}
     e.preventDefault();
 
     // 1️⃣ Owner
-    if (loginData.email === ADMIN_EMAIL && loginData.password === "Mg1996819456") {
+    const ADMIN_PASSWORD = process.env.REACT_APP_ADMIN_PASSWORD || "";
+    if (!ADMIN_PASSWORD) { alert("❌ النظام غير مهيأ — تواصل مع المطور"); return; }
+    if (loginData.email === ADMIN_EMAIL && loginData.password === ADMIN_PASSWORD) {
       const ownerUser = { role: "owner", name: "محمد جمال" };
       setCurrentUser(ownerUser);
       setCurrentView("admin");
@@ -609,7 +611,7 @@ ${JSON.stringify(summaryData)}
         .from("department_managers")
         .select("*, departments(name)")
         .eq("email", loginData.email.trim())
-        .eq("password", loginData.password)
+        .eq("password", btoa(loginData.password))
         .single();
       if (mgr) {
         const mgrUser = {
@@ -665,6 +667,33 @@ ${JSON.stringify(summaryData)}
     XLSX.writeFile(wb, "نموذج_الموظفين.xlsx");
   };
 
+  // ========== تحويل تاريخ Excel (serial أو نص) لـ YYYY-MM-DD ==========
+  const parseExcelDate = (val: any): string | null => {
+    if (!val) return null;
+    // لو رقم serial من Excel (زي 42423)
+    if (typeof val === "number") {
+      const excelEpoch = new Date(1899, 11, 30);
+      const date = new Date(excelEpoch.getTime() + val * 86400000);
+      return date.toISOString().split("T")[0];
+    }
+    // لو نص — نحاول نحوله
+    const str = String(val).trim();
+    if (!str) return null;
+    // صيغة YYYY-MM-DD
+    if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+    // صيغة DD/MM/YYYY أو MM/DD/YYYY
+    const parts = str.split(/[\/\-\.]/);
+    if (parts.length === 3) {
+      const [a, b, c] = parts;
+      if (c.length === 4) return `${c}-${b.padStart(2,"0")}-${a.padStart(2,"0")}`;
+      if (a.length === 4) return `${a}-${b.padStart(2,"0")}-${c.padStart(2,"0")}`;
+    }
+    // آخر محاولة
+    const d = new Date(str);
+    if (!isNaN(d.getTime())) return d.toISOString().split("T")[0];
+    return null;
+  };
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -689,8 +718,10 @@ ${JSON.stringify(summaryData)}
                                                          empData.balance = Number(row["الرصيد الحالي"]);
         if (row["الرصيد الشهري"] !== undefined && row["الرصيد الشهري"] !== "")
                                                          empData.monthly_balance = Number(row["الرصيد الشهري"]);
-        if (row["تاريخ التعيين"] || row.hire_date)    empData.hire_date = row["تاريخ التعيين"] || row.hire_date;
-        if (row["تاريخ العودة"] || row.return_date)   empData.return_date = row["تاريخ العودة"] || row.return_date;
+        const hireVal = row["تاريخ التعيين"] ?? row.hire_date;
+        const returnVal = row["تاريخ العودة"] ?? row.return_date;
+        if (hireVal !== undefined && hireVal !== "")   empData.hire_date = parseExcelDate(hireVal);
+        if (returnVal !== undefined && returnVal !== "") empData.return_date = parseExcelDate(returnVal);
         if (deptName && dept)                            empData.department_id = dept.id;
 
         return empData;
@@ -2989,9 +3020,9 @@ const ManagersTab = ({ departments, supabase, logAction, currentUser }: {
     if (!form.name || !form.email || !form.password || !form.department_id) return alert("جميع الحقول مطلوبة");
     setSaving(true);
     if (editingMgr) {
-      await supabase.from("department_managers").update(form).eq("id", editingMgr.id);
+      await supabase.from("department_managers").update({ ...form, password: btoa(form.password) }).eq("id", editingMgr.id);
     } else {
-      const { error } = await supabase.from("department_managers").insert([form]);
+      const { error } = await supabase.from("department_managers").insert([{ ...form, password: btoa(form.password) }]);
       if (error) { alert("خطأ: " + error.message); setSaving(false); return; }
     }
     await logAction(editingMgr ? "update" : "create", "department_managers", editingMgr?.id ?? null);
