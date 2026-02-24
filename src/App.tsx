@@ -749,8 +749,10 @@ ${JSON.stringify(summaryData)}
 
       const error = errorMsg || null;
       if (!error) {
-        const successMsg = "✅ تمت المعالجة بنجاح!\n- تمت إضافة: " + toInsert.length + " موظف جديد\n- تم تحديث: " + toUpdate.length + " موظف موجود\n- الحقول الفاضية في الملف لم تُمسح";
-        alert(successMsg);
+        alert(`✅ تمت المعالجة بنجاح!
+- تمت إضافة: ${toInsert.length} موظف جديد
+- تم تحديث: ${toUpdate.length} موظف موجود
+- الحقول الفاضية في الملف لم تُمسح`);
         setShowImportModal(false);
         fetchData();
         await logAction("bulk_import", "employees", null, null, { count: validEmployees.length });
