@@ -665,46 +665,163 @@ ${JSON.stringify(summaryData)}
     XLSX.writeFile(wb, "نموذج_الموظفين.xlsx");
   };
 
+  // ========== دالة تحويل التواريخ من أي صيغة ==========
+  const parseFlexibleDate = (value: any): string | null => {
+    if (!value && value !== 0) return null;
+
+    // 1) Excel serial number (رقم تسلسلي من Excel)
+    if (typeof value === "number") {
+      const excelEpoch = new Date(1899, 11, 30);
+      const date = new Date(excelEpoch.getTime() + value * 86400000);
+      if (!isNaN(date.getTime())) return date.toISOString().split("T")[0];
+      return null;
+    }
+
+    const str = String(value).trim();
+    if (!str) return null;
+
+    // 2) YYYY-MM-DD أو YYYY/MM/DD
+    if (/^\d{4}[-/]\d{1,2}[-/]\d{1,2}$/.test(str)) {
+      const d = new Date(str.replace(/\//g, "-"));
+      if (!isNaN(d.getTime())) return d.toISOString().split("T")[0];
+    }
+
+    // 3) DD-MM-YYYY أو DD/MM/YYYY
+    if (/^\d{1,2}[-/]\d{1,2}[-/]\d{4}$/.test(str)) {
+      const parts = str.split(/[-/]/);
+      const d = new Date(`${parts[2]}-${parts[1].padStart(2, "0")}-${parts[0].padStart(2, "0")}`);
+      if (!isNaN(d.getTime())) return d.toISOString().split("T")[0];
+    }
+
+    // 4) MM/DD/YYYY
+    if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(str)) {
+      const d = new Date(str);
+      if (!isNaN(d.getTime())) return d.toISOString().split("T")[0];
+    }
+
+    // 5) أي صيغة أخرى يقدر JavaScript يفهمها
+    const fallback = new Date(str);
+    if (!isNaN(fallback.getTime())) return fallback.toISOString().split("T")[0];
+
+    return null;
+  };
+
+  // ========== دالة رفع الملف المحسّنة (تحديث جزئي + كل صيغ التواريخ) ==========
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setUploadingFile(true);
     try {
       const data = await file.arrayBuffer();
-      const workbook = XLSX.read(data);
+      const workbook = XLSX.read(data, { cellDates: false });
       const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-      const jsonData = XLSX.utils.sheet_to_json(worksheet);
-      const employeesToAdd = jsonData.map((row: any) => {
+      const jsonData = XLSX.utils.sheet_to_json(worksheet, { raw: true });
+
+      // تجهيز البيانات من الملف — فقط الحقول الموجودة فعلاً
+      const fileRows = jsonData.map((row: any) => {
         const deptName = row["القسم"] || "";
         const dept = departments.find(d => d.name === deptName);
-        return {
-          name: row["الاسم الكامل"] || row.name || "",
-          code: String(row["الكود الوظيفي"] || row.code || ""),
-          position: row["المنصب"] || row.position || "",
-          email: row["البريد الإلكتروني"] || row.email || "",
-          balance: Number(row["الرصيد الحالي"] || row.balance || 21),
-          monthly_balance: Number(row["الرصيد الشهري"] || row.monthly_balance || 0),
-          hire_date: row["تاريخ التعيين"] || row.hire_date || null,
-          return_date: row["تاريخ العودة"] || row.return_date || null,
-          department_id: dept?.id || null,
-        };
+
+        const parsed: any = {};
+
+        // الحقول الإجبارية
+        const name = row["الاسم الكامل"] || row["name"] || row["الاسم"];
+        const code = String(row["الكود الوظيفي"] || row["code"] || row["الكود"] || "").trim();
+        if (name) parsed.name = String(name).trim();
+        if (code) parsed.code = code;
+
+        // الحقول الاختيارية — فقط لو موجودة في الملف
+        const position = row["المنصب"] || row["position"];
+        if (position !== undefined && position !== "") parsed.position = String(position).trim();
+
+        const email = row["البريد الإلكتروني"] || row["email"] || row["البريد"];
+        if (email !== undefined && email !== "") parsed.email = String(email).trim();
+
+        const balance = row["الرصيد الحالي"] || row["balance"] || row["الرصيد"];
+        if (balance !== undefined && balance !== "") parsed.balance = Number(balance);
+
+        const monthlyBalance = row["الرصيد الشهري"] || row["monthly_balance"];
+        if (monthlyBalance !== undefined && monthlyBalance !== "") parsed.monthly_balance = Number(monthlyBalance);
+
+        const hireDate = row["تاريخ التعيين"] || row["hire_date"];
+        if (hireDate !== undefined && hireDate !== "") parsed.hire_date = parseFlexibleDate(hireDate);
+
+        const returnDate = row["تاريخ العودة"] || row["return_date"];
+        if (returnDate !== undefined && returnDate !== "") parsed.return_date = parseFlexibleDate(returnDate);
+
+        if (dept) parsed.department_id = dept.id;
+        else if (deptName) parsed.department_id = null;
+
+        return parsed;
       });
-      const validEmployees = employeesToAdd.filter(emp => emp.name && emp.code);
-      if (validEmployees.length === 0) { alert("لم يتم العثور على بيانات صحيحة!"); setUploadingFile(false); return; }
-      const { error } = await supabase.from("employees").upsert(validEmployees, {
+
+      // فلترة الصفوف اللي فيها كود واسم على الأقل
+      const validRows = fileRows.filter((r: any) => r.name && r.code);
+      if (validRows.length === 0) {
+        alert("لم يتم العثور على بيانات صحيحة! تأكد من وجود عمود 'الاسم الكامل' و 'الكود الوظيفي'");
+        setUploadingFile(false);
+        return;
+      }
+
+      // جلب الموظفين الحاليين لعمل merge ذكي
+      const codes = validRows.map((r: any) => r.code);
+      const { data: existingEmps } = await supabase
+        .from("employees")
+        .select("*")
+        .in("code", codes);
+
+      const existingMap = new Map((existingEmps || []).map((e: any) => [e.code, e]));
+
+      let addedCount = 0;
+      let updatedCount = 0;
+
+      const toUpsert = validRows.map((row: any) => {
+        const existing = existingMap.get(row.code);
+        if (existing) {
+          // تحديث: دمج البيانات الجديدة مع القديمة (الجديد يكسب)
+          updatedCount++;
+          return {
+            ...existing,
+            ...row,
+            id: existing.id,
+          };
+        } else {
+          // إضافة جديد
+          addedCount++;
+          return {
+            name: row.name,
+            code: row.code,
+            position: row.position || null,
+            email: row.email || null,
+            balance: row.balance ?? 21,
+            monthly_balance: row.monthly_balance ?? 0,
+            hire_date: row.hire_date || null,
+            return_date: row.return_date || null,
+            department_id: row.department_id || null,
+          };
+        }
+      });
+
+      const { error } = await supabase.from("employees").upsert(toUpsert, {
         onConflict: "code",
         ignoreDuplicates: false,
       });
+
       if (!error) {
         alert(`✅ تمت المعالجة بنجاح!
-- تم إضافة أو تحديث ${validEmployees.length} موظف
-- الموظفين الموجودين مسبقاً تم تحديث بياناتهم
-- الموظفين الجدد تمت إضافتهم`);
+• تم إضافة ${addedCount} موظف جديد
+• تم تحديث بيانات ${updatedCount} موظف موجود
+• إجمالي: ${validRows.length} موظف`);
         setShowImportModal(false);
         fetchData();
-        await logAction("bulk_import", "employees", null, null, { count: validEmployees.length });
-      } else { alert("خطأ في الاستيراد: " + error.message); }
-    } catch (err) { alert("خطأ في قراءة الملف"); }
+        await logAction("bulk_import", "employees", null, null, { added: addedCount, updated: updatedCount });
+      } else {
+        alert("خطأ في الاستيراد: " + error.message);
+      }
+    } catch (err) {
+      alert("خطأ في قراءة الملف — تأكد من أن الملف بصيغة Excel صحيحة");
+      console.error(err);
+    }
     setUploadingFile(false);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
