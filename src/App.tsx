@@ -3484,294 +3484,201 @@ ${JSON.stringify(systemData)}
   // ==================== EMPLOYEE VIEW ====================
   if (currentView === "employee") {
     const empStatus = getEmployeeStatus(currentUser);
-    return (
-      <div className="min-h-screen bg-slate-50 p-6" dir="rtl">
-        <header className="max-w-4xl mx-auto flex justify-between items-center mb-10">
-          <div>
-            <h2 className="text-3xl font-black text-slate-800">أهلاً {currentUser.name} 👋</h2>
-            <p className="text-slate-500">
-              رصيدك: <span className="font-black text-indigo-600">{currentUser.balance} يوم</span>
-              {currentUser.monthly_balance > 0 && <span className="mr-2 text-emerald-600 text-sm">(+{currentUser.monthly_balance} شهرياً)</span>}
-            </p>
-            {currentUser.hire_date && <p className="text-slate-400 text-sm">تاريخ التعيين: {formatDate(currentUser.hire_date)}</p>}
-            {currentUser.return_date && (
-              <p className="text-slate-400 text-sm">
-                أيام العمل منذ العودة: <span className="font-bold text-purple-600">{calculateWorkedDays(currentUser.return_date)} يوم</span>
-              </p>
-            )}
-            <span className={`inline-block mt-1 px-3 py-1 rounded-full text-xs font-black ${empStatus === "عمل" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
-              {empStatus === "عمل" ? "🟢 في العمل" : "🟡 في إجازة"}
-            </span>
-          </div>
-          <button onClick={() => { localStorage.removeItem("vms_currentUser"); localStorage.removeItem("vms_currentView"); setCurrentView("login"); setCurrentUser(null); setLoginData({ email: "", password: "" }); setEmpCodeInput(""); }} className="text-red-500 font-bold flex items-center gap-2 hover:bg-red-50 px-4 py-2 rounded-xl">
-            <LogOut size={20} /> خروج
-          </button>
-        </header>
+    const empRequests = requests.filter(r => r.employee_id === currentUser.id);
+    const approvedReqs = empRequests.filter(r => r.status === "approved");
+    const totalVacDays = approvedReqs.reduce((s, r) => s + Number(r.days), 0);
+    const workedDays = calculateWorkedDays(currentUser.return_date);
+    const greeting = getGreeting();
+    const isOnVac = empStatus === "إجازة";
 
-        <div className="max-w-4xl mx-auto grid md:grid-cols-2 gap-8">
-          <section className="bg-white p-8 rounded-[2.5rem] shadow-sm border">
-            <h3 className="text-xl font-black mb-6 flex items-center gap-3"><Plus className="text-indigo-600" /> طلب إجازة جديد</h3>
-            <div className="space-y-5">
+    return (
+      <div style={{ minHeight:"100vh", background:"#f1f5f9", direction:"rtl", fontFamily:"inherit" }}>
+
+        {/* ===== Header Banner ===== */}
+        <div style={{
+          background: isOnVac
+            ? "linear-gradient(135deg,#92400e,#b45309,#d97706)"
+            : "linear-gradient(135deg,#0f172a,#1e1b4b,#312e81,#4338ca)",
+          padding:"28px 20px 80px", position:"relative", overflow:"hidden"
+        }}>
+          <div style={{ position:"absolute", top:"-40px", right:"-40px", width:"200px", height:"200px", borderRadius:"50%", background:"rgba(255,255,255,0.05)" }}/>
+          <div style={{ position:"absolute", bottom:"-60px", left:"10%", width:"250px", height:"250px", borderRadius:"50%", background:"rgba(255,255,255,0.03)" }}/>
+          <div style={{ position:"relative", zIndex:1 }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"20px" }}>
+              <div style={{ display:"inline-flex", alignItems:"center", gap:"6px", background:"rgba(255,255,255,0.12)", borderRadius:"20px", padding:"5px 12px", border:"1px solid rgba(255,255,255,0.15)" }}>
+                <div style={{ width:"7px", height:"7px", borderRadius:"50%", background: isOnVac ? "#fbbf24" : "#34d399", boxShadow:`0 0 6px ${isOnVac ? "#fbbf24" : "#34d399"}` }}/>
+                <span style={{ fontSize:"12px", color:"white", fontWeight:"700" }}>{isOnVac ? "🏖️ في إجازة" : "✅ في العمل"}</span>
+              </div>
+              <button onClick={() => { localStorage.removeItem("vms_currentUser"); localStorage.removeItem("vms_currentView"); setCurrentView("login"); setCurrentUser(null); setLoginData({ email:"", password:"" }); setEmpCodeInput(""); }}
+                style={{ display:"flex", alignItems:"center", gap:"6px", background:"rgba(239,68,68,0.15)", border:"1px solid rgba(239,68,68,0.3)", borderRadius:"20px", padding:"6px 14px", color:"#fca5a5", fontSize:"13px", fontWeight:"700", cursor:"pointer" }}>
+                <LogOut size={14}/> خروج
+              </button>
+            </div>
+            <div style={{ display:"flex", alignItems:"center", gap:"12px", marginBottom:"20px" }}>
+              <div style={{ width:"52px", height:"52px", borderRadius:"50%", background:"rgba(255,255,255,0.15)", border:"2px solid rgba(255,255,255,0.25)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:"22px", fontWeight:"900", color:"white", flexShrink:0 }}>
+                {currentUser.name?.charAt(0)}
+              </div>
               <div>
-                <label className="text-sm font-bold text-slate-400 mb-2 block">نوع الإجازة</label>
-                <select className="w-full p-4 bg-slate-50 border-none rounded-2xl outline-none" value={newRequest.vacation_type_id} onChange={(e) => setNewRequest({...newRequest, vacation_type_id: e.target.value})}>
-                  <option value="">اختر النوع</option>
+                <div style={{ fontSize:"11px", color:"rgba(255,255,255,0.5)", marginBottom:"2px" }}>{greeting.emoji} {greeting.text}</div>
+                <div style={{ fontSize:"17px", fontWeight:"900", color:"white", lineHeight:"1.2" }}>{currentUser.name}</div>
+                {currentUser.position && <div style={{ fontSize:"11px", color:"rgba(255,255,255,0.5)", marginTop:"2px" }}>{currentUser.position}</div>}
+              </div>
+            </div>
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:"10px" }}>
+              {([
+                { label:"رصيد الإجازة",          value:`${currentUser.balance}`,          unit:"يوم",      color:"#a5b4fc", icon:"💼", warn: Number(currentUser.balance) < 5 },
+                { label:"رصيد شهري",              value:`+${currentUser.monthly_balance||0}`, unit:"يوم/شهر", color:"#6ee7b7", icon:"📅", warn:false },
+                { label:"أيام العمل منذ العودة", value:`${workedDays}`,                   unit:"يوم",      color:"#fde68a", icon:"⚡", warn:false },
+                { label:"إجمالي إجازاتي",        value:`${totalVacDays}`,                 unit:"يوم",      color:"#fca5a5", icon:"✈️", warn:false },
+              ] as any[]).map((s:any) => (
+                <div key={s.label} style={{ background: s.warn ? "rgba(239,68,68,0.2)" : "rgba(255,255,255,0.1)", borderRadius:"16px", padding:"14px", border:`1px solid ${s.warn ? "rgba(239,68,68,0.4)" : "rgba(255,255,255,0.12)"}` }}>
+                  <div style={{ fontSize:"18px", marginBottom:"4px" }}>{s.icon}</div>
+                  <div style={{ display:"flex", alignItems:"baseline", gap:"4px" }}>
+                    <span style={{ fontSize:"28px", fontWeight:"900", color: s.warn ? "#fca5a5" : s.color, lineHeight:"1" }}>{s.value}</span>
+                    <span style={{ fontSize:"11px", color:"rgba(255,255,255,0.5)" }}>{s.unit}</span>
+                  </div>
+                  <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", marginTop:"3px" }}>{s.label}</div>
+                  {s.warn && <div style={{ fontSize:"9px", color:"#fca5a5", marginTop:"2px", fontWeight:"700" }}>⚠️ رصيد منخفض</div>}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* ===== المحتوى الرئيسي ===== */}
+        <div style={{ margin:"-40px 16px 20px", position:"relative", zIndex:10, display:"flex", flexDirection:"column", gap:"16px" }}>
+
+          {/* فورم طلب الإجازة */}
+          <div style={{ background:"white", borderRadius:"24px", boxShadow:"0 8px 32px rgba(0,0,0,0.1)", overflow:"hidden" }}>
+            <div style={{ padding:"18px 20px", borderBottom:"1px solid #f1f5f9", display:"flex", alignItems:"center", gap:"10px" }}>
+              <div style={{ width:"36px", height:"36px", borderRadius:"12px", background:"linear-gradient(135deg,#4f46e5,#7c3aed)", display:"flex", alignItems:"center", justifyContent:"center" }}>
+                <Plus size={18} style={{color:"white"}}/>
+              </div>
+              <span style={{ fontWeight:"900", fontSize:"16px" }}>طلب إجازة جديد</span>
+            </div>
+            <div style={{ padding:"20px", display:"flex", flexDirection:"column", gap:"16px" }}>
+              <div>
+                <label style={{ fontSize:"12px", fontWeight:"700", color:"#64748b", display:"block", marginBottom:"8px" }}>نوع الإجازة *</label>
+                <select style={{ width:"100%", padding:"14px", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:"14px", fontSize:"14px", outline:"none", boxSizing:"border-box", color:"#1e293b" }}
+                  value={newRequest.vacation_type_id} onChange={e => setNewRequest({...newRequest, vacation_type_id: e.target.value})}>
+                  <option value="">اختر النوع...</option>
                   {vacationTypes.map(vt => <option key={vt.id} value={vt.id}>{vt.name}</option>)}
                 </select>
               </div>
               <div>
-                <label className="text-sm font-bold text-slate-400 mb-2 block">تاريخ النزول</label>
-                <input type="date" className="w-full p-4 bg-slate-50 border-none rounded-2xl outline-none" value={newRequest.start_date} onChange={(e) => setNewRequest({...newRequest, start_date: e.target.value})} />
+                <label style={{ fontSize:"12px", fontWeight:"700", color:"#64748b", display:"block", marginBottom:"8px" }}>تاريخ النزول *</label>
+                <input type="date" style={{ width:"100%", padding:"14px", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:"14px", fontSize:"14px", outline:"none", boxSizing:"border-box" }}
+                  value={newRequest.start_date} onChange={e => setNewRequest({...newRequest, start_date: e.target.value})}/>
               </div>
               <div>
-                <label className="text-sm font-bold text-slate-400 mb-2 block">موعد النزول</label>
-                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:"10px" }}>
+                <label style={{ fontSize:"12px", fontWeight:"700", color:"#64748b", display:"block", marginBottom:"8px" }}>موعد النزول</label>
+                <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:"8px" }}>
                   {[
-                    { value:"after_work", icon:"🌆", label:"بعد العمل",           desc:"يوم التاريخ عمل\nثاني يوم سفر\nثالث يوم إجازة" },
-                    { value:"morning",    icon:"🌅", label:"صباحاً",              desc:"يوم التاريخ سفر\nثاني يوم إجازة" },
-                    { value:"actual",     icon:"✅", label:"بداية الإجازة الفعلي", desc:"يوم التاريخ أول يوم إجازة" },
+                    { value:"actual",     icon:"✅", label:"بداية الإجازة الفعلي" },
+                    { value:"morning",    icon:"🌅", label:"صباحاً" },
+                    { value:"after_work", icon:"🌆", label:"بعد العمل" },
                   ].map(opt => (
-                    <button key={opt.value} type="button" title={opt.desc}
+                    <button key={opt.value} type="button"
                       onClick={() => setNewRequest({...newRequest, departure_time: opt.value})}
-                      style={{
-                        padding:"12px 6px", borderRadius:"16px", border:`2px solid ${newRequest.departure_time === opt.value ? "#6366f1" : "#e2e8f0"}`,
-                        background: newRequest.departure_time === opt.value ? "#ede9fe" : "#f8fafc",
-                        color: newRequest.departure_time === opt.value ? "#6366f1" : "#64748b",
-                        fontWeight:"700", fontSize:"11px", cursor:"pointer", textAlign:"center" as const, transition:"all 0.2s",
-                      }}>
-                      <div style={{ fontSize:"22px", marginBottom:"4px" }}>{opt.icon}</div>
+                      style={{ padding:"12px 6px", borderRadius:"14px", border:`2px solid ${newRequest.departure_time === opt.value ? "#4f46e5" : "#e2e8f0"}`, background: newRequest.departure_time === opt.value ? "#eef2ff" : "#f8fafc", color: newRequest.departure_time === opt.value ? "#4f46e5" : "#64748b", fontWeight:"700", fontSize:"11px", cursor:"pointer", textAlign:"center", transition:"all 0.15s" }}>
+                      <div style={{ fontSize:"20px", marginBottom:"4px" }}>{opt.icon}</div>
                       {opt.label}
                     </button>
                   ))}
                 </div>
-                {newRequest.start_date && (
-                  <div style={{ marginTop:"12px", padding:"14px 16px", borderRadius:"14px", background:"linear-gradient(135deg,#ede9fe,#ddd6fe)", border:"1px solid #c4b5fd" }}>
-                    <p style={{ fontSize:"11px", color:"#7c3aed", fontWeight:"700", marginBottom:"8px" }}>📅 ملخص الإجازة</p>
-                    <div style={{ display:"flex", flexDirection:"column" as const, gap:"5px", fontSize:"13px" }}>
-                      <div style={{ display:"flex", justifyContent:"space-between" }}>
-                        <span style={{ color:"#6d28d9" }}>تاريخ النزول:</span>
-                        <span style={{ fontWeight:"800", color:"#4c1d95" }}>{formatDate(newRequest.start_date)}</span>
+              </div>
+              {newRequest.start_date && (
+                <div style={{ background:"linear-gradient(135deg,#eef2ff,#e0e7ff)", borderRadius:"14px", padding:"14px 16px", border:"1px solid #c7d2fe" }}>
+                  <div style={{ fontSize:"11px", color:"#4f46e5", fontWeight:"800", marginBottom:"10px" }}>📅 ملخص الإجازة</div>
+                  <div style={{ display:"flex", flexDirection:"column", gap:"6px" }}>
+                    {([
+                      { label:"تاريخ النزول",        value: formatDate(newRequest.start_date) },
+                      { label:"موعد النزول",          value: getDepartureLabel(newRequest.departure_time) },
+                      { label:"أول يوم إجازة فعلي",  value: formatDate(getActualStartDate(newRequest.start_date, newRequest.departure_time)), bold:true },
+                      ...(newRequest.days > 0 ? [{ label:"تاريخ العودة", value: formatDate(getCalculatedDates(getActualStartDate(newRequest.start_date, newRequest.departure_time), newRequest.days).back), bold:true, green:true }] : []),
+                    ] as any[]).map((item:any) => (
+                      <div key={item.label} style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                        <span style={{ fontSize:"12px", color:"#6d28d9" }}>{item.label}</span>
+                        <span style={{ fontSize:"13px", fontWeight: item.bold ? "900" : "700", color: item.green ? "#059669" : "#3730a3" }}>{item.value}</span>
                       </div>
-                      <div style={{ display:"flex", justifyContent:"space-between" }}>
-                        <span style={{ color:"#6d28d9" }}>موعد النزول:</span>
-                        <span style={{ fontWeight:"800", color:"#4c1d95" }}>{getDepartureLabel(newRequest.departure_time)}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <div>
+                <label style={{ fontSize:"12px", fontWeight:"700", color:"#64748b", display:"block", marginBottom:"8px" }}>عدد الأيام</label>
+                <input type="number" step="0.5" min="0.5" style={{ width:"100%", padding:"14px", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:"14px", fontSize:"14px", outline:"none", boxSizing:"border-box" }}
+                  value={newRequest.days} onChange={e => setNewRequest({...newRequest, days: Number(e.target.value)})}/>
+              </div>
+              <div>
+                <label style={{ fontSize:"12px", fontWeight:"700", color:"#64748b", display:"block", marginBottom:"8px" }}>ملاحظات</label>
+                <textarea style={{ width:"100%", padding:"14px", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:"14px", fontSize:"14px", outline:"none", resize:"none", boxSizing:"border-box", minHeight:"80px" }}
+                  placeholder="سبب الإجازة..." value={newRequest.notes} onChange={e => setNewRequest({...newRequest, notes: e.target.value})}/>
+              </div>
+              <button onClick={submitVacationRequest} disabled={isSubmitting}
+                style={{ width:"100%", padding:"16px", background: isSubmitting ? "#94a3b8" : "linear-gradient(135deg,#4f46e5,#7c3aed)", color:"white", border:"none", borderRadius:"14px", fontSize:"15px", fontWeight:"900", cursor: isSubmitting ? "not-allowed" : "pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:"8px" }}>
+                {isSubmitting ? <><Loader2 size={18} style={{animation:"spin 1s linear infinite"}}/> جاري الإرسال...</> : <>✈️ إرسال الطلب</>}
+              </button>
+            </div>
+          </div>
+
+          {/* طلباتي */}
+          <div style={{ background:"white", borderRadius:"24px", boxShadow:"0 4px 16px rgba(0,0,0,0.06)", overflow:"hidden" }}>
+            <div style={{ padding:"18px 20px", borderBottom:"1px solid #f1f5f9", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+              <div style={{ display:"flex", alignItems:"center", gap:"10px" }}>
+                <div style={{ width:"36px", height:"36px", borderRadius:"12px", background:"linear-gradient(135deg,#f59e0b,#d97706)", display:"flex", alignItems:"center", justifyContent:"center" }}>
+                  <Clock size={18} style={{color:"white"}}/>
+                </div>
+                <span style={{ fontWeight:"900", fontSize:"16px" }}>طلباتي</span>
+              </div>
+              <span style={{ background:"#f1f5f9", color:"#64748b", borderRadius:"20px", padding:"3px 10px", fontSize:"12px", fontWeight:"700" }}>{empRequests.length} طلب</span>
+            </div>
+            <div style={{ padding:"12px", display:"flex", flexDirection:"column", gap:"10px" }}>
+              {empRequests.length === 0 ? (
+                <div style={{ padding:"40px", textAlign:"center", color:"#94a3b8" }}>
+                  <Clock size={36} style={{ margin:"0 auto 10px", opacity:0.3 }}/>
+                  <p style={{ fontWeight:"700" }}>لم تقدم أي طلبات بعد</p>
+                </div>
+              ) : empRequests.map(req => {
+                const vacType = vacationTypes.find(vt => vt.id === req.vacation_type_id);
+                const { back } = getCalculatedDates(req.start_date, req.days);
+                const statusConfig: Record<string,{label:string,bg:string,color:string}> = {
+                  approved:      { label:"✓ مقبول",         bg:"#dcfce7", color:"#16a34a" },
+                  rejected:      { label:"✗ مرفوض",         bg:"#fee2e2", color:"#dc2626" },
+                  dept_approved: { label:"◑ موافقة مبدئية", bg:"#e0e7ff", color:"#4f46e5" },
+                  pending:       { label:"⏳ معلق",          bg:"#fef3c7", color:"#d97706" },
+                };
+                const sc = statusConfig[req.status] || statusConfig.pending;
+                return (
+                  <div key={req.id} style={{ borderRadius:"16px", border:"1px solid #e2e8f0", overflow:"hidden" }}>
+                    <div style={{ height:"4px", background:sc.color }}/>
+                    <div style={{ padding:"14px" }}>
+                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"8px" }}>
+                        <div>
+                          <div style={{ fontWeight:"800", fontSize:"14px", color:"#1e293b" }}>{formatDate(req.start_date)}</div>
+                          <div style={{ fontSize:"11px", color:"#94a3b8", marginTop:"2px" }}>{req.days} يوم • عودة {formatDate(back)}</div>
+                        </div>
+                        <span style={{ padding:"4px 10px", borderRadius:"20px", fontSize:"11px", fontWeight:"800", background:sc.bg, color:sc.color, whiteSpace:"nowrap" }}>{sc.label}</span>
                       </div>
-                      <div style={{ height:"1px", background:"#c4b5fd", margin:"4px 0" }} />
-                      <div style={{ display:"flex", justifyContent:"space-between" }}>
-                        <span style={{ color:"#6d28d9" }}>أول يوم إجازة فعلي:</span>
-                        <span style={{ fontWeight:"900", color:"#4c1d95", fontSize:"14px" }}>{formatDate(getActualStartDate(newRequest.start_date, newRequest.departure_time))}</span>
-                      </div>
-                      {newRequest.days > 0 && (
-                        <div style={{ display:"flex", justifyContent:"space-between" }}>
-                          <span style={{ color:"#6d28d9" }}>تاريخ العودة:</span>
-                          <span style={{ fontWeight:"900", color:"#059669", fontSize:"14px" }}>
-                            {formatDate(getCalculatedDates(getActualStartDate(newRequest.start_date, newRequest.departure_time), newRequest.days).back)}
-                          </span>
+                      {vacType && <span style={{ display:"inline-block", padding:"3px 10px", borderRadius:"20px", fontSize:"11px", fontWeight:"700", backgroundColor:vacType.color+"20", color:vacType.color, marginBottom:"6px" }}>{vacType.name}</span>}
+                      {req.departure_time && req.departure_time !== "actual" && (
+                        <div style={{ fontSize:"11px", color:"#7c3aed", fontWeight:"700", marginBottom:"4px" }}>🛫 نزول {req.departure_time === "after_work" ? "بعد العمل" : "صباحاً"}{req.departure_date ? ` (${formatDate(req.departure_date)})` : ""}</div>
+                      )}
+                      {req.admin_notes && (
+                        <div style={{ marginTop:"8px", padding:"10px 12px", background:"#eff6ff", borderRadius:"10px", border:"1px solid #bfdbfe" }}>
+                          <div style={{ fontSize:"10px", color:"#3b82f6", fontWeight:"800", marginBottom:"4px", display:"flex", alignItems:"center", gap:"4px" }}>
+                            <MessageSquare size={11}/> ملاحظات الإدارة
+                          </div>
+                          <div style={{ fontSize:"12px", color:"#1e40af" }}>{req.admin_notes}</div>
                         </div>
                       )}
                     </div>
                   </div>
-                )}
-              </div>
-              <div>
-                <label className="text-sm font-bold text-slate-400 mb-2 block">عدد الأيام</label>
-                <input type="number" step="0.5" min="0.5" className="w-full p-4 bg-slate-50 border-none rounded-2xl outline-none" value={newRequest.days} onChange={(e) => setNewRequest({...newRequest, days: Number(e.target.value)})} />
-              </div>
-              <div>
-                <label className="text-sm font-bold text-slate-400 mb-2 block">ملاحظات</label>
-                <textarea className="w-full p-4 bg-slate-50 border-none rounded-2xl outline-none h-24" placeholder="سبب الإجازة..." value={newRequest.notes} onChange={(e) => setNewRequest({...newRequest, notes: e.target.value})} />
-              </div>
-              <button onClick={submitVacationRequest} disabled={isSubmitting} className="w-full bg-indigo-600 text-white p-5 rounded-2xl font-black text-lg disabled:opacity-50">
-                {isSubmitting ? <Loader2 className="animate-spin mx-auto" /> : "إرسال الطلب"}
-              </button>
-            </div>
-          </section>
-
-          <section className="space-y-6">
-            <h3 className="text-xl font-black flex items-center gap-3"><Clock className="text-amber-500" /> طلباتي</h3>
-            {requests.filter(r => r.employee_id === currentUser.id).map(req => {
-              const vacType = vacationTypes.find(vt => vt.id === req.vacation_type_id);
-              return (
-                <div key={req.id} className="bg-white p-6 rounded-[2rem] shadow-sm border">
-                  <div className="flex justify-between items-start mb-4">
-                    <div>
-                      <p className="font-bold text-slate-800">{formatDate(req.start_date)}</p>
-                      <p className="text-xs text-slate-400">{req.days} يوم</p>
-                      {req.departure_time && req.departure_time !== "actual" && (
-                        <p className="text-xs text-purple-600 font-bold mt-1">
-                          🛫 نزول {req.departure_time === "after_work" ? "بعد العمل" : "صباحاً"}
-                          {req.departure_date ? ` (${formatDate(req.departure_date)})` : ""}
-                        </p>
-                      )}
-                      {vacType && <span className="inline-block mt-2 px-2 py-1 rounded-full text-xs font-bold" style={{ backgroundColor: vacType.color+'20', color: vacType.color }}>{vacType.name}</span>}
-                    </div>
-                    <span className={`px-4 py-1.5 rounded-full text-xs font-black ${req.status === 'approved' ? 'bg-emerald-100 text-emerald-700' : req.status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
-                      {req.status === 'approved' ? '✓ مقبول' : req.status === 'rejected' ? '✗ مرفوض' : '⏳ معلق'}
-                    </span>
-                  </div>
-                  {req.admin_notes && (
-                    <div className="mt-4 p-4 bg-blue-50 rounded-xl border border-blue-100">
-                      <p className="text-xs text-blue-600 font-bold mb-1 flex items-center gap-1"><MessageSquare size={14} /> ملاحظات الإدارة:</p>
-                      <p className="text-sm text-blue-900">{req.admin_notes}</p>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-            {requests.filter(r => r.employee_id === currentUser.id).length === 0 && (
-              <div className="bg-white p-16 rounded-[2rem] text-center border border-dashed">
-                <p className="text-slate-400 font-bold">لم تقدم أي طلبات بعد</p>
-              </div>
-            )}
-          </section>
-        </div>
-      </div>
-    );
-  }
-
-  return null;
-};
-
-export default VacationManagementSystem;
-
-// ================================================================
-// 🏢 مكوّن مديرو الأقسام — للـ Owner فقط
-// ================================================================
-const ManagersTab = ({ departments, supabase, logAction, currentUser }: {
-  departments: any[]; supabase: any; logAction: Function; currentUser: any;
-}) => {
-  const [managers, setManagers]   = useState<any[]>([]);
-  const [loading, setLoading]     = useState(true);
-  const [showForm, setShowForm]   = useState(false);
-  const [editingMgr, setEditingMgr] = useState<any>(null);
-  const [saving, setSaving]       = useState(false);
-  const [form, setForm]           = useState({ name:"", email:"", password:"", department_id:"" });
-
-  const fetch = async () => {
-    setLoading(true);
-    const { data } = await supabase.from("department_managers").select("*, departments(name)").order("name");
-    if (data) setManagers(data);
-    setLoading(false);
-  };
-  useEffect(() => { fetch(); }, []);
-
-  const openAdd = () => { setEditingMgr(null); setForm({ name:"", email:"", password:"", department_id:"" }); setShowForm(true); };
-  const openEdit = (m: any) => { setEditingMgr(m); setForm({ name:m.name, email:m.email, password:m.password, department_id:m.department_id }); setShowForm(true); };
-
-  const save = async () => {
-    if (!form.name || !form.email || !form.password || !form.department_id) return alert("جميع الحقول مطلوبة");
-    setSaving(true);
-    if (editingMgr) {
-      await supabase.from("department_managers").update(form).eq("id", editingMgr.id);
-    } else {
-      const { error } = await supabase.from("department_managers").insert([form]);
-      if (error) { alert("خطأ: " + error.message); setSaving(false); return; }
-    }
-    await logAction(editingMgr ? "update" : "create", "department_managers", editingMgr?.id ?? null);
-    setSaving(false); setShowForm(false); setEditingMgr(null);
-    setForm({ name:"", email:"", password:"", department_id:"" });
-    fetch();
-  };
-
-  const del = async (m: any) => {
-    if (!window.confirm(`حذف مدير القسم "${m.name}"؟`)) return;
-    await supabase.from("department_managers").delete().eq("id", m.id);
-    await logAction("delete", "department_managers", m.id);
-    fetch();
-  };
-
-  return (
-    <div dir="rtl" className="space-y-6">
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-        <div>
-          <h2 style={{ fontSize:"24px", fontWeight:"900", margin:0 }}>🏢 مديرو الأقسام</h2>
-          <p style={{ color:"#64748b", fontSize:"13px", marginTop:"4px" }}>يدخلون بالإيميل + كلمة السر ويرون قسمهم فقط. موافقتهم أولى ثم تنتظر موافقتك النهائية.</p>
-        </div>
-        <button onClick={openAdd} style={{ background:"linear-gradient(135deg,#4f46e5,#7c3aed)", color:"white", border:"none", borderRadius:"14px", padding:"12px 22px", fontWeight:"800", fontSize:"14px", cursor:"pointer" }}>+ إضافة مدير قسم</button>
-      </div>
-
-      {/* بطاقة الشرح */}
-      <div style={{ background:"linear-gradient(135deg,#ede9fe,#ddd6fe)", borderRadius:"16px", padding:"16px 20px", display:"flex", gap:"16px", alignItems:"center" }}>
-        <div style={{ fontSize:"36px" }}>🔄</div>
-        <div style={{ fontSize:"13px", color:"#4c1d95", lineHeight:"1.8" }}>
-          <strong>سير العمل (Double Approval):</strong><br/>
-          موظف يقدم طلب → <strong>مدير القسم يوافق مبدئياً</strong> → <strong>أنت توافق نهائياً</strong> → يُخصم الرصيد ويُرسل الإشعار
-        </div>
-      </div>
-
-      {loading ? <div style={{ textAlign:"center", padding:"60px", color:"#94a3b8" }}>جاري التحميل...</div> : (
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))", gap:"16px" }}>
-          {managers.map(m => (
-            <div key={m.id} style={{ background:"white", borderRadius:"20px", padding:"24px", border:"1px solid #e2e8f0" }}>
-              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"16px" }}>
-                <div style={{ display:"flex", gap:"12px", alignItems:"center" }}>
-                  <div style={{ width:"46px", height:"46px", borderRadius:"14px", background:"linear-gradient(135deg,#ede9fe,#ddd6fe)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:"22px" }}>🏢</div>
-                  <div>
-                    <div style={{ fontWeight:"800", fontSize:"15px" }}>{m.name}</div>
-                    <div style={{ fontSize:"12px", color:"#6366f1", fontWeight:"700" }}>{m.departments?.name || "—"}</div>
-                  </div>
-                </div>
-                <div style={{ display:"flex", gap:"6px" }}>
-                  <button onClick={() => openEdit(m)} style={{ padding:"7px", background:"#eff6ff", border:"none", borderRadius:"8px", cursor:"pointer" }}>✏️</button>
-                  <button onClick={() => del(m)}       style={{ padding:"7px", background:"#fff1f2", border:"none", borderRadius:"8px", cursor:"pointer" }}>🗑️</button>
-                </div>
-              </div>
-              <div style={{ background:"#f8fafc", borderRadius:"12px", padding:"12px 14px", fontSize:"13px" }}>
-                <div style={{ marginBottom:"6px" }}>📧 {m.email}</div>
-                <div style={{ color:"#94a3b8" }}>🔑 {"•".repeat(m.password?.length || 6)}</div>
-              </div>
-              <div style={{ marginTop:"10px", background:"#f0fdf4", borderRadius:"10px", padding:"8px 12px", fontSize:"12px", color:"#16a34a", fontWeight:"700" }}>
-                ✅ صلاحية: موافقة مبدئية على طلبات قسمه
-              </div>
-            </div>
-          ))}
-          {managers.length === 0 && (
-            <div style={{ gridColumn:"1/-1", padding:"60px", textAlign:"center", background:"white", borderRadius:"20px", border:"2px dashed #e2e8f0" }}>
-              <div style={{ fontSize:"48px", marginBottom:"12px" }}>🏢</div>
-              <p style={{ color:"#94a3b8", fontWeight:"700" }}>لم تضف مديري أقسام بعد</p>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* فورم الإضافة / التعديل */}
-      {showForm && (
-        <div style={{ position:"fixed", inset:0, background:"rgba(15,23,42,0.6)", backdropFilter:"blur(8px)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:1000, padding:"20px" }} onClick={() => setShowForm(false)}>
-          <div style={{ background:"white", borderRadius:"28px", padding:"40px", width:"100%", maxWidth:"460px", direction:"rtl" }} onClick={e => e.stopPropagation()}>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"28px" }}>
-              <h3 style={{ margin:0, fontSize:"20px", fontWeight:"900" }}>{editingMgr ? "تعديل مدير قسم" : "إضافة مدير قسم جديد"}</h3>
-              <button onClick={() => setShowForm(false)} style={{ background:"#f1f5f9", border:"none", borderRadius:"10px", padding:"8px 14px", cursor:"pointer", fontSize:"16px" }}>✕</button>
-            </div>
-            <div style={{ display:"flex", flexDirection:"column", gap:"14px" }}>
-              {[
-                { label:"الاسم الكامل *", key:"name", type:"text", ph:"مثال: أحمد محمد" },
-                { label:"البريد الإلكتروني *", key:"email", type:"email", ph:"manager@company.com" },
-                { label:"كلمة المرور *", key:"password", type:"text", ph:"اختر كلمة مرور قوية" },
-              ].map(f => (
-                <div key={f.key}>
-                  <label style={{ fontSize:"12px", fontWeight:"700", color:"#64748b", display:"block", marginBottom:"6px" }}>{f.label}</label>
-                  <input type={f.type} placeholder={f.ph} value={(form as any)[f.key]} onChange={e => setForm({...form, [f.key]: e.target.value})}
-                    style={{ width:"100%", padding:"12px 16px", border:"1.5px solid #e2e8f0", borderRadius:"14px", fontSize:"14px", outline:"none", boxSizing:"border-box" as const, fontFamily:"inherit" }} />
-                </div>
-              ))}
-              <div>
-                <label style={{ fontSize:"12px", fontWeight:"700", color:"#64748b", display:"block", marginBottom:"6px" }}>القسم المسؤول عنه *</label>
-                <select value={form.department_id} onChange={e => setForm({...form, department_id: e.target.value})}
-                  style={{ width:"100%", padding:"12px 16px", border:"1.5px solid #e2e8f0", borderRadius:"14px", fontSize:"14px", outline:"none", boxSizing:"border-box" as const, fontFamily:"inherit" }}>
-                  <option value="">اختر القسم</option>
-                  {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-                </select>
-              </div>
-              <div style={{ background:"#fef3c7", borderRadius:"12px", padding:"12px", fontSize:"12px", color:"#92400e", fontWeight:"700" }}>
-                ⚠️ احتفظ بكلمة المرور بشكل آمن
-              </div>
-              <button onClick={save} disabled={saving} style={{ width:"100%", background:"linear-gradient(135deg,#4f46e5,#7c3aed)", color:"white", border:"none", borderRadius:"14px", padding:"14px", fontWeight:"900", fontSize:"15px", cursor:"pointer", opacity: saving ? 0.6 : 1, fontFamily:"inherit" }}>
-                {saving ? "جاري الحفظ..." : editingMgr ? "💾 تحديث" : "✅ إضافة"}
-              </button>
+                );
+              })}
             </div>
           </div>
         </div>
-      )}
-    </div>
-  );
-};
+      </div>
+    );
+  };
