@@ -181,6 +181,8 @@ const VacationManagementSystem = () => {
   const [directVacForm, setDirectVacForm] = useState({ employee_id: "", days: 1, start_date: "", notes: "", vacation_type_id: "" });
   const [vacSearch2, setVacSearch2] = useState("");
   const [vacDeptFilter2, setVacDeptFilter2] = useState("all");
+  const [empSearchDirect, setEmpSearchDirect] = useState("");
+  const [showEmpDropdown, setShowEmpDropdown] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [showAIChat, setShowAIChat] = useState(false);
   const [backupLoading, setBackupLoading] = useState(false);
@@ -1716,7 +1718,6 @@ ${JSON.stringify(systemData)}
               { id: "holidays",    label: "العطلات",          icon: CalendarDays,    ownerOnly: true  },
               { id: "history",     label: "السجل",            icon: History,         ownerOnly: false },
               { id: "active_vacations", label: "الإجازات الفعلية", icon: CheckCircle, ownerOnly: false },
-              { id: "active_vacations", label: "الإجازات الفعلية", icon: CheckCircle,     ownerOnly: false },
             ] as {id:string,label:string,icon:any,ownerOnly:boolean}[])
               .filter(item => !item.ownerOnly || isOwner)
               .map((item) => (
@@ -1922,26 +1923,6 @@ ${JSON.stringify(systemData)}
                           </div>
                         </div>
 
-                        {/* قائمة موظفي القسم */}
-                        <div style={{ background:"white", borderRadius:"16px", border:"1px solid #e2e8f0" }}>
-                          <div style={{ padding:"16px 20px", borderBottom:"1px solid #e2e8f0", fontWeight:"900", fontSize:"15px" }}>👥 موظفو القسم</div>
-                          <div style={{ padding:"12px" }}>
-                            {deptEmps.map(emp => {
-                              const isVac = onVacNow.some(e => e.id === emp.id);
-                              return (
-                                <div key={emp.id} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 12px", borderRadius:"10px", marginBottom:"4px", background: isVac ? "#fff1f2" : "#f0fdf4" }}>
-                                  <div>
-                                    <div style={{ fontWeight:"700", fontSize:"14px" }}>{emp.name}</div>
-                                    <div style={{ fontSize:"11px", color:"#94a3b8" }}>{emp.position || "-"} | رصيد: {emp.balance} يوم</div>
-                                  </div>
-                                  <span style={{ padding:"4px 12px", borderRadius:"20px", fontSize:"12px", fontWeight:"700", background: isVac ? "#fee2e2" : "#dcfce7", color: isVac ? "#dc2626" : "#16a34a" }}>
-                                    {isVac ? "إجازة" : "عمل"}
-                                  </span>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
                       </div>
                     );
                   })()}
@@ -2728,25 +2709,60 @@ ${JSON.stringify(systemData)}
 
               {/* Modal إضافة إجازة مباشرة */}
               {showDirectVacModal && (
-                <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", backdropFilter:"blur(4px)", display:"flex", alignItems:"center", justifyContent:"center", padding:"20px", zIndex:200 }} onClick={() => setShowDirectVacModal(false)}>
+                <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", backdropFilter:"blur(4px)", display:"flex", alignItems:"center", justifyContent:"center", padding:"20px", zIndex:200 }} onClick={() => { setShowDirectVacModal(false); setEmpSearchDirect(""); setShowEmpDropdown(false); }}>
                   <div style={{ background:"white", borderRadius:"24px", width:"100%", maxWidth:"480px", padding:"28px", boxShadow:"0 20px 60px rgba(0,0,0,0.2)" }} dir="rtl" onClick={e => e.stopPropagation()}>
                     <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"20px" }}>
                       <h3 style={{ margin:0, fontWeight:"900", fontSize:"18px" }}>➕ إضافة إجازة مباشرة</h3>
-                      <button onClick={() => setShowDirectVacModal(false)} style={{ background:"#f1f5f9", border:"none", borderRadius:"8px", padding:"6px 10px", cursor:"pointer" }}><X size={18}/></button>
+                      <button onClick={() => { setShowDirectVacModal(false); setEmpSearchDirect(""); setShowEmpDropdown(false); }} style={{ background:"#f1f5f9", border:"none", borderRadius:"8px", padding:"6px 10px", cursor:"pointer" }}><X size={18}/></button>
                     </div>
                     <div style={{ display:"flex", flexDirection:"column", gap:"14px" }}>
-                      <div>
+                      <div style={{ position:"relative" }}>
                         <label style={{ fontSize:"13px", fontWeight:"700", color:"#64748b", display:"block", marginBottom:"6px" }}>الموظف *</label>
-                        <select
-                          style={{ width:"100%", padding:"12px", border:"1px solid #e2e8f0", borderRadius:"12px", fontSize:"14px", outline:"none", background:"#f8fafc", boxSizing:"border-box" }}
-                          value={directVacForm.employee_id}
-                          onChange={e => setDirectVacForm({...directVacForm, employee_id: e.target.value})}
-                        >
-                          <option value="">اختر موظف...</option>
-                          {(isDeptMgr ? employees.filter(e => e.department_id === myDeptId) : employees).map(e => (
-                            <option key={e.id} value={e.id}>{e.name} (رصيد: {e.balance} يوم)</option>
-                          ))}
-                        </select>
+                        <div style={{ position:"relative" }}>
+                          <Search style={{ position:"absolute", right:"12px", top:"50%", transform:"translateY(-50%)", color:"#94a3b8" }} size={15}/>
+                          <input
+                            style={{ width:"100%", padding:"12px 36px 12px 12px", border:"1px solid #e2e8f0", borderRadius:"12px", fontSize:"14px", outline:"none", background:"#f8fafc", boxSizing:"border-box" }}
+                            placeholder="ابحث بالاسم أو الكود..."
+                            value={empSearchDirect}
+                            onChange={e => { setEmpSearchDirect(e.target.value); setShowEmpDropdown(true); if(!e.target.value) { setDirectVacForm({...directVacForm, employee_id:""}); } }}
+                            onFocus={() => setShowEmpDropdown(true)}
+                          />
+                        </div>
+                        {showEmpDropdown && empSearchDirect && (() => {
+                          const filtered = (isDeptMgr ? employees.filter(e => e.department_id === myDeptId) : employees)
+                            .filter(e => e.name.includes(empSearchDirect) || e.code.includes(empSearchDirect))
+                            .slice(0, 6);
+                          return filtered.length > 0 ? (
+                            <div style={{ position:"absolute", top:"100%", right:0, left:0, background:"white", border:"1px solid #e2e8f0", borderRadius:"12px", boxShadow:"0 8px 24px rgba(0,0,0,0.12)", zIndex:300, maxHeight:"200px", overflowY:"auto", marginTop:"4px" }}>
+                              {filtered.map(e => (
+                                <div key={e.id}
+                                  onClick={() => { setDirectVacForm({...directVacForm, employee_id: e.id}); setEmpSearchDirect(e.name + " (" + e.code + ")"); setShowEmpDropdown(false); }}
+                                  style={{ padding:"10px 14px", cursor:"pointer", borderBottom:"1px solid #f1f5f9", display:"flex", justifyContent:"space-between", alignItems:"center" }}
+                                  onMouseEnter={ev => ev.currentTarget.style.background="#f8fafc"}
+                                  onMouseLeave={ev => ev.currentTarget.style.background="white"}
+                                >
+                                  <div>
+                                    <div style={{ fontWeight:"700", fontSize:"13px" }}>{e.name}</div>
+                                    <div style={{ fontSize:"11px", color:"#94a3b8" }}>كود: {e.code}</div>
+                                  </div>
+                                  <span style={{ fontSize:"12px", fontWeight:"700", color:"#4f46e5" }}>رصيد: {e.balance} يوم</span>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div style={{ position:"absolute", top:"100%", right:0, left:0, background:"white", border:"1px solid #e2e8f0", borderRadius:"12px", padding:"12px", textAlign:"center", color:"#94a3b8", fontSize:"13px", zIndex:300, marginTop:"4px" }}>
+                              لا توجد نتائج
+                            </div>
+                          );
+                        })()}
+                        {directVacForm.employee_id && (() => {
+                          const emp = employees.find(e => e.id === directVacForm.employee_id);
+                          return emp ? (
+                            <div style={{ marginTop:"6px", background:"#eef2ff", borderRadius:"8px", padding:"8px 12px", fontSize:"12px", color:"#4f46e5", fontWeight:"700" }}>
+                              ✅ {emp.name} | رصيد: {emp.balance} يوم
+                            </div>
+                          ) : null;
+                        })()}
                       </div>
                       <div>
                         <label style={{ fontSize:"13px", fontWeight:"700", color:"#64748b", display:"block", marginBottom:"6px" }}>نوع الإجازة *</label>
