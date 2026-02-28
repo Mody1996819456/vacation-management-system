@@ -181,10 +181,6 @@ const VacationManagementSystem = () => {
   const [directVacForm, setDirectVacForm] = useState({ employee_id: "", days: 1, start_date: "", notes: "", vacation_type_id: "" });
   const [vacSearch2, setVacSearch2] = useState("");
   const [vacDeptFilter2, setVacDeptFilter2] = useState("all");
-  const [showDirectVacModal, setShowDirectVacModal] = useState(false);
-  const [directVacForm, setDirectVacForm] = useState({ employee_id: "", days: 1, start_date: "", notes: "", vacation_type_id: "" });
-  const [vacSearch2, setVacSearch2] = useState("");
-  const [vacDeptFilter, setVacDeptFilter] = useState("all");
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [showAIChat, setShowAIChat] = useState(false);
   const [backupLoading, setBackupLoading] = useState(false);
