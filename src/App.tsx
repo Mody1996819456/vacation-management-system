@@ -114,6 +114,21 @@ const calculateWorkedDays = (returnDate: string) => {
   return Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
 };
 
+// ==================== DARK MODE GLOBAL STYLES ====================
+const darkModeStyle = `
+  * { box-sizing: border-box; }
+  input, select, textarea {
+    color-scheme: dark;
+  }
+  input::placeholder { color: #484f58 !important; }
+  textarea::placeholder { color: #484f58 !important; }
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: #0d1117; }
+  ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: #484f58; }
+  @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+`;
+
 // ==================== MAIN COMPONENT ====================
 const VacationManagementSystem = () => {
   // ========== STATES ==========
@@ -1239,7 +1254,7 @@ ${JSON.stringify(summaryData)}
       );
     }
     return (
-      <div style={{ width:"100%", boxSizing:"border-box" }} className="bg-white p-6 rounded-[2rem] shadow-sm border">
+      <div style={{ width:"100%", boxSizing:"border-box" }} style={{ background:"#161b22", padding:"24px", borderRadius:"1.5rem", border:"1px solid #30363d" }}>
         <div className="flex items-center justify-between mb-4">
           <button onClick={() => setCurrentMonth(new Date(year, month-1))} className="p-2 hover:bg-slate-100 rounded-xl">❯</button>
           <h3 className="text-lg font-black">{currentMonth.toLocaleDateString('ar-EG', { month: 'long', year: 'numeric' })}</h3>
@@ -1552,6 +1567,17 @@ ${JSON.stringify(systemData)}
   };
 
   // ==================== LOGIN VIEW ====================
+  // inject dark mode styles once
+  React.useEffect(() => {
+    const style = document.createElement("style");
+    style.innerHTML = darkModeStyle;
+    style.id = "vms-dark-mode";
+    if (!document.getElementById("vms-dark-mode")) document.head.appendChild(style);
+    document.body.style.background = "#0d1117";
+    document.body.style.margin = "0";
+    return () => {};
+  }, []);
+
   if (currentView === "login") {
     return (
       <div dir="rtl" style={{
@@ -1657,7 +1683,7 @@ ${JSON.stringify(systemData)}
   // ==================== ADMIN VIEW ====================
   if (currentView === "admin") {
     return (
-      <div className="min-h-screen bg-slate-50 flex" dir="rtl">
+      <div style={{ minHeight:"100vh", background:"#0d1117", display:"flex" }} dir="rtl">
 
         {/* Overlay للموبايل */}
         {sidebarOpen && (
@@ -1769,24 +1795,24 @@ ${JSON.stringify(systemData)}
           {/* PWA Guide Modal */}
           {showPWAGuide && (
             <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", zIndex:999, display:"flex", alignItems:"center", justifyContent:"center", padding:"20px" }} onClick={() => setShowPWAGuide(false)}>
-              <div style={{ background:"white", borderRadius:"24px", padding:"32px", maxWidth:"440px", width:"100%", direction:"rtl" }} onClick={e => e.stopPropagation()}>
+              <div style={{ background:"#161b22", borderRadius:"24px", padding:"32px", maxWidth:"440px", width:"100%", direction:"rtl" }} onClick={e => e.stopPropagation()}>
                 <div style={{ textAlign:"center", marginBottom:"24px" }}>
                   <div style={{ fontSize:"48px", marginBottom:"12px" }}>📱</div>
-                  <h2 style={{ margin:0, fontWeight:"900", fontSize:"22px", color:"#1e293b" }}>تثبيت التطبيق</h2>
-                  <p style={{ color:"#64748b", fontSize:"14px", marginTop:"8px" }}>وصول سريع من شاشتك الرئيسية</p>
+                  <h2 style={{ margin:0, fontWeight:"900", fontSize:"22px", color:"#e6edf3" }}>تثبيت التطبيق</h2>
+                  <p style={{ color:"#8b949e", fontSize:"14px", marginTop:"8px" }}>وصول سريع من شاشتك الرئيسية</p>
                 </div>
                 <div style={{ display:"flex", flexDirection:"column", gap:"16px" }}>
-                  <div style={{ background:"#f8fafc", borderRadius:"16px", padding:"16px" }}>
-                    <p style={{ fontWeight:"800", fontSize:"14px", color:"#1e293b", marginBottom:"8px" }}>🤖 Android (Chrome):</p>
-                    <ol style={{ margin:0, padding:"0 20px", fontSize:"13px", color:"#475569", lineHeight:"2" }}>
+                  <div style={{ background:"#0d1117", borderRadius:"16px", padding:"16px" }}>
+                    <p style={{ fontWeight:"800", fontSize:"14px", color:"#e6edf3", marginBottom:"8px" }}>🤖 Android (Chrome):</p>
+                    <ol style={{ margin:0, padding:"0 20px", fontSize:"13px", color:"#8b949e", lineHeight:"2" }}>
                       <li>اضغط على ⋮ (القائمة) في Chrome</li>
                       <li>اختر "إضافة إلى الشاشة الرئيسية"</li>
                       <li>اضغط "إضافة"</li>
                     </ol>
                   </div>
-                  <div style={{ background:"#f8fafc", borderRadius:"16px", padding:"16px" }}>
-                    <p style={{ fontWeight:"800", fontSize:"14px", color:"#1e293b", marginBottom:"8px" }}>🍎 iPhone (Safari):</p>
-                    <ol style={{ margin:0, padding:"0 20px", fontSize:"13px", color:"#475569", lineHeight:"2" }}>
+                  <div style={{ background:"#0d1117", borderRadius:"16px", padding:"16px" }}>
+                    <p style={{ fontWeight:"800", fontSize:"14px", color:"#e6edf3", marginBottom:"8px" }}>🍎 iPhone (Safari):</p>
+                    <ol style={{ margin:0, padding:"0 20px", fontSize:"13px", color:"#8b949e", lineHeight:"2" }}>
                       <li>اضغط على زر المشاركة ⬆️</li>
                       <li>اختر "إضافة إلى الشاشة الرئيسية"</li>
                       <li>اضغط "إضافة"</li>
@@ -1811,10 +1837,7 @@ ${JSON.stringify(systemData)}
           marginRight: sidebarOpen ? "220px" : "0", 
           width: sidebarOpen ? "calc(100% - 220px)" : "100%",
           transition:"all 0.3s ease", 
-          padding:"16px 24px", 
-          minHeight:"100vh", 
-          paddingTop:"60px",
-          boxSizing:"border-box",
+          padding:"16px 24px", minHeight:"100vh", paddingTop:"60px", boxSizing:"border-box", background:"#0d1117",
         }}>
           {loading && <div className="flex items-center justify-center h-screen"><Loader2 className="animate-spin text-indigo-600" size={48} /></div>}
 
@@ -1915,7 +1938,7 @@ ${JSON.stringify(systemData)}
                         </div>
 
                         {/* ===== Pie Chart + شريط نسبة الحضور ===== */}
-                        <div style={{ background:"white", borderRadius:"20px", border:"1px solid #e2e8f0", padding:"20px", boxShadow:"0 2px 8px rgba(0,0,0,0.06)" }}>
+                        <div style={{ background:"#161b22", borderRadius:"20px", border:"1px solid #30363d", padding:"20px", boxShadow:"0 2px 8px rgba(0,0,0,0.06)" }}>
                           <div style={{ fontWeight:"900", fontSize:"15px", marginBottom:"16px", display:"flex", alignItems:"center", gap:"8px" }}>
                             <PieChart size={18} style={{color:"#4f46e5"}}/> حالة موظفي القسم
                           </div>
@@ -1937,8 +1960,8 @@ ${JSON.stringify(systemData)}
                                   <path d={`M60,60 L${x1},${y1} A50,50 0 ${1-large},1 60,10 Z`} fill="#10b981"/>
                                 </>;
                               })()}
-                              <circle cx="60" cy="60" r="32" fill="white"/>
-                              <text x="60" y="57" textAnchor="middle" fontSize="13" fontWeight="bold" fill="#1e293b">{workPct}%</text>
+                              <circle cx="60" cy="60" r="32" fill="#161b22"/>
+                              <text x="60" y="57" textAnchor="middle" fontSize="13" fontWeight="bold" fill="#e6edf3">{workPct}%</text>
                               <text x="60" y="70" textAnchor="middle" fontSize="8" fill="#94a3b8">حضور</text>
                             </svg>
                             <div style={{ flex:1, display:"flex", flexDirection:"column", gap:"10px" }}>
@@ -1946,11 +1969,11 @@ ${JSON.stringify(systemData)}
                                 <div style={{ display:"flex", justifyContent:"space-between", marginBottom:"4px" }}>
                                   <div style={{ display:"flex", alignItems:"center", gap:"6px" }}>
                                     <div style={{ width:"10px", height:"10px", borderRadius:"2px", background:"#10b981" }}/>
-                                    <span style={{ fontSize:"12px", fontWeight:"700", color:"#374151" }}>في عمل</span>
+                                    <span style={{ fontSize:"12px", fontWeight:"700", color:"#c9d1d9" }}>في عمل</span>
                                   </div>
                                   <span style={{ fontSize:"12px", fontWeight:"900", color:"#10b981" }}>{atWork} موظف</span>
                                 </div>
-                                <div style={{ height:"6px", background:"#f1f5f9", borderRadius:"3px" }}>
+                                <div style={{ height:"6px", background:"#161b22", borderRadius:"3px" }}>
                                   <div style={{ height:"100%", width:`${workPct}%`, background:"linear-gradient(90deg,#10b981,#34d399)", borderRadius:"3px" }}/>
                                 </div>
                               </div>
@@ -1958,11 +1981,11 @@ ${JSON.stringify(systemData)}
                                 <div style={{ display:"flex", justifyContent:"space-between", marginBottom:"4px" }}>
                                   <div style={{ display:"flex", alignItems:"center", gap:"6px" }}>
                                     <div style={{ width:"10px", height:"10px", borderRadius:"2px", background:"#ef4444" }}/>
-                                    <span style={{ fontSize:"12px", fontWeight:"700", color:"#374151" }}>في إجازة</span>
+                                    <span style={{ fontSize:"12px", fontWeight:"700", color:"#c9d1d9" }}>في إجازة</span>
                                   </div>
                                   <span style={{ fontSize:"12px", fontWeight:"900", color:"#ef4444" }}>{onVacNow.length} موظف</span>
                                 </div>
-                                <div style={{ height:"6px", background:"#f1f5f9", borderRadius:"3px" }}>
+                                <div style={{ height:"6px", background:"#161b22", borderRadius:"3px" }}>
                                   <div style={{ height:"100%", width:`${vacPct}%`, background:"linear-gradient(90deg,#ef4444,#f87171)", borderRadius:"3px" }}/>
                                 </div>
                               </div>
@@ -1971,8 +1994,8 @@ ${JSON.stringify(systemData)}
                         </div>
 
                         {/* ===== هيكل القسم ===== */}
-                        <div style={{ background:"white", borderRadius:"20px", border:"1px solid #e2e8f0", overflow:"hidden", boxShadow:"0 2px 8px rgba(0,0,0,0.06)" }}>
-                          <div style={{ padding:"16px 20px", borderBottom:"1px solid #e2e8f0", fontWeight:"900", fontSize:"15px", display:"flex", alignItems:"center", gap:"8px" }}>
+                        <div style={{ background:"#161b22", borderRadius:"20px", border:"1px solid #30363d", overflow:"hidden", boxShadow:"0 2px 8px rgba(0,0,0,0.06)" }}>
+                          <div style={{ padding:"16px 20px", borderBottom:"1px solid #30363d", fontWeight:"900", fontSize:"15px", display:"flex", alignItems:"center", gap:"8px" }}>
                             <Briefcase size={17} style={{color:"#7c3aed"}}/> هيكل القسم
                           </div>
                           <div style={{ padding:"12px", display:"flex", flexDirection:"column", gap:"12px" }}>
@@ -1994,12 +2017,12 @@ ${JSON.stringify(systemData)}
                                             {emp.name.charAt(0)}
                                           </div>
                                           <div>
-                                            <div style={{ fontWeight:"700", fontSize:"13px", color:"#1e293b" }}>{emp.name}</div>
-                                            <div style={{ fontSize:"10px", color:"#94a3b8" }}>{emp.position}</div>
+                                            <div style={{ fontWeight:"700", fontSize:"13px", color:"#e6edf3" }}>{emp.name}</div>
+                                            <div style={{ fontSize:"10px", color:"#6e7681" }}>{emp.position}</div>
                                           </div>
                                         </div>
                                         <div style={{ display:"flex", alignItems:"center", gap:"6px" }}>
-                                          <span style={{ fontSize:"10px", fontWeight:"700", color:"#64748b" }}>{emp.balance} يوم</span>
+                                          <span style={{ fontSize:"10px", fontWeight:"700", color:"#8b949e" }}>{emp.balance} يوم</span>
                                           <span style={{ padding:"2px 8px", borderRadius:"20px", fontSize:"10px", fontWeight:"700", background: isVac ? "#fee2e2" : "#dcfce7", color: isVac ? "#dc2626" : "#16a34a" }}>
                                             {isVac ? "إجازة" : "عمل"}
                                           </span>
@@ -2017,8 +2040,8 @@ ${JSON.stringify(systemData)}
                         <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))", gap:"16px" }}>
 
                           {/* أعلى رصيد */}
-                          <div style={{ background:"white", borderRadius:"20px", border:"1px solid #e2e8f0", overflow:"hidden", boxShadow:"0 2px 8px rgba(0,0,0,0.06)" }}>
-                            <div style={{ padding:"14px 16px", background:"linear-gradient(135deg,#eef2ff,#e0e7ff)", borderBottom:"1px solid #e2e8f0", fontWeight:"900", fontSize:"13px", color:"#4f46e5", display:"flex", alignItems:"center", gap:"6px" }}>
+                          <div style={{ background:"#161b22", borderRadius:"20px", border:"1px solid #30363d", overflow:"hidden", boxShadow:"0 2px 8px rgba(0,0,0,0.06)" }}>
+                            <div style={{ padding:"14px 16px", background:"linear-gradient(135deg,#eef2ff,#e0e7ff)", borderBottom:"1px solid #30363d", fontWeight:"900", fontSize:"13px", color:"#4f46e5", display:"flex", alignItems:"center", gap:"6px" }}>
                               🏆 أعلى رصيد في القسم
                             </div>
                             {[...deptEmps].sort((a,b) => b.balance - a.balance).slice(0,5).map((emp,i) => (
@@ -2027,17 +2050,17 @@ ${JSON.stringify(systemData)}
                                   <span style={{ fontWeight:"900", color: i === 0 ? "#f59e0b" : "#cbd5e1", fontSize:"14px" }}>{i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `#${i+1}`}</span>
                                   <div>
                                     <div style={{ fontWeight:"700", fontSize:"12px" }}>{emp.name}</div>
-                                    <div style={{ fontSize:"10px", color:"#94a3b8" }}>{emp.position || "-"}</div>
+                                    <div style={{ fontSize:"10px", color:"#6e7681" }}>{emp.position || "-"}</div>
                                   </div>
                                 </div>
-                                <span style={{ background:"#eef2ff", color:"#4f46e5", borderRadius:"20px", padding:"3px 10px", fontSize:"11px", fontWeight:"700" }}>{emp.balance} يوم</span>
+                                <span style={{ background:"rgba(99,102,241,0.1)", color:"#4f46e5", borderRadius:"20px", padding:"3px 10px", fontSize:"11px", fontWeight:"700" }}>{emp.balance} يوم</span>
                               </div>
                             ))}
                           </div>
 
                           {/* أكتر أيام عمل */}
-                          <div style={{ background:"white", borderRadius:"20px", border:"1px solid #e2e8f0", overflow:"hidden", boxShadow:"0 2px 8px rgba(0,0,0,0.06)" }}>
-                            <div style={{ padding:"14px 16px", background:"linear-gradient(135deg,#f0fdf4,#dcfce7)", borderBottom:"1px solid #e2e8f0", fontWeight:"900", fontSize:"13px", color:"#16a34a", display:"flex", alignItems:"center", gap:"6px" }}>
+                          <div style={{ background:"#161b22", borderRadius:"20px", border:"1px solid #30363d", overflow:"hidden", boxShadow:"0 2px 8px rgba(0,0,0,0.06)" }}>
+                            <div style={{ padding:"14px 16px", background:"linear-gradient(135deg,#f0fdf4,#dcfce7)", borderBottom:"1px solid #30363d", fontWeight:"900", fontSize:"13px", color:"#16a34a", display:"flex", alignItems:"center", gap:"6px" }}>
                               💪 أكثر أيام عمل بعد العودة
                             </div>
                             {(() => {
@@ -2049,32 +2072,32 @@ ${JSON.stringify(systemData)}
                               return ranked.length > 0 ? ranked.map((emp,i) => (
                                 <div key={emp.id} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 14px", borderBottom:"1px solid #f8fafc" }}>
                                   <div style={{ display:"flex", alignItems:"center", gap:"8px" }}>
-                                    <span style={{ fontWeight:"900", color:"#94a3b8", fontSize:"11px" }}>#{i+1}</span>
+                                    <span style={{ fontWeight:"900", color:"#6e7681", fontSize:"11px" }}>#{i+1}</span>
                                     <div>
                                       <div style={{ fontWeight:"700", fontSize:"12px" }}>{emp.name}</div>
-                                      <div style={{ fontSize:"10px", color:"#94a3b8" }}>{emp.position || "-"}</div>
+                                      <div style={{ fontSize:"10px", color:"#6e7681" }}>{emp.position || "-"}</div>
                                     </div>
                                   </div>
-                                  <span style={{ background:"#dcfce7", color:"#16a34a", borderRadius:"20px", padding:"3px 10px", fontSize:"11px", fontWeight:"700" }}>{emp.workedDays} يوم</span>
+                                  <span style={{ background:"rgba(16,185,129,0.15)", color:"#16a34a", borderRadius:"20px", padding:"3px 10px", fontSize:"11px", fontWeight:"700" }}>{emp.workedDays} يوم</span>
                                 </div>
-                              )) : <div style={{ padding:"20px", textAlign:"center", color:"#94a3b8", fontSize:"12px" }}>لا توجد بيانات</div>;
+                              )) : <div style={{ padding:"20px", textAlign:"center", color:"#6e7681", fontSize:"12px" }}>لا توجد بيانات</div>;
                             })()}
                           </div>
 
                           {/* أقرب عودة */}
-                          <div style={{ background:"white", borderRadius:"20px", border:"1px solid #e2e8f0", overflow:"hidden", boxShadow:"0 2px 8px rgba(0,0,0,0.06)" }}>
-                            <div style={{ padding:"14px 16px", background:"linear-gradient(135deg,#fff7ed,#fef3c7)", borderBottom:"1px solid #e2e8f0", fontWeight:"900", fontSize:"13px", color:"#ea580c", display:"flex", alignItems:"center", gap:"6px" }}>
+                          <div style={{ background:"#161b22", borderRadius:"20px", border:"1px solid #30363d", overflow:"hidden", boxShadow:"0 2px 8px rgba(0,0,0,0.06)" }}>
+                            <div style={{ padding:"14px 16px", background:"linear-gradient(135deg,#fff7ed,#fef3c7)", borderBottom:"1px solid #30363d", fontWeight:"900", fontSize:"13px", color:"#ea580c", display:"flex", alignItems:"center", gap:"6px" }}>
                               📅 أقرب مواعيد العودة
                             </div>
                             {upcoming.length > 0 ? upcoming.map((r,i) => (
                               <div key={r.id} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 14px", borderBottom:"1px solid #f8fafc" }}>
                                 <div style={{ display:"flex", alignItems:"center", gap:"8px" }}>
-                                  <span style={{ fontWeight:"900", color:"#94a3b8", fontSize:"11px" }}>#{i+1}</span>
+                                  <span style={{ fontWeight:"900", color:"#6e7681", fontSize:"11px" }}>#{i+1}</span>
                                   <div style={{ fontWeight:"700", fontSize:"12px" }}>{r.employee_name}</div>
                                 </div>
-                                <span style={{ background:"#fff7ed", color:"#ea580c", borderRadius:"20px", padding:"3px 10px", fontSize:"11px", fontWeight:"700" }}>{formatDate(r.backDate)}</span>
+                                <span style={{ background:"rgba(245,158,11,0.1)", color:"#ea580c", borderRadius:"20px", padding:"3px 10px", fontSize:"11px", fontWeight:"700" }}>{formatDate(r.backDate)}</span>
                               </div>
-                            )) : <div style={{ padding:"20px", textAlign:"center", color:"#94a3b8", fontSize:"12px" }}>لا يوجد موظفون في إجازة</div>}
+                            )) : <div style={{ padding:"20px", textAlign:"center", color:"#6e7681", fontSize:"12px" }}>لا يوجد موظفون في إجازة</div>}
                           </div>
 
                         </div>
@@ -2146,7 +2169,7 @@ ${JSON.stringify(systemData)}
                   {/* شريط الأدوات العلوي */}
                   <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:"12px", flexWrap:"wrap" }}>
                     {/* حالة الاتصال */}
-                    <div style={{ display:"flex", alignItems:"center", gap:"8px", padding:"8px 16px", borderRadius:"20px", background: isOnline ? "#dcfce7" : "#fee2e2", color: isOnline ? "#16a34a" : "#dc2626", fontSize:"13px", fontWeight:"700" }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:"8px", padding:"8px 16px", borderRadius:"20px", background: isOnline ? "rgba(16,185,129,0.15)" : "rgba(239,68,68,0.15)", color: isOnline ? "#10b981" : "#ef4444", fontSize:"13px", fontWeight:"700" }}>
                       {isOnline ? <Wifi size={16}/> : <WifiOff size={16}/>}
                       {isOnline ? "متصل" : "غير متصل"}
                     </div>
@@ -2184,7 +2207,7 @@ ${JSON.stringify(systemData)}
                       </button>
 
                       {/* زر النسخ الاحتياطي */}
-                      {lastBackup && <span style={{ color:"#64748b", fontSize:"12px", alignSelf:"center" }}>آخر نسخة: {lastBackup}</span>}
+                      {lastBackup && <span style={{ color:"#8b949e", fontSize:"12px", alignSelf:"center" }}>آخر نسخة: {lastBackup}</span>}
                       <button onClick={handleBackup} disabled={backupLoading} style={{
                         display:"flex", alignItems:"center", gap:"8px",
                         background: backupLoading ? "#94a3b8" : "linear-gradient(135deg, #10b981, #059669)",
@@ -2199,12 +2222,12 @@ ${JSON.stringify(systemData)}
 
                   {/* AI Insights Modal */}
                   {showInsights && (
-                    <div style={{ background:"white", borderRadius:"20px", border:"1px solid #e2e8f0", padding:"24px", boxShadow:"0 4px 20px rgba(0,0,0,0.08)" }}>
+                    <div style={{ background:"#161b22", borderRadius:"20px", border:"1px solid #30363d", padding:"24px", boxShadow:"0 4px 20px rgba(0,0,0,0.08)" }}>
                       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"16px" }}>
                         <h3 style={{ margin:0, fontWeight:"900", fontSize:"18px", display:"flex", alignItems:"center", gap:"8px" }}>
                           <Activity size={20} style={{color:"#7c3aed"}}/> التقرير التحليلي الذكي
                         </h3>
-                        <button onClick={() => setShowInsights(false)} style={{ background:"#f1f5f9", border:"none", borderRadius:"8px", padding:"6px 12px", cursor:"pointer", fontWeight:"700", color:"#64748b" }}>✕ إغلاق</button>
+                        <button onClick={() => setShowInsights(false)} style={{ background:"#161b22", border:"none", borderRadius:"8px", padding:"6px 12px", cursor:"pointer", fontWeight:"700", color:"#8b949e" }}>✕ إغلاق</button>
                       </div>
                       {insightsLoading ? (
                         <div style={{ textAlign:"center", padding:"40px", color:"#7c3aed" }}>
@@ -2212,7 +2235,7 @@ ${JSON.stringify(systemData)}
                           <p style={{ fontWeight:"700" }}>جاري تحليل البيانات بالذكاء الاصطناعي...</p>
                         </div>
                       ) : (
-                        <div style={{ whiteSpace:"pre-wrap", lineHeight:"1.8", fontSize:"14px", color:"#374151", background:"#f8fafc", padding:"20px", borderRadius:"12px" }}>
+                        <div style={{ whiteSpace:"pre-wrap", lineHeight:"1.8", fontSize:"14px", color:"#c9d1d9", background:"#0d1117", padding:"20px", borderRadius:"12px" }}>
                           {aiInsights}
                         </div>
                       )}
@@ -2220,22 +2243,22 @@ ${JSON.stringify(systemData)}
                   )}
 
                   <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(150px, 1fr))", gap:"14px" }}>
-                    <div className="bg-white p-6 rounded-[2rem] shadow-sm border flex items-center gap-4">
-                      <div className="p-4 bg-blue-50 text-blue-600 rounded-xl"><Users size={28} /></div>
-                      <div><p className="text-slate-500 font-bold text-sm">إجمالي الموظفين</p><h3 className="text-3xl font-black">{stats.totalEmployees}</h3></div>
-                    </div>
-                    <div className="bg-white p-6 rounded-[2rem] shadow-sm border flex items-center gap-4">
-                      <div className="p-4 bg-amber-50 text-amber-600 rounded-xl"><Clock size={28} /></div>
-                      <div><p className="text-slate-500 font-bold text-sm">طلبات معلقة</p><h3 className="text-3xl font-black text-amber-600">{stats.pendingRequests}</h3></div>
-                    </div>
-                    <div className="bg-white p-6 rounded-[2rem] shadow-sm border flex items-center gap-4">
-                      <div className="p-4 bg-emerald-50 text-emerald-600 rounded-xl"><CheckCircle size={28} /></div>
-                      <div><p className="text-slate-500 font-bold text-sm">في إجازة الآن</p><h3 className="text-3xl font-black text-emerald-600">{stats.onVacationNow}</h3></div>
-                    </div>
-                    <div className="bg-white p-6 rounded-[2rem] shadow-sm border flex items-center gap-4">
-                      <div className="p-4 bg-purple-50 text-purple-600 rounded-xl"><TrendingUp size={28} /></div>
-                      <div><p className="text-slate-500 font-bold text-sm">متوسط الرصيد</p><h3 className="text-3xl font-black text-purple-600">{stats.avgBalance}</h3></div>
-                    </div>
+                    {[
+                      { label:"إجمالي الموظفين", value: stats.totalEmployees, icon: <Users size={26}/>, grad:"linear-gradient(135deg,#667eea,#764ba2)", color:"#a5b4fc" },
+                      { label:"طلبات معلقة",     value: stats.pendingRequests, icon: <Clock size={26}/>,  grad:"linear-gradient(135deg,#f6d365,#fda085)", color:"#fde68a" },
+                      { label:"في إجازة الآن",  value: stats.onVacationNow, icon: <CheckCircle size={26}/>, grad:"linear-gradient(135deg,#43e97b,#38f9d7)", color:"#6ee7b7" },
+                      { label:"متوسط الرصيد",   value: stats.avgBalance,     icon: <TrendingUp size={26}/>, grad:"linear-gradient(135deg,#a18cd1,#fbc2eb)", color:"#e9d5ff" },
+                    ].map(s => (
+                      <div key={s.label} style={{ background:"#161b22", border:"1px solid #30363d", borderRadius:"20px", padding:"20px", boxShadow:"0 8px 24px rgba(0,0,0,0.4)", display:"flex", flexDirection:"column", gap:"12px" }}>
+                        <div style={{ width:"48px", height:"48px", borderRadius:"14px", background:s.grad, display:"flex", alignItems:"center", justifyContent:"center", color:"white", boxShadow:`0 4px 12px rgba(0,0,0,0.3)` }}>
+                          {s.icon}
+                        </div>
+                        <div>
+                          <div style={{ fontSize:"11px", color:"#6e7681", fontWeight:"700", marginBottom:"4px" }}>{s.label}</div>
+                          <div style={{ fontSize:"32px", fontWeight:"900", color:s.color, lineHeight:"1" }}>{s.value}</div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                   {/* ===== Advanced Analytics Strip ===== */}
                   <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(140px, 1fr))", gap:"12px" }}>
@@ -2243,10 +2266,10 @@ ${JSON.stringify(systemData)}
                     {(() => {
                       const attendRate = stats.totalEmployees > 0 ? Math.round((stats.atWorkNow / stats.totalEmployees) * 100) : 0;
                       return (
-                        <div style={{ background:"white", borderRadius:"16px", padding:"20px", border:"1px solid #e2e8f0", boxShadow:"0 1px 4px rgba(0,0,0,0.05)" }}>
+                        <div style={{ background:"#161b22", borderRadius:"16px", padding:"20px", border:"1px solid #30363d", boxShadow:"0 4px 16px rgba(0,0,0,0.3)" }}>
                           <div style={{ display:"flex", alignItems:"center", gap:"8px", marginBottom:"12px" }}>
                             <Target size={16} style={{color:"#4f46e5"}}/>
-                            <span style={{ fontSize:"12px", color:"#64748b", fontWeight:"700" }}>نسبة الحضور</span>
+                            <span style={{ fontSize:"12px", color:"#6e7681", fontWeight:"700" }}>نسبة الحضور</span>
                           </div>
                           <div style={{ fontSize:"28px", fontWeight:"900", color:"#4f46e5" }}>{attendRate}%</div>
                           <div style={{ marginTop:"8px", height:"6px", background:"#e2e8f0", borderRadius:"3px" }}>
@@ -2256,13 +2279,13 @@ ${JSON.stringify(systemData)}
                       );
                     })()}
                     {/* إجمالي أيام الإجازات */}
-                    <div style={{ background:"white", borderRadius:"16px", padding:"20px", border:"1px solid #e2e8f0", boxShadow:"0 1px 4px rgba(0,0,0,0.05)" }}>
+                    <div style={{ background:"#161b22", borderRadius:"16px", padding:"20px", border:"1px solid #30363d", boxShadow:"0 4px 16px rgba(0,0,0,0.3)" }}>
                       <div style={{ display:"flex", alignItems:"center", gap:"8px", marginBottom:"12px" }}>
                         <Award size={16} style={{color:"#f59e0b"}}/>
-                        <span style={{ fontSize:"12px", color:"#64748b", fontWeight:"700" }}>إجمالي أيام الإجازات</span>
+                        <span style={{ fontSize:"12px", color:"#6e7681", fontWeight:"700" }}>إجمالي أيام الإجازات</span>
                       </div>
                       <div style={{ fontSize:"28px", fontWeight:"900", color:"#f59e0b" }}>{stats.totalVacationDays}</div>
-                      <div style={{ fontSize:"11px", color:"#94a3b8", marginTop:"4px" }}>يوم مجموع مُوافق عليه</div>
+                      <div style={{ fontSize:"11px", color:"#6e7681", marginTop:"4px" }}>يوم مجموع مُوافق عليه</div>
                     </div>
                     {/* موظفين رصيدهم منخفض */}
                     {(() => {
@@ -2271,10 +2294,10 @@ ${JSON.stringify(systemData)}
                         <div style={{ background: lowCount > 0 ? "#fff7ed" : "white", borderRadius:"16px", padding:"20px", border:`1px solid ${lowCount > 0 ? "#fed7aa" : "#e2e8f0"}`, boxShadow:"0 1px 4px rgba(0,0,0,0.05)" }}>
                           <div style={{ display:"flex", alignItems:"center", gap:"8px", marginBottom:"12px" }}>
                             <Flame size={16} style={{color: lowCount > 0 ? "#ea580c" : "#64748b"}}/>
-                            <span style={{ fontSize:"12px", color:"#64748b", fontWeight:"700" }}>رصيد منخفض</span>
+                            <span style={{ fontSize:"12px", color:"#6e7681", fontWeight:"700" }}>رصيد منخفض</span>
                           </div>
                           <div style={{ fontSize:"28px", fontWeight:"900", color: lowCount > 0 ? "#ea580c" : "#10b981" }}>{lowCount}</div>
-                          <div style={{ fontSize:"11px", color:"#94a3b8", marginTop:"4px" }}>موظف أقل من 5 أيام</div>
+                          <div style={{ fontSize:"11px", color:"#6e7681", marginTop:"4px" }}>موظف أقل من 5 أيام</div>
                         </div>
                       );
                     })()}
@@ -2284,61 +2307,61 @@ ${JSON.stringify(systemData)}
                       const approved = requests.filter(r => r.status === "approved").length;
                       const rate = total > 0 ? Math.round((approved / total) * 100) : 0;
                       return (
-                        <div style={{ background:"white", borderRadius:"16px", padding:"20px", border:"1px solid #e2e8f0", boxShadow:"0 1px 4px rgba(0,0,0,0.05)" }}>
+                        <div style={{ background:"#161b22", borderRadius:"16px", padding:"20px", border:"1px solid #30363d", boxShadow:"0 4px 16px rgba(0,0,0,0.3)" }}>
                           <div style={{ display:"flex", alignItems:"center", gap:"8px", marginBottom:"12px" }}>
                             <Eye size={16} style={{color:"#10b981"}}/>
-                            <span style={{ fontSize:"12px", color:"#64748b", fontWeight:"700" }}>معدل الموافقة</span>
+                            <span style={{ fontSize:"12px", color:"#6e7681", fontWeight:"700" }}>معدل الموافقة</span>
                           </div>
                           <div style={{ fontSize:"28px", fontWeight:"900", color:"#10b981" }}>{rate}%</div>
-                          <div style={{ fontSize:"11px", color:"#94a3b8", marginTop:"4px" }}>{approved} من {total} طلب</div>
+                          <div style={{ fontSize:"11px", color:"#6e7681", marginTop:"4px" }}>{approved} من {total} طلب</div>
                         </div>
                       );
                     })()}
                   </div>
 
                   <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(280px, 1fr))", gap:"16px" }}>
-                    <div className="bg-white rounded-[2rem] shadow-sm border">
-                      <div className="p-6 border-b bg-slate-50/50"><h4 className="font-black text-slate-800 flex items-center gap-2"><ArrowUpRight className="text-indigo-600" size={20} /> الأعلى رصيداً</h4></div>
-                      <div className="p-4">
+                    <div style={{ background:"#161b22", borderRadius:"1.5rem", border:"1px solid #30363d", boxShadow:"0 4px 20px rgba(0,0,0,0.3)" }}>
+                      <div style={{ padding:"20px 24px", borderBottom:"1px solid #30363d", background:"#1c2333" }}><h4 style={{ fontWeight:"900", color:"#e6edf3", display:"flex", alignItems:"center", gap:"8px" }}><ArrowUpRight className="text-indigo-600" size={20} /> الأعلى رصيداً</h4></div>
+                      <div style={{ padding:"14px 16px", color:"#8b949e", fontWeight:"700", textAlign:"center" }}>
                         {topBalances.map((emp, idx) => (
-                          <div key={emp.id} className="flex justify-between items-center p-3 hover:bg-slate-50 rounded-xl">
-                            <div className="flex items-center gap-3"><span className="text-lg font-bold text-slate-400">#{idx+1}</span><span className="font-bold text-slate-800">{emp.name}</span></div>
-                            <span className="bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full font-bold text-sm">{emp.balance} يوم</span>
+                          <div key={emp.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 12px", borderRadius:"12px", cursor:"default" }}>
+                            <div style={{ display:"flex", alignItems:"center", gap:"12px" }}><span style={{ fontSize:"16px", fontWeight:"700", color:"#484f58" }}>#{idx+1}</span><span style={{ fontWeight:"700", color:"#e6edf3" }}>{emp.name}</span></div>
+                            <span style={{ background:"rgba(99,102,241,0.2)", color:"#818cf8", padding:"3px 12px", borderRadius:"20px", fontWeight:"700", fontSize:"13px" }}>{emp.balance} يوم</span>
                           </div>
                         ))}
                       </div>
                     </div>
-                    <div className="bg-white rounded-[2rem] shadow-sm border">
-                      <div className="p-6 border-b bg-slate-50/50"><h4 className="font-black text-slate-800 flex items-center gap-2"><Calendar className="text-emerald-600" size={20} /> أقرب مواعيد العودة</h4></div>
+                    <div style={{ background:"#161b22", borderRadius:"1.5rem", border:"1px solid #30363d", boxShadow:"0 4px 20px rgba(0,0,0,0.3)" }}>
+                      <div style={{ padding:"20px 24px", borderBottom:"1px solid #30363d", background:"#1c2333" }}><h4 style={{ fontWeight:"900", color:"#e6edf3", display:"flex", alignItems:"center", gap:"8px" }}><Calendar className="text-emerald-600" size={20} /> أقرب مواعيد العودة</h4></div>
                       <div className="p-4 space-y-2">
                         {comingBackSoon.map(req => (
-                          <div key={req.id} className="flex justify-between items-center p-3 hover:bg-slate-50 rounded-xl">
-                            <span className="font-bold text-slate-800">{req.employee_name}</span>
-                            <span className="text-emerald-600 font-bold text-sm">{formatDate(req.backDate)}</span>
+                          <div key={req.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 12px", borderRadius:"12px", cursor:"default" }}>
+                            <span style={{ fontWeight:"700", color:"#e6edf3" }}>{req.employee_name}</span>
+                            <span style={{ color:"#10b981", fontWeight:"700", fontSize:"13px" }}>{formatDate(req.backDate)}</span>
                           </div>
                         ))}
                       </div>
                     </div>
                   </div>
                   <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(250px, 1fr))", gap:"16px" }}>
-                    <div className="bg-white p-6 rounded-[2rem] shadow-sm border col-span-2">
-                      <h4 className="font-black mb-4 flex items-center gap-2"><BarChart2 size={20} className="text-indigo-600" /> الإجازات الشهرية</h4>
+                    <div style={{ background:"#161b22", padding:"24px", borderRadius:"1.5rem", border:"1px solid #30363d", gridColumn:"span 2" }}>
+                      <h4 style={{ fontWeight:"900", marginBottom:"16px", display:"flex", alignItems:"center", gap:"8px", color:"#e6edf3" }}><BarChart2 size={20} className="text-indigo-600" /> الإجازات الشهرية</h4>
                       <div className="h-48 flex items-end justify-between gap-2">
                         {vacationByMonth.map((item, idx) => {
                           const maxCount = Math.max(...vacationByMonth.map(v => v.count));
                           const height = maxCount > 0 ? (item.count / maxCount) * 100 : 0;
                           return (
                             <div key={idx} className="flex-1 flex flex-col items-center">
-                              <div className="w-full bg-indigo-500 rounded-t-lg transition-all hover:bg-indigo-600" style={{ height: `${height}%` }} title={`${item.month}: ${item.count}`}></div>
-                              <span className="text-xs mt-2 text-slate-600">{item.month.slice(0,3)}</span>
+                              <div style={{ width:"100%", background:"linear-gradient(180deg,#6366f1,#4f46e5)", borderRadius:"4px 4px 0 0", transition:"all 0.2s" }} style={{ height: `${height}%` }} title={`${item.month}: ${item.count}`}></div>
+                              <span style={{ fontSize:"11px", marginTop:"6px", color:"#8b949e" }}>{item.month.slice(0,3)}</span>
                             </div>
                           );
                         })}
                       </div>
                     </div>
-                    <div className="bg-white p-6 rounded-[2rem] shadow-sm border">
-                      <h4 className="font-black mb-4 flex items-center gap-2"><PieChart size={20} className="text-purple-600" /> أنواع الإجازات</h4>
-                      <div className="space-y-3">
+                    <div style={{ background:"#161b22", padding:"24px", borderRadius:"1.5rem", border:"1px solid #30363d" }}>
+                      <h4 style={{ fontWeight:"900", marginBottom:"16px", display:"flex", alignItems:"center", gap:"8px", color:"#e6edf3" }}><PieChart size={20} className="text-purple-600" /> أنواع الإجازات</h4>
+                      <div style={{ display:"flex", flexDirection:"column", gap:"10px" }}>
                         {vacationByType.map(item => (
                           <div key={item.name} className="flex justify-between items-center">
                             <div className="flex items-center gap-2"><div className="w-3 h-3 rounded" style={{ backgroundColor: item.color }}></div><span className="text-sm">{item.name}</span></div>
@@ -2356,12 +2379,12 @@ ${JSON.stringify(systemData)}
               {activeTab === "employees" && (
                 <div className="space-y-5">
                   {/* شريط الأدوات */}
-                  <div style={{ background:"white", borderRadius:"20px", padding:"16px 20px", border:"1px solid #e2e8f0", display:"flex", alignItems:"center", gap:"12px", flexWrap:"wrap", boxShadow:"0 1px 4px rgba(0,0,0,0.05)" }}>
+                  <div style={{ background:"#161b22", borderRadius:"20px", padding:"16px 20px", border:"1px solid #30363d", display:"flex", alignItems:"center", gap:"12px", flexWrap:"wrap", boxShadow:"0 4px 16px rgba(0,0,0,0.3)" }}>
                     {/* بحث */}
                     <div style={{ position:"relative", flex:"1", minWidth:"200px" }}>
-                      <Search style={{ position:"absolute", right:"14px", top:"50%", transform:"translateY(-50%)", color:"#94a3b8" }} size={16} />
+                      <Search style={{ position:"absolute", right:"14px", top:"50%", transform:"translateY(-50%)", color:"#6e7681" }} size={16} />
                       <input
-                        style={{ width:"100%", paddingRight:"40px", paddingLeft:"14px", paddingTop:"10px", paddingBottom:"10px", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:"12px", fontSize:"13px", outline:"none", boxSizing:"border-box" }}
+                        style={{ width:"100%", paddingRight:"40px", paddingLeft:"14px", paddingTop:"10px", paddingBottom:"10px", background:"#0d1117", border:"1px solid #30363d", borderRadius:"12px", color:"#e6edf3", fontSize:"13px", outline:"none", boxSizing:"border-box" }}
                         placeholder="ابحث بالاسم أو الكود..."
                         value={empSearch}
                         onChange={(e) => setEmpSearch(e.target.value)}
@@ -2369,12 +2392,12 @@ ${JSON.stringify(systemData)}
                     </div>
                     {/* فلاتر */}
                     {departments.length > 0 && (
-                      <select style={{ padding:"10px 14px", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:"12px", fontSize:"13px", outline:"none", color:"#475569" }} value={departmentFilter} onChange={(e) => setDepartmentFilter(e.target.value)}>
+                      <select style={{ padding:"10px 14px", background:"#0d1117", border:"1px solid #30363d", borderRadius:"12px", color:"#e6edf3", fontSize:"13px", outline:"none", color:"#8b949e" }} value={departmentFilter} onChange={(e) => setDepartmentFilter(e.target.value)}>
                         <option value="all">كل الأقسام</option>
                         {departments.map(dept => <option key={dept.id} value={dept.id}>{dept.name}</option>)}
                       </select>
                     )}
-                    <select style={{ padding:"10px 14px", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:"12px", fontSize:"13px", outline:"none", color:"#475569" }} value={empStatusFilter} onChange={(e) => setEmpStatusFilter(e.target.value)}>
+                    <select style={{ padding:"10px 14px", background:"#0d1117", border:"1px solid #30363d", borderRadius:"12px", color:"#e6edf3", fontSize:"13px", outline:"none", color:"#8b949e" }} value={empStatusFilter} onChange={(e) => setEmpStatusFilter(e.target.value)}>
                       <option value="all">كل الحالات</option>
                       <option value="عمل">🟢 في العمل</option>
                       <option value="إجازة">🟡 في إجازة</option>
@@ -2398,7 +2421,7 @@ ${JSON.stringify(systemData)}
 
                   {/* عداد النتائج */}
                   <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 4px" }}>
-                    <span style={{ fontSize:"13px", color:"#64748b", fontWeight:"600" }}>
+                    <span style={{ fontSize:"13px", color:"#8b949e", fontWeight:"600" }}>
                       إجمالي: <span style={{ color:"#4f46e5", fontWeight:"900" }}>{filteredEmployees.length}</span> موظف
                       {filteredEmployees.filter(e => getEmployeeStatus(e) === "إجازة").length > 0 && (
                         <span style={{ marginRight:"12px", color:"#d97706" }}>
@@ -2409,20 +2432,20 @@ ${JSON.stringify(systemData)}
                   </div>
 
                   {/* الجدول مع scroll أفقي */}
-                  <div style={{ background:"white", borderRadius:"20px", border:"1px solid #e2e8f0", boxShadow:"0 1px 4px rgba(0,0,0,0.05)", overflow:"hidden" }}>
+                  <div style={{ background:"#161b22", borderRadius:"20px", border:"1px solid #30363d", boxShadow:"0 1px 4px rgba(0,0,0,0.05)", overflow:"hidden" }}>
                     <div style={{ overflowX:"auto", overflowY:"auto", maxHeight:"calc(100vh - 280px)" }}>
                       <table style={{ width:"100%", borderCollapse:"collapse", minWidth:"900px", fontSize:"13px" }}>
                         <thead>
-                          <tr style={{ background:"#f8fafc", borderBottom:"2px solid #e2e8f0", position:"sticky", top:0, zIndex:5 }}>
-                            <th style={{ padding:"14px 16px", textAlign:"right", fontWeight:"800", color:"#374151", whiteSpace:"nowrap", minWidth:"180px" }}>الاسم</th>
-                            <th style={{ padding:"14px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>الكود</th>
-                            <th style={{ padding:"14px 12px", textAlign:"right", fontWeight:"800", color:"#374151", whiteSpace:"nowrap", minWidth:"140px" }}>المنصب</th>
-                            <th style={{ padding:"14px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>القسم</th>
-                            <th style={{ padding:"14px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>الرصيد</th>
-                            <th style={{ padding:"14px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>شهري</th>
-                            <th style={{ padding:"14px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>أيام العمل</th>
-                            <th style={{ padding:"14px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>الحالة</th>
-                            <th style={{ padding:"14px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>إجراءات</th>
+                          <tr style={{ background:"#0d1117", borderBottom:"2px solid #e2e8f0", position:"sticky", top:0, zIndex:5 }}>
+                            <th style={{ padding:"14px 16px", textAlign:"right", fontWeight:"800", color:"#c9d1d9", whiteSpace:"nowrap", minWidth:"180px" }}>الاسم</th>
+                            <th style={{ padding:"14px 12px", textAlign:"center", fontWeight:"800", color:"#c9d1d9", whiteSpace:"nowrap" }}>الكود</th>
+                            <th style={{ padding:"14px 12px", textAlign:"right", fontWeight:"800", color:"#c9d1d9", whiteSpace:"nowrap", minWidth:"140px" }}>المنصب</th>
+                            <th style={{ padding:"14px 12px", textAlign:"center", fontWeight:"800", color:"#c9d1d9", whiteSpace:"nowrap" }}>القسم</th>
+                            <th style={{ padding:"14px 12px", textAlign:"center", fontWeight:"800", color:"#c9d1d9", whiteSpace:"nowrap" }}>الرصيد</th>
+                            <th style={{ padding:"14px 12px", textAlign:"center", fontWeight:"800", color:"#c9d1d9", whiteSpace:"nowrap" }}>شهري</th>
+                            <th style={{ padding:"14px 12px", textAlign:"center", fontWeight:"800", color:"#c9d1d9", whiteSpace:"nowrap" }}>أيام العمل</th>
+                            <th style={{ padding:"14px 12px", textAlign:"center", fontWeight:"800", color:"#c9d1d9", whiteSpace:"nowrap" }}>الحالة</th>
+                            <th style={{ padding:"14px 12px", textAlign:"center", fontWeight:"800", color:"#c9d1d9", whiteSpace:"nowrap" }}>إجراءات</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -2437,15 +2460,15 @@ ${JSON.stringify(systemData)}
                                 onMouseLeave={e => (e.currentTarget.style.background = isOnLeave ? "#fffbeb" : (idx % 2 === 0 ? "white" : "#fafafa"))}>
                                 {/* الاسم */}
                                 <td style={{ padding:"12px 16px" }}>
-                                  <div style={{ fontWeight:"700", color:"#1e293b", fontSize:"13px" }}>{emp.name}</div>
+                                  <div style={{ fontWeight:"700", color:"#e6edf3", fontSize:"13px" }}>{emp.name}</div>
                                   {emp.email && <a href={`mailto:${emp.email}`} style={{ color:"#6366f1", fontSize:"11px", textDecoration:"none" }}>{emp.email}</a>}
                                 </td>
                                 {/* الكود */}
                                 <td style={{ padding:"12px", textAlign:"center" }}>
-                                  <span style={{ fontFamily:"monospace", background:"#f1f5f9", padding:"3px 8px", borderRadius:"6px", fontSize:"12px", color:"#475569", fontWeight:"600" }}>{emp.code}</span>
+                                  <span style={{ fontFamily:"monospace", background:"#161b22", padding:"3px 8px", borderRadius:"6px", fontSize:"12px", color:"#8b949e", fontWeight:"600" }}>{emp.code}</span>
                                 </td>
                                 {/* المنصب */}
-                                <td style={{ padding:"12px", color:"#64748b", fontSize:"12px" }}>{emp.position || "-"}</td>
+                                <td style={{ padding:"12px", color:"#8b949e", fontSize:"12px" }}>{emp.position || "-"}</td>
                                 {/* القسم */}
                                 <td style={{ padding:"12px", textAlign:"center" }}>
                                   {dept ? <span style={{ background:"#ede9fe", color:"#7c3aed", padding:"3px 10px", borderRadius:"20px", fontSize:"11px", fontWeight:"700" }}>{dept.name}</span> : <span style={{ color:"#cbd5e1" }}>-</span>}
@@ -2453,12 +2476,12 @@ ${JSON.stringify(systemData)}
                                 {/* الرصيد */}
                                 <td style={{ padding:"12px", textAlign:"center" }}>
                                   <span style={{ fontWeight:"900", fontSize:"16px", color: emp.balance < 5 ? "#dc2626" : emp.balance < 10 ? "#d97706" : "#4f46e5" }}>{emp.balance}</span>
-                                  <div style={{ fontSize:"10px", color:"#94a3b8" }}>يوم</div>
+                                  <div style={{ fontSize:"10px", color:"#6e7681" }}>يوم</div>
                                 </td>
                                 {/* شهري */}
                                 <td style={{ padding:"12px", textAlign:"center" }}>
                                   {emp.monthly_balance > 0
-                                    ? <span style={{ background:"#dcfce7", color:"#16a34a", padding:"3px 8px", borderRadius:"20px", fontSize:"11px", fontWeight:"700" }}>+{emp.monthly_balance}</span>
+                                    ? <span style={{ background:"rgba(16,185,129,0.15)", color:"#16a34a", padding:"3px 8px", borderRadius:"20px", fontSize:"11px", fontWeight:"700" }}>+{emp.monthly_balance}</span>
                                     : <span style={{ color:"#cbd5e1", fontSize:"12px" }}>-</span>}
                                 </td>
                                 {/* أيام العمل */}
@@ -2472,7 +2495,7 @@ ${JSON.stringify(systemData)}
                                 {/* إجراءات */}
                                 <td style={{ padding:"12px", textAlign:"center" }}>
                                   <div style={{ display:"flex", justifyContent:"center", gap:"6px" }}>
-                                    <button onClick={() => setEditingEmp(emp)} style={{ padding:"6px", background:"#eff6ff", border:"none", borderRadius:"8px", cursor:"pointer", color:"#3b82f6", display:"flex", alignItems:"center" }} title="تعديل"><Edit3 size={14} /></button>
+                                    <button onClick={() => setEditingEmp(emp)} style={{ padding:"6px", background:"rgba(59,130,246,0.1)", border:"none", borderRadius:"8px", cursor:"pointer", color:"#3b82f6", display:"flex", alignItems:"center" }} title="تعديل"><Edit3 size={14} /></button>
                                     <button onClick={() => handleDeleteEmployee(emp.id)} style={{ padding:"6px", background:"#fff1f2", border:"none", borderRadius:"8px", cursor:"pointer", color:"#ef4444", display:"flex", alignItems:"center" }} title="حذف"><Trash2 size={14} /></button>
                                   </div>
                                 </td>
@@ -2482,7 +2505,7 @@ ${JSON.stringify(systemData)}
                         </tbody>
                       </table>
                       {filteredEmployees.length === 0 && (
-                        <div style={{ padding:"60px", textAlign:"center", color:"#94a3b8" }}>
+                        <div style={{ padding:"60px", textAlign:"center", color:"#6e7681" }}>
                           <Users size={48} style={{ margin:"0 auto 16px", opacity:0.3 }} />
                           <p style={{ fontWeight:"700", fontSize:"16px" }}>لا يوجد موظفون مطابقون للبحث</p>
                         </div>
@@ -2497,10 +2520,10 @@ ${JSON.stringify(systemData)}
                 <div style={{ width:"100%", boxSizing:"border-box" }} className="space-y-6">
                   <div className="flex justify-between items-center">
                     <div>
-                      <h2 className="text-2xl font-black">طلبات الإجازات</h2>
+                      <h2 style={{ fontSize:"22px", fontWeight:"900", color:"#e6edf3" }}>طلبات الإجازات</h2>
                       {isDeptMgr && <p className="text-sm text-emerald-600 font-bold mt-1">🏢 تعرض طلبات قسم: {currentUser?.dept_name}</p>}
                     </div>
-                    <select className="px-4 py-3 bg-white border rounded-xl" value={vacationTypeFilter} onChange={(e) => setVacationTypeFilter(e.target.value)}>
+                    <select style={{ padding:"10px 14px", background:"#0d1117", border:"1px solid #30363d", borderRadius:"12px", color:"#e6edf3", outline:"none" }} value={vacationTypeFilter} onChange={(e) => setVacationTypeFilter(e.target.value)}>
                       <option value="all">كل الأنواع</option>
                       {vacationTypes.map(vt => <option key={vt.id} value={vt.id}>{vt.name}</option>)}
                     </select>
@@ -2514,7 +2537,7 @@ ${JSON.stringify(systemData)}
                         {filteredRequests.filter(r => r.status === "pending").map(req => {
                           const vacType = vacationTypes.find(vt => vt.id === req.vacation_type_id);
                           return (
-                            <div key={req.id} className="bg-white p-8 rounded-[2.5rem] border-2 border-amber-200 shadow-sm">
+                            <div key={req.id} className="bg-transparent" style_override="bg-white p-8 rounded-[2.5rem] border-2 border-amber-200 shadow-sm">
                               <div className="flex justify-between items-start mb-6">
                                 <div>
                                   <h4 className="font-black text-xl text-slate-800">{req.employee_name}</h4>
@@ -2524,9 +2547,9 @@ ${JSON.stringify(systemData)}
                                   {vacType && <span className="px-3 py-1 rounded-full text-xs font-bold" style={{ backgroundColor: vacType.color+'20', color: vacType.color }}>{vacType.name}</span>}
                                 </div>
                               </div>
-                              <div className="bg-slate-50 p-6 rounded-2xl space-y-3 mb-6">
-                                <div className="flex justify-between text-sm font-bold"><span className="text-slate-400">تاريخ البداية</span><span>{formatDate(req.start_date)}</span></div>
-                                <div className="flex justify-between text-sm font-bold"><span className="text-slate-400">المدة</span><span>{req.days} يوم</span></div>
+                              <div style={{ background:"#1c2333", padding:"20px", borderRadius:"16px", marginBottom:"20px" }}>
+                                <div className="flex justify-between text-sm font-bold"><span style={{ color:"#6e7681" }}>تاريخ البداية</span><span>{formatDate(req.start_date)}</span></div>
+                                <div className="flex justify-between text-sm font-bold"><span style={{ color:"#6e7681" }}>المدة</span><span>{req.days} يوم</span></div>
                                 <div className="flex justify-between text-sm font-bold pt-3 border-t"><span className="text-indigo-600">تاريخ العودة</span><span className="text-indigo-600 font-black">{formatDate(getCalculatedDates(req.start_date, req.days).back)}</span></div>
                               </div>
                               {req.notes && <p className="text-sm text-slate-500 italic mb-6">"{req.notes}"</p>}
@@ -2555,8 +2578,8 @@ ${JSON.stringify(systemData)}
                           const vacType = vacationTypes.find(vt => vt.id === req.vacation_type_id);
                           const dept = departments.find(d => d.id === employees.find(e => e.id === req.employee_id)?.department_id);
                           return (
-                            <div key={req.id} className="bg-white p-8 rounded-[2.5rem] border shadow-sm opacity-80">
-                              <div className="flex justify-between items-start mb-4">
+                            <div key={req.id} className="bg-transparent" style_override="bg-white p-8 rounded-[2.5rem] border shadow-sm opacity-80">
+                              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"14px" }}>
                                 <div>
                                   <h4 className="font-black text-xl text-slate-800">{req.employee_name}</h4>
                                   <p className="text-xs text-amber-600 font-bold mt-1">🏢 {dept?.name || "—"} — بانتظار مدير القسم</p>
@@ -2566,9 +2589,9 @@ ${JSON.stringify(systemData)}
                                   <button onClick={() => handleDeleteVacation(req.id)} className="p-2 text-red-400 hover:bg-red-50 rounded-xl"><Trash2 size={16} /></button>
                                 </div>
                               </div>
-                              <div className="bg-slate-50 p-4 rounded-2xl text-sm space-y-2">
-                                <div className="flex justify-between font-bold"><span className="text-slate-400">البداية</span><span>{formatDate(req.start_date)}</span></div>
-                                <div className="flex justify-between font-bold"><span className="text-slate-400">المدة</span><span>{req.days} يوم</span></div>
+                              <div style={{ background:"#1c2333", padding:"14px", borderRadius:"14px", fontSize:"13px" }}>
+                                <div className="flex justify-between font-bold"><span style={{ color:"#6e7681" }}>البداية</span><span>{formatDate(req.start_date)}</span></div>
+                                <div className="flex justify-between font-bold"><span style={{ color:"#6e7681" }}>المدة</span><span>{req.days} يوم</span></div>
                               </div>
                             </div>
                           );
@@ -2583,14 +2606,14 @@ ${JSON.stringify(systemData)}
                       <h3 className="font-black text-lg text-indigo-600">
                         🔔 وافق عليها مدير القسم — بانتظار موافقتك النهائية ({filteredRequests.filter(r => r.status === "dept_approved").length})
                       </h3>
-                      <div className="grid grid-cols-2 gap-6">
+                      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(280px, 1fr))", gap:"14px" }}>
                         {filteredRequests.filter(r => r.status === "dept_approved").map(req => {
                           const vacType = vacationTypes.find(vt => vt.id === req.vacation_type_id);
                           const emp = employees.find(e => e.id === req.employee_id);
                           const dept = departments.find(d => d.id === emp?.department_id);
                           return (
-                            <div key={req.id} className="bg-white p-8 rounded-[2.5rem] border-2 border-indigo-300 shadow-md">
-                              <div className="flex justify-between items-start mb-4">
+                            <div key={req.id} className="bg-transparent" style_override="bg-white p-8 rounded-[2.5rem] border-2 border-indigo-300 shadow-md">
+                              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"14px" }}>
                                 <div>
                                   <h4 className="font-black text-xl text-slate-800">{req.employee_name}</h4>
                                   <p className="text-xs text-indigo-600 font-bold mt-1">✅ وافق عليها: {req.dept_approved_by || dept?.name}</p>
@@ -2601,8 +2624,8 @@ ${JSON.stringify(systemData)}
                                 </div>
                               </div>
                               <div className="bg-indigo-50 p-6 rounded-2xl space-y-3 mb-6">
-                                <div className="flex justify-between text-sm font-bold"><span className="text-slate-400">تاريخ البداية</span><span>{formatDate(req.start_date)}</span></div>
-                                <div className="flex justify-between text-sm font-bold"><span className="text-slate-400">المدة</span><span>{req.days} يوم</span></div>
+                                <div className="flex justify-between text-sm font-bold"><span style={{ color:"#6e7681" }}>تاريخ البداية</span><span>{formatDate(req.start_date)}</span></div>
+                                <div className="flex justify-between text-sm font-bold"><span style={{ color:"#6e7681" }}>المدة</span><span>{req.days} يوم</span></div>
                                 <div className="flex justify-between text-sm font-bold pt-3 border-t"><span className="text-indigo-600">تاريخ العودة</span><span className="text-indigo-600 font-black">{formatDate(getCalculatedDates(req.start_date, req.days).back)}</span></div>
                               </div>
                               {req.dept_manager_notes && <p className="text-sm text-indigo-500 italic mb-4">💬 مدير القسم: "{req.dept_manager_notes}"</p>}
@@ -2629,7 +2652,7 @@ ${JSON.stringify(systemData)}
               {/* ===== CALENDAR ===== */}
               {activeTab === "calendar" && (
                 <div style={{ width:"100%", boxSizing:"border-box" }} className="space-y-6">
-                  <h2 className="text-2xl font-black">التقويم الشهري</h2>
+                  <h2 style={{ fontSize:"22px", fontWeight:"900", color:"#e6edf3" }}>التقويم الشهري</h2>
                   {renderCalendar()}
                 </div>
               )}
@@ -2638,28 +2661,28 @@ ${JSON.stringify(systemData)}
               {activeTab === "reports" && (
                 <div style={{ width:"100%", boxSizing:"border-box" }} className="space-y-6">
                   <div className="flex justify-between items-center">
-                    <h2 className="text-2xl font-black">التقارير والإحصائيات</h2>
+                    <h2 style={{ fontSize:"22px", fontWeight:"900", color:"#e6edf3" }}>التقارير والإحصائيات</h2>
                     <button onClick={exportDetailedReport} className="bg-emerald-600 text-white px-6 py-3 rounded-2xl flex items-center gap-2 font-bold shadow-lg"><Download size={20} /> تصدير التقرير الشامل</button>
                   </div>
                   {vacationByDepartment.length > 0 && (
-                    <div className="bg-white p-6 rounded-[2rem] shadow-sm border">
-                      <h4 className="font-black mb-4 flex items-center gap-2"><Building2 size={20} className="text-indigo-600" /> إحصائيات الأقسام</h4>
+                    <div style={{ background:"#161b22", padding:"24px", borderRadius:"1.5rem", border:"1px solid #30363d" }}>
+                      <h4 style={{ fontWeight:"900", marginBottom:"16px", display:"flex", alignItems:"center", gap:"8px", color:"#e6edf3" }}><Building2 size={20} className="text-indigo-600" /> إحصائيات الأقسام</h4>
                       <div className="grid grid-cols-3 gap-4">
                         {vacationByDepartment.map(dept => (
-                          <div key={dept.name} className="p-4 bg-slate-50 rounded-xl">
+                          <div key={dept.name} style={{ padding:"14px", background:"#1c2333", borderRadius:"12px" }}>
                             <h5 className="font-bold text-slate-800 mb-2">{dept.name}</h5>
                             <div className="space-y-1 text-sm">
-                              <div className="flex justify-between"><span className="text-slate-500">عدد الموظفين:</span><span className="font-bold">{dept.employees}</span></div>
-                              <div className="flex justify-between"><span className="text-slate-500">عدد الإجازات:</span><span className="font-bold">{dept.count}</span></div>
-                              <div className="flex justify-between"><span className="text-slate-500">إجمالي الأيام:</span><span className="font-bold text-indigo-600">{dept.days}</span></div>
+                              <div className="flex justify-between"><span style={{ color:"#8b949e" }}>عدد الموظفين:</span><span className="font-bold">{dept.employees}</span></div>
+                              <div className="flex justify-between"><span style={{ color:"#8b949e" }}>عدد الإجازات:</span><span className="font-bold">{dept.count}</span></div>
+                              <div className="flex justify-between"><span style={{ color:"#8b949e" }}>إجمالي الأيام:</span><span className="font-bold text-indigo-600">{dept.days}</span></div>
                             </div>
                           </div>
                         ))}
                       </div>
                     </div>
                   )}
-                  <div className="bg-white p-6 rounded-[2rem] shadow-sm border">
-                    <h4 className="font-black mb-4 flex items-center gap-2"><AlertCircle size={20} className="text-amber-600" /> تحذير: رصيد منخفض</h4>
+                  <div style={{ background:"#161b22", padding:"24px", borderRadius:"1.5rem", border:"1px solid #30363d" }}>
+                    <h4 style={{ fontWeight:"900", marginBottom:"16px", display:"flex", alignItems:"center", gap:"8px", color:"#e6edf3" }}><AlertCircle size={20} className="text-amber-600" /> تحذير: رصيد منخفض</h4>
                     <div className="grid grid-cols-5 gap-3">
                       {lowBalances.map(emp => (
                         <div key={emp.id} className="p-3 bg-amber-50 rounded-xl text-center border border-amber-100">
@@ -2677,17 +2700,17 @@ ${JSON.stringify(systemData)}
               {activeTab === "departments" && (
                 <div style={{ width:"100%", boxSizing:"border-box" }} className="space-y-6">
                   <div className="flex justify-between items-center">
-                    <h2 className="text-2xl font-black">إدارة الأقسام</h2>
+                    <h2 style={{ fontSize:"22px", fontWeight:"900", color:"#e6edf3" }}>إدارة الأقسام</h2>
                     <button onClick={() => setShowAddDept(true)} className="bg-indigo-600 text-white px-6 py-3 rounded-2xl flex items-center gap-2 font-bold"><Plus size={20} /> إضافة قسم</button>
                   </div>
                   <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(250px, 1fr))", gap:"16px" }}>
                     {departments.map(dept => {
                       const deptEmps = employees.filter(e => e.department_id === dept.id);
                       return (
-                        <div key={dept.id} className="bg-white p-6 rounded-[2rem] shadow-sm border">
-                          <div className="flex justify-between items-start mb-4">
+                        <div key={dept.id} style={{ background:"#161b22", padding:"24px", borderRadius:"1.5rem", border:"1px solid #30363d" }}>
+                          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"14px" }}>
                             <div>
-                              <h4 className="font-black text-lg">{dept.name}</h4>
+                              <h4 style={{ fontWeight:"900", fontSize:"18px", color:"#e6edf3" }}>{dept.name}</h4>
                               <p className="text-sm text-slate-500">{dept.description || "لا يوجد وصف"}</p>
                             </div>
                             <button onClick={() => deleteDepartment(dept.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-xl"><Trash2 size={16} /></button>
@@ -2704,14 +2727,14 @@ ${JSON.stringify(systemData)}
               {activeTab === "holidays" && (
                 <div style={{ width:"100%", boxSizing:"border-box" }} className="space-y-6">
                   <div className="flex justify-between items-center">
-                    <h2 className="text-2xl font-black">العطلات الرسمية</h2>
+                    <h2 style={{ fontSize:"22px", fontWeight:"900", color:"#e6edf3" }}>العطلات الرسمية</h2>
                     <button onClick={() => setShowAddHoliday(true)} className="bg-indigo-600 text-white px-6 py-3 rounded-2xl flex items-center gap-2 font-bold"><Plus size={20} /> إضافة عطلة</button>
                   </div>
-                  <div className="bg-white rounded-[2rem] shadow-sm border overflow-hidden">
+                  <div style={{ background:"#161b22", borderRadius:"1.5rem", border:"1px solid #30363d", overflow:"hidden" }}>
                     <table className="w-full">
-                      <thead className="bg-slate-50 border-b">
+                      <thead style={{ background:"#1c2333", borderBottom:"1px solid #30363d" }}>
                         <tr>
-                          <th className="p-4 text-right">اسم العطلة</th>
+                          <th style={{ padding:"14px 16px", textAlign:"right", color:"#8b949e", fontWeight:"700" }}>اسم العطلة</th>
                           <th className="p-4 text-center">التاريخ</th>
                           <th className="p-4 text-center">متكررة سنوياً</th>
                           <th className="p-4 text-center">إجراءات</th>
@@ -2719,8 +2742,8 @@ ${JSON.stringify(systemData)}
                       </thead>
                       <tbody>
                         {publicHolidays.map(holiday => (
-                          <tr key={holiday.id} className="border-b hover:bg-slate-50">
-                            <td className="p-4 font-bold">{holiday.name}</td>
+                          <tr key={holiday.id} style={{ borderBottom:"1px solid #21262d" }}>
+                            <td style={{ padding:"14px 16px", fontWeight:"700", color:"#e6edf3" }}>{holiday.name}</td>
                             <td className="p-4 text-center">{formatDate(holiday.date)}</td>
                             <td className="p-4 text-center">{holiday.is_recurring ? <CheckCircle size={18} className="text-green-600 mx-auto" /> : <X size={18} className="text-slate-300 mx-auto" />}</td>
                             <td className="p-4 text-center"><button onClick={() => deleteHoliday(holiday.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-xl"><Trash2 size={16} /></button></td>
@@ -2759,7 +2782,7 @@ ${JSON.stringify(systemData)}
                     <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:"12px" }}>
                       <div>
                         <h2 style={{ margin:0, fontSize:"22px", fontWeight:"900" }}>🏖️ الإجازات الفعلية</h2>
-                        <p style={{ margin:"4px 0 0", color:"#64748b", fontSize:"13px" }}>الموظفون في إجازة الآن — يُشالون تلقائياً عند العودة</p>
+                        <p style={{ margin:"4px 0 0", color:"#8b949e", fontSize:"13px" }}>الموظفون في إجازة الآن — يُشالون تلقائياً عند العودة</p>
                       </div>
                       {!isDeptMgr && (
                         <button onClick={() => setShowDirectVacModal(true)} style={{ display:"flex", alignItems:"center", gap:"8px", background:"#4f46e5", color:"white", border:"none", borderRadius:"12px", padding:"10px 20px", fontWeight:"700", cursor:"pointer", fontSize:"14px", fontFamily:"inherit" }}>
@@ -2774,11 +2797,11 @@ ${JSON.stringify(systemData)}
                     </div>
 
                     {/* بحث وفلترة */}
-                    <div style={{ background:"white", borderRadius:"16px", padding:"14px 18px", border:"1px solid #e2e8f0", display:"flex", gap:"12px", flexWrap:"wrap", alignItems:"center" }}>
+                    <div style={{ background:"#161b22", borderRadius:"16px", padding:"14px 18px", border:"1px solid #30363d", display:"flex", gap:"12px", flexWrap:"wrap", alignItems:"center" }}>
                       <div style={{ position:"relative", flex:1, minWidth:"200px" }}>
-                        <Search style={{ position:"absolute", right:"12px", top:"50%", transform:"translateY(-50%)", color:"#94a3b8" }} size={15}/>
+                        <Search style={{ position:"absolute", right:"12px", top:"50%", transform:"translateY(-50%)", color:"#6e7681" }} size={15}/>
                         <input
-                          style={{ width:"100%", paddingRight:"36px", paddingLeft:"12px", padding:"10px 36px 10px 12px", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:"10px", fontSize:"13px", outline:"none", boxSizing:"border-box" }}
+                          style={{ width:"100%", paddingRight:"36px", paddingLeft:"12px", padding:"10px 36px 10px 12px", background:"#0d1117", border:"1px solid #30363d", borderRadius:"10px", fontSize:"13px", outline:"none", boxSizing:"border-box" }}
                           placeholder="ابحث باسم الموظف..."
                           value={vacSearch2}
                           onChange={e => setVacSearch2(e.target.value)}
@@ -2786,7 +2809,7 @@ ${JSON.stringify(systemData)}
                       </div>
                       {!isDeptMgr && (
                         <select
-                          style={{ padding:"10px 14px", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:"10px", fontSize:"13px", outline:"none" }}
+                          style={{ padding:"10px 14px", background:"#0d1117", border:"1px solid #30363d", borderRadius:"10px", fontSize:"13px", outline:"none" }}
                           value={vacDeptFilter2}
                           onChange={e => setVacDeptFilter2(e.target.value)}
                         >
@@ -2794,25 +2817,25 @@ ${JSON.stringify(systemData)}
                           {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
                         </select>
                       )}
-                      <div style={{ background:"#eef2ff", color:"#4f46e5", borderRadius:"10px", padding:"10px 16px", fontWeight:"700", fontSize:"13px" }}>
+                      <div style={{ background:"rgba(99,102,241,0.1)", color:"#4f46e5", borderRadius:"10px", padding:"10px 16px", fontWeight:"700", fontSize:"13px" }}>
                         {filtered.length} موظف في إجازة
                       </div>
                     </div>
 
                     {/* الجدول */}
-                    <div style={{ background:"white", borderRadius:"16px", border:"1px solid #e2e8f0", overflow:"hidden" }}>
+                    <div style={{ background:"#161b22", borderRadius:"16px", border:"1px solid #30363d", overflow:"hidden", background:"#1c2333" }}>
                       {filtered.length === 0 ? (
-                        <div style={{ padding:"60px", textAlign:"center", color:"#94a3b8" }}>
+                        <div style={{ padding:"60px", textAlign:"center", color:"#6e7681" }}>
                           <CheckCircle size={48} style={{ margin:"0 auto 12px", opacity:0.3 }}/>
                           <p style={{ fontWeight:"700", fontSize:"16px" }}>لا يوجد موظفون في إجازة الآن ✅</p>
                         </div>
                       ) : (
                         <div style={{ overflowX:"auto" }}>
                           <table style={{ width:"100%", borderCollapse:"collapse", fontSize:"13px" }}>
-                            <thead style={{ background:"#f8fafc", borderBottom:"2px solid #e2e8f0" }}>
+                            <thead style={{ background:"#0d1117", borderBottom:"2px solid #e2e8f0" }}>
                               <tr>
                                 {["الموظف", "القسم", "نوع الإجازة", "تاريخ البداية", "المدة", "تاريخ العودة", "الرصيد المتبقي", "إجراءات"].map(h => (
-                                  <th key={h} style={{ padding:"12px 14px", textAlign:"right", fontWeight:"800", color:"#475569", whiteSpace:"nowrap" }}>{h}</th>
+                                  <th key={h} style={{ padding:"12px 14px", textAlign:"right", fontWeight:"800", color:"#8b949e", whiteSpace:"nowrap" }}>{h}</th>
                                 ))}
                               </tr>
                             </thead>
@@ -2827,9 +2850,9 @@ ${JSON.stringify(systemData)}
                                   <tr key={req.id} style={{ borderBottom:"1px solid #f1f5f9" }}>
                                     <td style={{ padding:"12px 14px" }}>
                                       <div style={{ fontWeight:"700" }}>{req.employee_name}</div>
-                                      <div style={{ fontSize:"11px", color:"#94a3b8" }}>{emp?.code}</div>
+                                      <div style={{ fontSize:"11px", color:"#6e7681" }}>{emp?.code}</div>
                                     </td>
-                                    <td style={{ padding:"12px 14px", color:"#64748b" }}>{dept?.name || "-"}</td>
+                                    <td style={{ padding:"12px 14px", color:"#8b949e" }}>{dept?.name || "-"}</td>
                                     <td style={{ padding:"12px 14px" }}>
                                       {vacType && <span style={{ padding:"3px 10px", borderRadius:"20px", fontSize:"11px", fontWeight:"700", backgroundColor: vacType.color+"20", color: vacType.color }}>{vacType.name}</span>}
                                     </td>
@@ -2846,8 +2869,8 @@ ${JSON.stringify(systemData)}
                                     </td>
                                     <td style={{ padding:"12px 14px", textAlign:"center" }}>
                                       <div style={{ display:"flex", gap:"6px", justifyContent:"center" }}>
-                                        <button onClick={() => openReturnModal(req)} style={{ background:"#dcfce7", color:"#16a34a", border:"none", borderRadius:"8px", padding:"6px 12px", fontSize:"12px", fontWeight:"700", cursor:"pointer" }}>تسجيل عودة</button>
-                                        <button onClick={() => handleDeleteVacation(req.id)} style={{ background:"#fee2e2", color:"#dc2626", border:"none", borderRadius:"8px", padding:"6px 10px", fontSize:"12px", cursor:"pointer" }}><Trash2 size={13}/></button>
+                                        <button onClick={() => openReturnModal(req)} style={{ background:"rgba(16,185,129,0.15)", color:"#16a34a", border:"none", borderRadius:"8px", padding:"6px 12px", fontSize:"12px", fontWeight:"700", cursor:"pointer" }}>تسجيل عودة</button>
+                                        <button onClick={() => handleDeleteVacation(req.id)} style={{ background:"rgba(239,68,68,0.15)", color:"#dc2626", border:"none", borderRadius:"8px", padding:"6px 10px", fontSize:"12px", cursor:"pointer" }}><Trash2 size={13}/></button>
                                       </div>
                                     </td>
                                   </tr>
@@ -2865,18 +2888,18 @@ ${JSON.stringify(systemData)}
               {/* Modal إضافة إجازة مباشرة */}
               {showDirectVacModal && (
                 <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", backdropFilter:"blur(4px)", display:"flex", alignItems:"center", justifyContent:"center", padding:"20px", zIndex:200 }} onClick={() => { setShowDirectVacModal(false); setEmpSearchDirect(""); setShowEmpDropdown(false); }}>
-                  <div style={{ background:"white", borderRadius:"24px", width:"100%", maxWidth:"480px", padding:"28px", boxShadow:"0 20px 60px rgba(0,0,0,0.2)" }} dir="rtl" onClick={e => e.stopPropagation()}>
+                  <div style={{ background:"#161b22", borderRadius:"24px", width:"100%", maxWidth:"480px", padding:"28px", boxShadow:"0 20px 60px rgba(0,0,0,0.2)" }} dir="rtl" onClick={e => e.stopPropagation()}>
                     <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"20px" }}>
                       <h3 style={{ margin:0, fontWeight:"900", fontSize:"18px" }}>➕ إضافة إجازة مباشرة</h3>
-                      <button onClick={() => { setShowDirectVacModal(false); setEmpSearchDirect(""); setShowEmpDropdown(false); }} style={{ background:"#f1f5f9", border:"none", borderRadius:"8px", padding:"6px 10px", cursor:"pointer" }}><X size={18}/></button>
+                      <button onClick={() => { setShowDirectVacModal(false); setEmpSearchDirect(""); setShowEmpDropdown(false); }} style={{ background:"#161b22", border:"none", borderRadius:"8px", padding:"6px 10px", cursor:"pointer" }}><X size={18}/></button>
                     </div>
                     <div style={{ display:"flex", flexDirection:"column", gap:"14px" }}>
                       <div style={{ position:"relative" }}>
-                        <label style={{ fontSize:"13px", fontWeight:"700", color:"#64748b", display:"block", marginBottom:"6px" }}>الموظف *</label>
+                        <label style={{ fontSize:"13px", fontWeight:"700", color:"#8b949e", display:"block", marginBottom:"6px" }}>الموظف *</label>
                         <div style={{ position:"relative" }}>
-                          <Search style={{ position:"absolute", right:"12px", top:"50%", transform:"translateY(-50%)", color:"#94a3b8" }} size={15}/>
+                          <Search style={{ position:"absolute", right:"12px", top:"50%", transform:"translateY(-50%)", color:"#6e7681" }} size={15}/>
                           <input
-                            style={{ width:"100%", padding:"12px 36px 12px 12px", border:"1px solid #e2e8f0", borderRadius:"12px", fontSize:"14px", outline:"none", background:"#f8fafc", boxSizing:"border-box" }}
+                            style={{ width:"100%", padding:"12px 36px 12px 12px", border:"1px solid #30363d", borderRadius:"12px", fontSize:"14px", outline:"none", background:"#0d1117", boxSizing:"border-box" }}
                             placeholder="ابحث بالاسم أو الكود..."
                             value={empSearchDirect}
                             onChange={e => { setEmpSearchDirect(e.target.value); setShowEmpDropdown(true); if(!e.target.value) { setDirectVacForm({...directVacForm, employee_id:""}); } }}
@@ -2888,7 +2911,7 @@ ${JSON.stringify(systemData)}
                             .filter(e => e.name.includes(empSearchDirect) || e.code.includes(empSearchDirect))
                             .slice(0, 6);
                           return filtered.length > 0 ? (
-                            <div style={{ position:"absolute", top:"100%", right:0, left:0, background:"white", border:"1px solid #e2e8f0", borderRadius:"12px", boxShadow:"0 8px 24px rgba(0,0,0,0.12)", zIndex:300, maxHeight:"200px", overflowY:"auto", marginTop:"4px" }}>
+                            <div style={{ position:"absolute", top:"100%", right:0, left:0, background:"#1c2333", border:"1px solid #30363d", borderRadius:"12px", boxShadow:"0 8px 24px rgba(0,0,0,0.12)", zIndex:300, maxHeight:"200px", overflowY:"auto", marginTop:"4px" }}>
                               {filtered.map(e => (
                                 <div key={e.id}
                                   onClick={() => { setDirectVacForm({...directVacForm, employee_id: e.id}); setEmpSearchDirect(e.name + " (" + e.code + ")"); setShowEmpDropdown(false); }}
@@ -2898,14 +2921,14 @@ ${JSON.stringify(systemData)}
                                 >
                                   <div>
                                     <div style={{ fontWeight:"700", fontSize:"13px" }}>{e.name}</div>
-                                    <div style={{ fontSize:"11px", color:"#94a3b8" }}>كود: {e.code}</div>
+                                    <div style={{ fontSize:"11px", color:"#6e7681" }}>كود: {e.code}</div>
                                   </div>
                                   <span style={{ fontSize:"12px", fontWeight:"700", color:"#4f46e5" }}>رصيد: {e.balance} يوم</span>
                                 </div>
                               ))}
                             </div>
                           ) : (
-                            <div style={{ position:"absolute", top:"100%", right:0, left:0, background:"white", border:"1px solid #e2e8f0", borderRadius:"12px", padding:"12px", textAlign:"center", color:"#94a3b8", fontSize:"13px", zIndex:300, marginTop:"4px" }}>
+                            <div style={{ position:"absolute", top:"100%", right:0, left:0, background:"#1c2333", border:"1px solid #30363d", borderRadius:"12px", padding:"12px", textAlign:"center", color:"#6e7681", fontSize:"13px", zIndex:300, marginTop:"4px" }}>
                               لا توجد نتائج
                             </div>
                           );
@@ -2913,16 +2936,16 @@ ${JSON.stringify(systemData)}
                         {directVacForm.employee_id && (() => {
                           const emp = employees.find(e => e.id === directVacForm.employee_id);
                           return emp ? (
-                            <div style={{ marginTop:"6px", background:"#eef2ff", borderRadius:"8px", padding:"8px 12px", fontSize:"12px", color:"#4f46e5", fontWeight:"700" }}>
+                            <div style={{ marginTop:"6px", background:"rgba(99,102,241,0.1)", borderRadius:"8px", padding:"8px 12px", fontSize:"12px", color:"#4f46e5", fontWeight:"700" }}>
                               ✅ {emp.name} | رصيد: {emp.balance} يوم
                             </div>
                           ) : null;
                         })()}
                       </div>
                       <div>
-                        <label style={{ fontSize:"13px", fontWeight:"700", color:"#64748b", display:"block", marginBottom:"6px" }}>نوع الإجازة *</label>
+                        <label style={{ fontSize:"13px", fontWeight:"700", color:"#8b949e", display:"block", marginBottom:"6px" }}>نوع الإجازة *</label>
                         <select
-                          style={{ width:"100%", padding:"12px", border:"1px solid #e2e8f0", borderRadius:"12px", fontSize:"14px", outline:"none", background:"#f8fafc", boxSizing:"border-box" }}
+                          style={{ width:"100%", padding:"12px", border:"1px solid #30363d", borderRadius:"12px", fontSize:"14px", outline:"none", background:"#0d1117", boxSizing:"border-box" }}
                           value={directVacForm.vacation_type_id}
                           onChange={e => setDirectVacForm({...directVacForm, vacation_type_id: e.target.value})}
                         >
@@ -2932,22 +2955,22 @@ ${JSON.stringify(systemData)}
                       </div>
                       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"12px" }}>
                         <div>
-                          <label style={{ fontSize:"13px", fontWeight:"700", color:"#64748b", display:"block", marginBottom:"6px" }}>تاريخ البداية *</label>
-                          <input type="date" style={{ width:"100%", padding:"12px", border:"1px solid #e2e8f0", borderRadius:"12px", fontSize:"14px", outline:"none", background:"#f8fafc", boxSizing:"border-box" }} value={directVacForm.start_date} onChange={e => setDirectVacForm({...directVacForm, start_date: e.target.value})}/>
+                          <label style={{ fontSize:"13px", fontWeight:"700", color:"#8b949e", display:"block", marginBottom:"6px" }}>تاريخ البداية *</label>
+                          <input type="date" style={{ width:"100%", padding:"12px", border:"1px solid #30363d", borderRadius:"12px", fontSize:"14px", outline:"none", background:"#0d1117", boxSizing:"border-box" }} value={directVacForm.start_date} onChange={e => setDirectVacForm({...directVacForm, start_date: e.target.value})}/>
                         </div>
                         <div>
-                          <label style={{ fontSize:"13px", fontWeight:"700", color:"#64748b", display:"block", marginBottom:"6px" }}>عدد الأيام *</label>
-                          <input type="number" min="1" style={{ width:"100%", padding:"12px", border:"1px solid #e2e8f0", borderRadius:"12px", fontSize:"14px", outline:"none", background:"#f8fafc", boxSizing:"border-box" }} value={directVacForm.days} onChange={e => setDirectVacForm({...directVacForm, days: Number(e.target.value)})}/>
+                          <label style={{ fontSize:"13px", fontWeight:"700", color:"#8b949e", display:"block", marginBottom:"6px" }}>عدد الأيام *</label>
+                          <input type="number" min="1" style={{ width:"100%", padding:"12px", border:"1px solid #30363d", borderRadius:"12px", fontSize:"14px", outline:"none", background:"#0d1117", boxSizing:"border-box" }} value={directVacForm.days} onChange={e => setDirectVacForm({...directVacForm, days: Number(e.target.value)})}/>
                         </div>
                       </div>
                       {directVacForm.start_date && directVacForm.days > 0 && (
-                        <div style={{ background:"#eef2ff", borderRadius:"10px", padding:"10px 14px", fontSize:"13px", color:"#4f46e5", fontWeight:"700" }}>
+                        <div style={{ background:"rgba(99,102,241,0.1)", borderRadius:"10px", padding:"10px 14px", fontSize:"13px", color:"#4f46e5", fontWeight:"700" }}>
                           📅 تاريخ العودة: {formatDate(getCalculatedDates(directVacForm.start_date, directVacForm.days).back)}
                         </div>
                       )}
                       <div>
-                        <label style={{ fontSize:"13px", fontWeight:"700", color:"#64748b", display:"block", marginBottom:"6px" }}>ملاحظات</label>
-                        <textarea style={{ width:"100%", padding:"12px", border:"1px solid #e2e8f0", borderRadius:"12px", fontSize:"14px", outline:"none", background:"#f8fafc", resize:"none", boxSizing:"border-box" }} rows={2} placeholder="ملاحظات اختيارية..." value={directVacForm.notes} onChange={e => setDirectVacForm({...directVacForm, notes: e.target.value})}/>
+                        <label style={{ fontSize:"13px", fontWeight:"700", color:"#8b949e", display:"block", marginBottom:"6px" }}>ملاحظات</label>
+                        <textarea style={{ width:"100%", padding:"12px", border:"1px solid #30363d", borderRadius:"12px", fontSize:"14px", outline:"none", background:"#0d1117", resize:"none", boxSizing:"border-box" }} rows={2} placeholder="ملاحظات اختيارية..." value={directVacForm.notes} onChange={e => setDirectVacForm({...directVacForm, notes: e.target.value})}/>
                       </div>
                       <button onClick={handleDirectVacation} disabled={isSubmitting} style={{ width:"100%", padding:"14px", background:"#4f46e5", color:"white", border:"none", borderRadius:"12px", fontSize:"15px", fontWeight:"900", cursor:"pointer", opacity: isSubmitting ? 0.7 : 1 }}>
                         {isSubmitting ? "جاري الحفظ..." : "✅ تأكيد الإجازة"}
@@ -2966,13 +2989,13 @@ ${JSON.stringify(systemData)}
                 });
                 return (
                   <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", backdropFilter:"blur(4px)", display:"flex", alignItems:"center", justifyContent:"center", padding:"20px", zIndex:200 }} onClick={() => setSelectedCalendarDay(null)}>
-                    <div style={{ background:"white", borderRadius:"24px", width:"100%", maxWidth:"480px", padding:"24px", boxShadow:"0 20px 60px rgba(0,0,0,0.2)", maxHeight:"80vh", overflow:"hidden", display:"flex", flexDirection:"column" }} onClick={e => e.stopPropagation()}>
+                    <div style={{ background:"#161b22", borderRadius:"24px", width:"100%", maxWidth:"480px", padding:"24px", boxShadow:"0 20px 60px rgba(0,0,0,0.2)", maxHeight:"80vh", overflow:"hidden", display:"flex", flexDirection:"column" }} onClick={e => e.stopPropagation()}>
                       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"16px" }}>
                         <div>
                           <h3 style={{ margin:0, fontWeight:"900", fontSize:"17px" }}>📅 موظفو الإجازة</h3>
-                          <p style={{ margin:"2px 0 0", fontSize:"12px", color:"#64748b" }}>{formatDate(selectedCalendarDay)} — {dayReqs.length} موظف</p>
+                          <p style={{ margin:"2px 0 0", fontSize:"12px", color:"#8b949e" }}>{formatDate(selectedCalendarDay)} — {dayReqs.length} موظف</p>
                         </div>
-                        <button onClick={() => setSelectedCalendarDay(null)} style={{ background:"#f1f5f9", border:"none", borderRadius:"8px", padding:"6px 10px", cursor:"pointer" }}><X size={16}/></button>
+                        <button onClick={() => setSelectedCalendarDay(null)} style={{ background:"#161b22", border:"none", borderRadius:"8px", padding:"6px 10px", cursor:"pointer" }}><X size={16}/></button>
                       </div>
                       <div style={{ overflowY:"auto", display:"flex", flexDirection:"column", gap:"8px" }}>
                         {dayReqs.map(req => {
@@ -2981,19 +3004,19 @@ ${JSON.stringify(systemData)}
                           const vacType = vacationTypes.find(vt => vt.id === req.vacation_type_id);
                           const { back } = getCalculatedDates(req.start_date, req.days);
                           return (
-                            <div key={req.id} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"12px 14px", borderRadius:"12px", background:"#f8fafc", border:"1px solid #e2e8f0" }}>
+                            <div key={req.id} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"12px 14px", borderRadius:"12px", background:"#0d1117", border:"1px solid #30363d" }}>
                               <div style={{ display:"flex", alignItems:"center", gap:"10px" }}>
                                 <div style={{ width:"36px", height:"36px", borderRadius:"50%", background:"linear-gradient(135deg,#4f46e5,#7c3aed)", display:"flex", alignItems:"center", justifyContent:"center", color:"white", fontWeight:"900", fontSize:"14px", flexShrink:0 }}>
                                   {req.employee_name?.charAt(0)}
                                 </div>
                                 <div>
                                   <div style={{ fontWeight:"700", fontSize:"13px" }}>{req.employee_name}</div>
-                                  <div style={{ fontSize:"11px", color:"#94a3b8" }}>{dept?.name || "-"} | {emp?.position || "-"}</div>
+                                  <div style={{ fontSize:"11px", color:"#6e7681" }}>{dept?.name || "-"} | {emp?.position || "-"}</div>
                                 </div>
                               </div>
                               <div style={{ textAlign:"left" }}>
                                 {vacType && <div style={{ padding:"2px 8px", borderRadius:"20px", fontSize:"10px", fontWeight:"700", backgroundColor:vacType.color+"20", color:vacType.color, marginBottom:"3px" }}>{vacType.name}</div>}
-                                <div style={{ fontSize:"10px", color:"#94a3b8" }}>عودة: {formatDate(back)}</div>
+                                <div style={{ fontSize:"10px", color:"#6e7681" }}>عودة: {formatDate(back)}</div>
                               </div>
                             </div>
                           );
@@ -3012,24 +3035,24 @@ ${JSON.stringify(systemData)}
               {activeTab === "history" && (
                 <div className="space-y-6">
                   <div className="flex justify-between items-center">
-                    <h2 className="text-2xl font-black">سجل الإجازات</h2>
+                    <h2 style={{ fontSize:"22px", fontWeight:"900", color:"#e6edf3" }}>سجل الإجازات</h2>
                     <div className="flex gap-3">
-                      <input className="px-4 py-3 bg-white border rounded-xl" placeholder="بحث بالاسم..." onChange={(e) => setVacSearch(e.target.value)} />
-                      <select className="px-4 py-3 bg-white border rounded-xl" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+                      <input style={{ padding:"10px 14px", background:"#0d1117", border:"1px solid #30363d", borderRadius:"12px", color:"#e6edf3", outline:"none" }} placeholder="بحث بالاسم..." onChange={(e) => setVacSearch(e.target.value)} />
+                      <select style={{ padding:"10px 14px", background:"#0d1117", border:"1px solid #30363d", borderRadius:"12px", color:"#e6edf3", outline:"none" }} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
                         <option value="all">كل الحالات</option>
                         <option value="approved">مقبول</option>
                         <option value="rejected">مرفوض</option>
                       </select>
-                      <button onClick={() => setShowAuditLog(true)} className="bg-purple-600 text-white px-6 py-3 rounded-xl flex items-center gap-2 font-bold"><History size={20} /> سجل التعديلات</button>
-                      <button onClick={() => { setShowBalanceLog(true); fetchBalanceLogs(); }} className="bg-emerald-600 text-white px-6 py-3 rounded-xl flex items-center gap-2 font-bold">💰 سجل حركات الرصيد</button>
+                      <button onClick={() => setShowAuditLog(true)} style={{ background:"linear-gradient(135deg,#7c3aed,#6366f1)", color:"white", padding:"10px 18px", borderRadius:"12px", display:"flex", alignItems:"center", gap:"8px", fontWeight:"700", border:"none", cursor:"pointer", fontSize:"13px" }}><History size={20} /> سجل التعديلات</button>
+                      <button onClick={() => { setShowBalanceLog(true); fetchBalanceLogs(); }} style={{ background:"linear-gradient(135deg,#059669,#10b981)", color:"white", padding:"10px 18px", borderRadius:"12px", display:"flex", alignItems:"center", gap:"8px", fontWeight:"700", border:"none", cursor:"pointer", fontSize:"13px" }}>💰 سجل حركات الرصيد</button>
                     </div>
                   </div>
-                  <div className="bg-white rounded-[2rem] shadow-sm border overflow-hidden">
+                  <div style={{ background:"#161b22", borderRadius:"1.5rem", border:"1px solid #30363d", overflow:"hidden" }}>
                     <table className="w-full text-sm">
-                      <thead className="bg-slate-50 border-b text-xs">
+                      <thead style={{ background:"#1c2333", borderBottom:"1px solid #30363d", fontSize:"12px" }}>
                         <tr>
-                          <th className="p-4 text-right">الموظف</th>
-                          <th className="p-4">نوع الإجازة</th>
+                          <th style={{ padding:"14px 16px", textAlign:"right", color:"#8b949e", fontWeight:"700" }}>الموظف</th>
+                          <th style={{ padding:"14px 16px", color:"#8b949e", fontWeight:"700", textAlign:"center" }}>نوع الإجازة</th>
                           <th className="p-4 text-center">تاريخ البداية</th>
                           <th className="p-4 text-center">المدة</th>
                           <th className="p-4 text-center">تاريخ العودة المتوقع</th>
@@ -3046,9 +3069,9 @@ ${JSON.stringify(systemData)}
                           const today = new Date().toISOString().split("T")[0];
                           const isOnVacation = req.status === "approved" && req.start_date <= today && back > today;
                           return (
-                            <tr key={req.id} className="border-b hover:bg-slate-50">
-                              <td className="p-4 font-bold">{req.employee_name}</td>
-                              <td className="p-4">{vacType && <span className="px-2 py-1 rounded-full text-xs font-bold" style={{ backgroundColor: vacType.color+'20', color: vacType.color }}>{vacType.name}</span>}</td>
+                            <tr key={req.id} style={{ borderBottom:"1px solid #21262d" }}>
+                              <td style={{ padding:"14px 16px", fontWeight:"700", color:"#e6edf3" }}>{req.employee_name}</td>
+                              <td style={{ padding:"14px 16px", color:"#8b949e", fontWeight:"700", textAlign:"center" }}>{vacType && <span className="px-2 py-1 rounded-full text-xs font-bold" style={{ backgroundColor: vacType.color+'20', color: vacType.color }}>{vacType.name}</span>}</td>
                               <td className="p-4 text-center">{formatDate(req.start_date)}</td>
                               <td className="p-4 text-center font-bold">{req.days}</td>
                               <td className="p-4 text-center text-indigo-600 font-bold">{formatDate(back)}</td>
@@ -3088,7 +3111,7 @@ ${JSON.stringify(systemData)}
         {/* Import Excel Modal */}
         {showImportModal && (
           <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-6 z-[100]" onClick={() => setShowImportModal(false)}>
-            <div className="bg-white p-10 rounded-[2.5rem] w-full max-w-2xl shadow-2xl" dir="rtl" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-transparent" style_override="bg-white p-10 rounded-[2.5rem] w-full max-w-2xl shadow-2xl" dir="rtl" onClick={(e) => e.stopPropagation()}>
               <div className="flex justify-between mb-8">
                 <h3 className="text-2xl font-black flex items-center gap-3"><Upload className="text-emerald-600" /> استيراد من Excel</h3>
                 <button onClick={() => setShowImportModal(false)} className="text-slate-400 hover:text-red-500"><X size={28} /></button>
@@ -3099,7 +3122,7 @@ ${JSON.stringify(systemData)}
                   <p className="text-blue-600 text-sm mb-3">العناوين: الاسم الكامل، الكود الوظيفي، المنصب، البريد الإلكتروني، الرصيد الحالي، الرصيد الشهري، تاريخ التعيين، تاريخ العودة، القسم</p>
                   <button onClick={downloadExcelTemplate} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2"><FileDown size={18} /> تحميل النموذج</button>
                 </div>
-                <div className="bg-slate-50 p-6 rounded-2xl">
+                <div style={{ background:"#1c2333", padding:"20px", borderRadius:"16px" }}>
                   <h4 className="font-black mb-3">الخطوة 2: رفع الملف</h4>
                   <input ref={fileInputRef} type="file" accept=".xlsx,.xls" onChange={handleFileUpload} className="hidden" />
                   <button onClick={() => fileInputRef.current?.click()} disabled={uploadingFile} className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 disabled:opacity-50">
@@ -3115,12 +3138,12 @@ ${JSON.stringify(systemData)}
         {/* Add Employee Modal */}
         {showAddEmp && (
           <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-6 z-[100]" onClick={() => setShowAddEmp(false)}>
-            <div className="bg-white p-10 rounded-[2.5rem] w-full max-w-lg shadow-2xl" dir="rtl" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-transparent" style_override="bg-white p-10 rounded-[2.5rem] w-full max-w-lg shadow-2xl" dir="rtl" onClick={(e) => e.stopPropagation()}>
               <div className="flex justify-between mb-8">
-                <h3 className="text-2xl font-black">إضافة موظف جديد</h3>
+                <h3 style={{ fontSize:"22px", fontWeight:"900", color:"#e6edf3" }}>إضافة موظف جديد</h3>
                 <button onClick={() => setShowAddEmp(false)}><X size={28} /></button>
               </div>
-              <div className="space-y-4">
+              <div style={{ display:"flex", flexDirection:"column", gap:"12px" }}>
                 <input className="w-full p-4 border rounded-2xl outline-none focus:border-indigo-500" placeholder="الاسم الكامل *" value={newEmp.name} onChange={(e) => setNewEmp({...newEmp, name: e.target.value})} />
                 <div className="grid grid-cols-2 gap-4">
                   <input className="p-4 border rounded-2xl outline-none" placeholder="الكود الوظيفي *" value={newEmp.code} onChange={(e) => setNewEmp({...newEmp, code: e.target.value})} />
@@ -3156,12 +3179,12 @@ ${JSON.stringify(systemData)}
         {/* Edit Employee Modal */}
         {editingEmp && (
           <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-6 z-[100]" onClick={() => setEditingEmp(null)}>
-            <div className="bg-white p-10 rounded-[2.5rem] w-full max-w-lg shadow-2xl" dir="rtl" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-transparent" style_override="bg-white p-10 rounded-[2.5rem] w-full max-w-lg shadow-2xl" dir="rtl" onClick={(e) => e.stopPropagation()}>
               <div className="flex justify-between mb-8">
-                <h3 className="text-2xl font-black">تعديل بيانات الموظف</h3>
+                <h3 style={{ fontSize:"22px", fontWeight:"900", color:"#e6edf3" }}>تعديل بيانات الموظف</h3>
                 <button onClick={() => setEditingEmp(null)}><X size={28} /></button>
               </div>
-              <div className="space-y-4">
+              <div style={{ display:"flex", flexDirection:"column", gap:"12px" }}>
                 <input className="w-full p-4 border rounded-2xl" placeholder="الاسم" value={editingEmp.name || ''} onChange={(e) => setEditingEmp({...editingEmp, name: e.target.value})} />
                 <div className="grid grid-cols-2 gap-4">
                   <input className="p-4 border rounded-2xl" placeholder="الكود" value={editingEmp.code || ''} onChange={(e) => setEditingEmp({...editingEmp, code: e.target.value})} />
@@ -3197,16 +3220,16 @@ ${JSON.stringify(systemData)}
         {/* Approval Modal */}
         {showApprovalModal && currentRequest && (
           <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-6 z-[100]" onClick={() => setShowApprovalModal(false)}>
-            <div className="bg-white p-10 rounded-[2.5rem] w-full max-w-lg shadow-2xl" dir="rtl" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-transparent" style_override="bg-white p-10 rounded-[2.5rem] w-full max-w-lg shadow-2xl" dir="rtl" onClick={(e) => e.stopPropagation()}>
               <div className="flex justify-between mb-8">
-                <h3 className="text-2xl font-black">{currentRequest.action === "approved" ? "✅ موافقة" : "❌ رفض"}</h3>
+                <h3 style={{ fontSize:"22px", fontWeight:"900", color:"#e6edf3" }}>{currentRequest.action === "approved" ? "✅ موافقة" : "❌ رفض"}</h3>
                 <button onClick={() => setShowApprovalModal(false)}><X size={28} /></button>
               </div>
-              <div className="bg-slate-50 p-6 rounded-2xl mb-6">
-                <p className="font-black text-lg">{currentRequest.employee_name}</p>
+              <div style={{ background:"#1c2333", padding:"20px", borderRadius:"16px", marginBottom:"20px" }}>
+                <p style={{ fontWeight:"900", fontSize:"18px", color:"#e6edf3" }}>{currentRequest.employee_name}</p>
                 <div className="grid grid-cols-2 gap-4 mt-4 text-sm">
-                  <div><p className="text-slate-500">البداية</p><p className="font-bold">{formatDate(currentRequest.start_date)}</p></div>
-                  <div><p className="text-slate-500">المدة</p><p className="font-bold">{currentRequest.days} يوم</p></div>
+                  <div><p style={{ color:"#8b949e" }}>البداية</p><p className="font-bold">{formatDate(currentRequest.start_date)}</p></div>
+                  <div><p style={{ color:"#8b949e" }}>المدة</p><p className="font-bold">{currentRequest.days} يوم</p></div>
                 </div>
                 {(() => { const emp = employees.find(e => e.id === currentRequest.employee_id); return emp?.email ? <p className="text-xs text-indigo-600 mt-3 flex items-center gap-1"><Mail size={12} /> سيُرسل إشعار لـ {emp.email}</p> : <p className="text-xs text-amber-600 mt-3">⚠️ الموظف ليس لديه بريد إلكتروني</p>; })()}
               </div>
@@ -3221,13 +3244,13 @@ ${JSON.stringify(systemData)}
         {/* Edit Vacation Modal */}
         {editingVac && (
           <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-6 z-[100]" onClick={() => setEditingVac(null)}>
-            <div className="bg-white p-10 rounded-[2.5rem] w-full max-w-lg shadow-2xl" dir="rtl" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-transparent" style_override="bg-white p-10 rounded-[2.5rem] w-full max-w-lg shadow-2xl" dir="rtl" onClick={(e) => e.stopPropagation()}>
               <div className="flex justify-between mb-8">
-                <h3 className="text-2xl font-black">تعديل طلب الإجازة</h3>
+                <h3 style={{ fontSize:"22px", fontWeight:"900", color:"#e6edf3" }}>تعديل طلب الإجازة</h3>
                 <button onClick={() => setEditingVac(null)}><X size={28} /></button>
               </div>
               <div className="space-y-5">
-                <div className="bg-slate-50 p-4 rounded-xl"><p className="font-black text-lg">{editingVac.employee_name}</p></div>
+                <div style={{ background:"#1c2333", padding:"14px", borderRadius:"12px" }}><p style={{ fontWeight:"900", fontSize:"18px", color:"#e6edf3" }}>{editingVac.employee_name}</p></div>
                 <input type="date" className="w-full p-4 border rounded-2xl" value={editingVac.start_date} onChange={(e) => setEditingVac({...editingVac, start_date: e.target.value})} />
                 <input type="number" step="0.5" className="w-full p-4 border rounded-2xl" value={editingVac.days} onChange={(e) => setEditingVac({...editingVac, days: Number(e.target.value)})} />
                 {vacationTypes.length > 0 && (
@@ -3246,18 +3269,18 @@ ${JSON.stringify(systemData)}
         {/* Return Modal */}
         {showReturnModal && returnData && (
           <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-6 z-[100]" onClick={() => setShowReturnModal(false)}>
-            <div className="bg-white p-10 rounded-[2.5rem] w-full max-w-lg shadow-2xl" dir="rtl" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-transparent" style_override="bg-white p-10 rounded-[2.5rem] w-full max-w-lg shadow-2xl" dir="rtl" onClick={(e) => e.stopPropagation()}>
               <div className="flex justify-between mb-8">
-                <h3 className="text-2xl font-black">✅ تسجيل العودة من الإجازة</h3>
+                <h3 style={{ fontSize:"22px", fontWeight:"900", color:"#e6edf3" }}>✅ تسجيل العودة من الإجازة</h3>
                 <button onClick={() => setShowReturnModal(false)}><X size={28} /></button>
               </div>
               <div className="space-y-5">
-                <div className="bg-slate-50 p-6 rounded-xl">
+                <div style={{ background:"#1c2333", padding:"20px", borderRadius:"12px" }}>
                   <p className="font-black text-lg mb-2">{returnData.employee_name}</p>
                   <div className="text-sm space-y-1">
-                    <p><span className="text-slate-500">بداية الإجازة:</span> <span className="font-bold">{formatDate(returnData.start_date)}</span></p>
-                    <p><span className="text-slate-500">المدة:</span> <span className="font-bold">{returnData.days} يوم</span></p>
-                    <p><span className="text-slate-500">العودة المتوقعة:</span> <span className="font-bold text-indigo-600">{formatDate(getCalculatedDates(returnData.start_date, returnData.days).back)}</span></p>
+                    <p><span style={{ color:"#8b949e" }}>بداية الإجازة:</span> <span className="font-bold">{formatDate(returnData.start_date)}</span></p>
+                    <p><span style={{ color:"#8b949e" }}>المدة:</span> <span className="font-bold">{returnData.days} يوم</span></p>
+                    <p><span style={{ color:"#8b949e" }}>العودة المتوقعة:</span> <span className="font-bold text-indigo-600">{formatDate(getCalculatedDates(returnData.start_date, returnData.days).back)}</span></p>
                   </div>
                 </div>
                 <div>
@@ -3273,9 +3296,9 @@ ${JSON.stringify(systemData)}
         {/* Add Department Modal */}
         {showAddDept && (
           <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-6 z-[100]" onClick={() => setShowAddDept(false)}>
-            <div className="bg-white p-10 rounded-[2.5rem] w-full max-w-lg shadow-2xl" dir="rtl" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-transparent" style_override="bg-white p-10 rounded-[2.5rem] w-full max-w-lg shadow-2xl" dir="rtl" onClick={(e) => e.stopPropagation()}>
               <div className="flex justify-between mb-8">
-                <h3 className="text-2xl font-black">إضافة قسم جديد</h3>
+                <h3 style={{ fontSize:"22px", fontWeight:"900", color:"#e6edf3" }}>إضافة قسم جديد</h3>
                 <button onClick={() => setShowAddDept(false)}><X size={28} /></button>
               </div>
               <div className="space-y-5">
@@ -3290,9 +3313,9 @@ ${JSON.stringify(systemData)}
         {/* Add Holiday Modal */}
         {showAddHoliday && (
           <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-6 z-[100]" onClick={() => setShowAddHoliday(false)}>
-            <div className="bg-white p-10 rounded-[2.5rem] w-full max-w-lg shadow-2xl" dir="rtl" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-transparent" style_override="bg-white p-10 rounded-[2.5rem] w-full max-w-lg shadow-2xl" dir="rtl" onClick={(e) => e.stopPropagation()}>
               <div className="flex justify-between mb-8">
-                <h3 className="text-2xl font-black">إضافة عطلة رسمية</h3>
+                <h3 style={{ fontSize:"22px", fontWeight:"900", color:"#e6edf3" }}>إضافة عطلة رسمية</h3>
                 <button onClick={() => setShowAddHoliday(false)}><X size={28} /></button>
               </div>
               <div className="space-y-5">
@@ -3311,17 +3334,17 @@ ${JSON.stringify(systemData)}
         {/* Audit Log Modal */}
         {showAuditLog && (
           <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-6 z-[100]" onClick={() => setShowAuditLog(false)}>
-            <div className="bg-white p-10 rounded-[2.5rem] w-full max-w-4xl shadow-2xl max-h-[80vh] overflow-auto" dir="rtl" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-transparent" style_override="bg-white p-10 rounded-[2.5rem] w-full max-w-4xl shadow-2xl max-h-[80vh] overflow-auto" dir="rtl" onClick={(e) => e.stopPropagation()}>
               <div className="flex justify-between mb-8">
-                <h3 className="text-2xl font-black">📋 سجل التعديلات</h3>
+                <h3 style={{ fontSize:"22px", fontWeight:"900", color:"#e6edf3" }}>📋 سجل التعديلات</h3>
                 <button onClick={() => setShowAuditLog(false)}><X size={28} /></button>
               </div>
-              <div className="space-y-3">
+              <div style={{ display:"flex", flexDirection:"column", gap:"10px" }}>
                 {auditLog.map((log, idx) => (
-                  <div key={idx} className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                  <div key={idx} style={{ padding:"14px", background:"#1c2333", borderRadius:"12px", border:"1px solid #30363d" }}>
                     <div className="flex justify-between items-start mb-2">
                       <div>
-                        <span className="font-bold text-slate-800">{log.user_name}</span>
+                        <span style={{ fontWeight:"700", color:"#e6edf3" }}>{log.user_name}</span>
                         <span className="text-sm text-slate-500 mr-2">{log.action === "monthly_balance_update" ? "💰 تحديث رصيد شهري" : log.action}</span>
                       </div>
                       <span className="text-xs text-slate-400">{formatDateTime(log.created_at)}</span>
@@ -3341,10 +3364,10 @@ ${JSON.stringify(systemData)}
         {/* Balance Log Modal */}
         {showBalanceLog && (
           <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-6 z-[100]" onClick={() => setShowBalanceLog(false)}>
-            <div className="bg-white p-10 rounded-[2.5rem] w-full max-w-4xl shadow-2xl max-h-[80vh] overflow-auto" dir="rtl" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-transparent" style_override="bg-white p-10 rounded-[2.5rem] w-full max-w-4xl shadow-2xl max-h-[80vh] overflow-auto" dir="rtl" onClick={(e) => e.stopPropagation()}>
               <div className="flex justify-between items-center mb-8">
                 <div>
-                  <h3 className="text-2xl font-black">💰 سجل حركات الرصيد الشهري</h3>
+                  <h3 style={{ fontSize:"22px", fontWeight:"900", color:"#e6edf3" }}>💰 سجل حركات الرصيد الشهري</h3>
                   <p className="text-slate-500 text-sm mt-1">كل مرة أضاف فيها النظام رصيداً تلقائياً لموظف</p>
                 </div>
                 <button onClick={() => setShowBalanceLog(false)} className="text-slate-400 hover:text-slate-700"><X size={28} /></button>
@@ -3358,7 +3381,7 @@ ${JSON.stringify(systemData)}
                   <p className="text-slate-300 text-sm mt-2">سيتم التسجيل تلقائياً كل أول شهر عند إضافة الرصيد الدوري</p>
                 </div>
               ) : (
-                <div className="space-y-3">
+                <div style={{ display:"flex", flexDirection:"column", gap:"10px" }}>
                   {balanceLogs.map((log, idx) => {
                     const empName = log.employees?.name || "—";
                     const empCode = log.employees?.code || "";
@@ -3411,7 +3434,7 @@ ${JSON.stringify(systemData)}
           <div style={{
             position: "fixed", bottom: "104px", left: "32px", zIndex: 50,
             width: "400px", height: "560px",
-            background: "white", borderRadius: "24px",
+            background: "#161b22", borderRadius: "24px",
             boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
             display: "flex", flexDirection: "column", overflow: "hidden",
             border: "1px solid rgba(99,102,241,0.2)",
@@ -3454,7 +3477,7 @@ ${JSON.stringify(systemData)}
             {/* Input */}
             <div style={{ padding: "16px", borderTop: "1px solid #f1f5f9", display: "flex", gap: "10px" }}>
               <input
-                style={{ flex: 1, background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "12px", padding: "12px 16px", fontSize: "13px", outline: "none", fontFamily: "inherit", textAlign: "right" }}
+                style={{ flex: 1, background: "#f8fafc", border: "1px solid #30363d", borderRadius: "12px", padding: "12px 16px", fontSize: "13px", outline: "none", fontFamily: "inherit", textAlign: "right" }}
                 placeholder="اكتب أمرك هنا... مثال: أضف موظف اسمه محمد"
                 value={aiInput}
                 onChange={(e) => setAiInput(e.target.value)}
@@ -3492,7 +3515,7 @@ ${JSON.stringify(systemData)}
     const isOnVac = empStatus === "إجازة";
 
     return (
-      <div style={{ minHeight:"100vh", background:"#f1f5f9", direction:"rtl", fontFamily:"inherit" }}>
+      <div style={{ minHeight:"100vh", background:"#161b22", direction:"rtl", fontFamily:"inherit" }}>
 
         {/* ===== Header Banner ===== */}
         <div style={{
@@ -3549,7 +3572,7 @@ ${JSON.stringify(systemData)}
         <div style={{ margin:"-40px 16px 20px", position:"relative", zIndex:10, display:"flex", flexDirection:"column", gap:"16px" }}>
 
           {/* فورم طلب الإجازة */}
-          <div style={{ background:"white", borderRadius:"24px", boxShadow:"0 8px 32px rgba(0,0,0,0.1)", overflow:"hidden" }}>
+          <div style={{ background:"#161b22", borderRadius:"24px", boxShadow:"0 8px 32px rgba(0,0,0,0.1)", overflow:"hidden" }}>
             <div style={{ padding:"18px 20px", borderBottom:"1px solid #f1f5f9", display:"flex", alignItems:"center", gap:"10px" }}>
               <div style={{ width:"36px", height:"36px", borderRadius:"12px", background:"linear-gradient(135deg,#4f46e5,#7c3aed)", display:"flex", alignItems:"center", justifyContent:"center" }}>
                 <Plus size={18} style={{color:"white"}}/>
@@ -3558,20 +3581,20 @@ ${JSON.stringify(systemData)}
             </div>
             <div style={{ padding:"20px", display:"flex", flexDirection:"column", gap:"16px" }}>
               <div>
-                <label style={{ fontSize:"12px", fontWeight:"700", color:"#64748b", display:"block", marginBottom:"8px" }}>نوع الإجازة *</label>
-                <select style={{ width:"100%", padding:"14px", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:"14px", fontSize:"14px", outline:"none", boxSizing:"border-box", color:"#1e293b" }}
+                <label style={{ fontSize:"12px", fontWeight:"700", color:"#8b949e", display:"block", marginBottom:"8px" }}>نوع الإجازة *</label>
+                <select style={{ width:"100%", padding:"14px", background:"#0d1117", border:"1px solid #30363d", borderRadius:"14px", fontSize:"14px", outline:"none", boxSizing:"border-box", color:"#e6edf3" }}
                   value={newRequest.vacation_type_id} onChange={e => setNewRequest({...newRequest, vacation_type_id: e.target.value})}>
                   <option value="">اختر النوع...</option>
                   {vacationTypes.map(vt => <option key={vt.id} value={vt.id}>{vt.name}</option>)}
                 </select>
               </div>
               <div>
-                <label style={{ fontSize:"12px", fontWeight:"700", color:"#64748b", display:"block", marginBottom:"8px" }}>تاريخ النزول *</label>
-                <input type="date" style={{ width:"100%", padding:"14px", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:"14px", fontSize:"14px", outline:"none", boxSizing:"border-box" }}
+                <label style={{ fontSize:"12px", fontWeight:"700", color:"#8b949e", display:"block", marginBottom:"8px" }}>تاريخ النزول *</label>
+                <input type="date" style={{ width:"100%", padding:"14px", background:"#0d1117", border:"1px solid #30363d", borderRadius:"14px", fontSize:"14px", outline:"none", boxSizing:"border-box" }}
                   value={newRequest.start_date} onChange={e => setNewRequest({...newRequest, start_date: e.target.value})}/>
               </div>
               <div>
-                <label style={{ fontSize:"12px", fontWeight:"700", color:"#64748b", display:"block", marginBottom:"8px" }}>موعد النزول</label>
+                <label style={{ fontSize:"12px", fontWeight:"700", color:"#8b949e", display:"block", marginBottom:"8px" }}>موعد النزول</label>
                 <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:"8px" }}>
                   {[
                     { value:"actual",     icon:"✅", label:"بداية الإجازة الفعلي" },
@@ -3580,7 +3603,7 @@ ${JSON.stringify(systemData)}
                   ].map(opt => (
                     <button key={opt.value} type="button"
                       onClick={() => setNewRequest({...newRequest, departure_time: opt.value})}
-                      style={{ padding:"12px 6px", borderRadius:"14px", border:`2px solid ${newRequest.departure_time === opt.value ? "#4f46e5" : "#e2e8f0"}`, background: newRequest.departure_time === opt.value ? "#eef2ff" : "#f8fafc", color: newRequest.departure_time === opt.value ? "#4f46e5" : "#64748b", fontWeight:"700", fontSize:"11px", cursor:"pointer", textAlign:"center", transition:"all 0.15s" }}>
+                      style={{ padding:"12px 6px", borderRadius:"14px", border:`2px solid ${newRequest.departure_time === opt.value ? "#6366f1" : "#30363d"}`, background: newRequest.departure_time === opt.value ? "rgba(79,70,229,0.2)" : "#1c2333", color: newRequest.departure_time === opt.value ? "#4f46e5" : "#64748b", fontWeight:"700", fontSize:"11px", cursor:"pointer", textAlign:"center", transition:"all 0.15s" }}>
                       <div style={{ fontSize:"20px", marginBottom:"4px" }}>{opt.icon}</div>
                       {opt.label}
                     </button>
@@ -3588,7 +3611,7 @@ ${JSON.stringify(systemData)}
                 </div>
               </div>
               {newRequest.start_date && (
-                <div style={{ background:"linear-gradient(135deg,#eef2ff,#e0e7ff)", borderRadius:"14px", padding:"14px 16px", border:"1px solid #c7d2fe" }}>
+                <div style={{ background:"linear-gradient(135deg,rgba(79,70,229,0.15),rgba(99,102,241,0.1))", borderRadius:"14px", padding:"14px 16px", border:"1px solid rgba(99,102,241,0.3)" }}>
                   <div style={{ fontSize:"11px", color:"#4f46e5", fontWeight:"800", marginBottom:"10px" }}>📅 ملخص الإجازة</div>
                   <div style={{ display:"flex", flexDirection:"column", gap:"6px" }}>
                     {([
@@ -3606,13 +3629,13 @@ ${JSON.stringify(systemData)}
                 </div>
               )}
               <div>
-                <label style={{ fontSize:"12px", fontWeight:"700", color:"#64748b", display:"block", marginBottom:"8px" }}>عدد الأيام</label>
-                <input type="number" step="0.5" min="0.5" style={{ width:"100%", padding:"14px", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:"14px", fontSize:"14px", outline:"none", boxSizing:"border-box" }}
+                <label style={{ fontSize:"12px", fontWeight:"700", color:"#8b949e", display:"block", marginBottom:"8px" }}>عدد الأيام</label>
+                <input type="number" step="0.5" min="0.5" style={{ width:"100%", padding:"14px", background:"#0d1117", border:"1px solid #30363d", borderRadius:"14px", fontSize:"14px", outline:"none", boxSizing:"border-box" }}
                   value={newRequest.days} onChange={e => setNewRequest({...newRequest, days: Number(e.target.value)})}/>
               </div>
               <div>
-                <label style={{ fontSize:"12px", fontWeight:"700", color:"#64748b", display:"block", marginBottom:"8px" }}>ملاحظات</label>
-                <textarea style={{ width:"100%", padding:"14px", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:"14px", fontSize:"14px", outline:"none", resize:"none", boxSizing:"border-box", minHeight:"80px" }}
+                <label style={{ fontSize:"12px", fontWeight:"700", color:"#8b949e", display:"block", marginBottom:"8px" }}>ملاحظات</label>
+                <textarea style={{ width:"100%", padding:"14px", background:"#0d1117", border:"1px solid #30363d", borderRadius:"14px", fontSize:"14px", outline:"none", resize:"none", boxSizing:"border-box", minHeight:"80px" }}
                   placeholder="سبب الإجازة..." value={newRequest.notes} onChange={e => setNewRequest({...newRequest, notes: e.target.value})}/>
               </div>
               <button onClick={submitVacationRequest} disabled={isSubmitting}
@@ -3623,7 +3646,7 @@ ${JSON.stringify(systemData)}
           </div>
 
           {/* طلباتي */}
-          <div style={{ background:"white", borderRadius:"24px", boxShadow:"0 4px 16px rgba(0,0,0,0.06)", overflow:"hidden" }}>
+          <div style={{ background:"#161b22", borderRadius:"24px", boxShadow:"0 4px 16px rgba(0,0,0,0.06)", overflow:"hidden" }}>
             <div style={{ padding:"18px 20px", borderBottom:"1px solid #f1f5f9", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
               <div style={{ display:"flex", alignItems:"center", gap:"10px" }}>
                 <div style={{ width:"36px", height:"36px", borderRadius:"12px", background:"linear-gradient(135deg,#f59e0b,#d97706)", display:"flex", alignItems:"center", justifyContent:"center" }}>
@@ -3631,11 +3654,11 @@ ${JSON.stringify(systemData)}
                 </div>
                 <span style={{ fontWeight:"900", fontSize:"16px" }}>طلباتي</span>
               </div>
-              <span style={{ background:"#f1f5f9", color:"#64748b", borderRadius:"20px", padding:"3px 10px", fontSize:"12px", fontWeight:"700" }}>{empRequests.length} طلب</span>
+              <span style={{ background:"#161b22", color:"#8b949e", borderRadius:"20px", padding:"3px 10px", fontSize:"12px", fontWeight:"700" }}>{empRequests.length} طلب</span>
             </div>
             <div style={{ padding:"12px", display:"flex", flexDirection:"column", gap:"10px" }}>
               {empRequests.length === 0 ? (
-                <div style={{ padding:"40px", textAlign:"center", color:"#94a3b8" }}>
+                <div style={{ padding:"40px", textAlign:"center", color:"#6e7681" }}>
                   <Clock size={36} style={{ margin:"0 auto 10px", opacity:0.3 }}/>
                   <p style={{ fontWeight:"700" }}>لم تقدم أي طلبات بعد</p>
                 </div>
@@ -3650,13 +3673,13 @@ ${JSON.stringify(systemData)}
                 };
                 const sc = statusConfig[req.status] || statusConfig.pending;
                 return (
-                  <div key={req.id} style={{ borderRadius:"16px", border:"1px solid #e2e8f0", overflow:"hidden" }}>
+                  <div key={req.id} style={{ borderRadius:"16px", border:"1px solid #30363d", overflow:"hidden", background:"#1c2333" }}>
                     <div style={{ height:"4px", background:sc.color }}/>
                     <div style={{ padding:"14px" }}>
                       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"8px" }}>
                         <div>
-                          <div style={{ fontWeight:"800", fontSize:"14px", color:"#1e293b" }}>{formatDate(req.start_date)}</div>
-                          <div style={{ fontSize:"11px", color:"#94a3b8", marginTop:"2px" }}>{req.days} يوم • عودة {formatDate(back)}</div>
+                          <div style={{ fontWeight:"800", fontSize:"14px", color:"#e6edf3" }}>{formatDate(req.start_date)}</div>
+                          <div style={{ fontSize:"11px", color:"#6e7681", marginTop:"2px" }}>{req.days} يوم • عودة {formatDate(back)}</div>
                         </div>
                         <span style={{ padding:"4px 10px", borderRadius:"20px", fontSize:"11px", fontWeight:"800", background:sc.bg, color:sc.color, whiteSpace:"nowrap" }}>{sc.label}</span>
                       </div>
@@ -3665,7 +3688,7 @@ ${JSON.stringify(systemData)}
                         <div style={{ fontSize:"11px", color:"#7c3aed", fontWeight:"700", marginBottom:"4px" }}>🛫 نزول {req.departure_time === "after_work" ? "بعد العمل" : "صباحاً"}{req.departure_date ? ` (${formatDate(req.departure_date)})` : ""}</div>
                       )}
                       {req.admin_notes && (
-                        <div style={{ marginTop:"8px", padding:"10px 12px", background:"#eff6ff", borderRadius:"10px", border:"1px solid #bfdbfe" }}>
+                        <div style={{ marginTop:"8px", padding:"10px 12px", background:"rgba(59,130,246,0.1)", borderRadius:"10px", border:"1px solid #bfdbfe" }}>
                           <div style={{ fontSize:"10px", color:"#3b82f6", fontWeight:"800", marginBottom:"4px", display:"flex", alignItems:"center", gap:"4px" }}>
                             <MessageSquare size={11}/> ملاحظات الإدارة
                           </div>
