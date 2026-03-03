@@ -195,6 +195,8 @@ const VacationManagementSystem = () => {
   const [printTo, setPrintTo] = useState("");
   const [printSelected, setPrintSelected] = useState<string[]>([]);
   const [expandedDeptGroups, setExpandedDeptGroups] = useState<Record<string,boolean>>({});
+  const [showEmpInfoModal, setShowEmpInfoModal] = useState(false);
+  const [empInfoTarget, setEmpInfoTarget] = useState<any>(null);
   const [showAIChat, setShowAIChat] = useState(false);
   const [backupLoading, setBackupLoading] = useState(false);
   // ===== NEW FEATURES STATES =====
@@ -2592,7 +2594,11 @@ ${JSON.stringify(systemData)}
                             <div key={req.id} className="bg-white p-8 rounded-[2.5rem] border-2 border-amber-200 shadow-sm">
                               <div className="flex justify-between items-start mb-6">
                                 <div>
-                                  <h4 className="font-black text-xl text-slate-800">{req.employee_name}</h4>
+                                  <button onClick={() => { const e=employees.find(em=>em.id===req.employee_id); setEmpInfoTarget({...e, req}); setShowEmpInfoModal(true); }}
+                                    style={{ background:"none", border:"none", padding:0, cursor:"pointer", textAlign:"right" }}>
+                                    <h4 className="font-black text-xl text-slate-800 hover:text-indigo-600">{req.employee_name}</h4>
+                                    <p style={{ fontSize:"11px", color:"#4f46e5", fontWeight:"700", marginTop:"2px" }}>👁 اضغط لرؤية البيانات</p>
+                                  </button>
                                   <p className="text-slate-400 text-sm mt-1">بانتظار موافقتك</p>
                                 </div>
                                 <div className="flex gap-2 items-center">
@@ -2640,7 +2646,11 @@ ${JSON.stringify(systemData)}
                             <div key={req.id} className="bg-white p-8 rounded-[2.5rem] border-2 border-emerald-200 shadow-sm">
                               <div className="flex justify-between items-start mb-4">
                                 <div>
-                                  <h4 className="font-black text-xl text-slate-800">{req.employee_name}</h4>
+                                  <button onClick={() => { setEmpInfoTarget({...emp, req}); setShowEmpInfoModal(true); }}
+                                    style={{ background:"none", border:"none", padding:0, cursor:"pointer", textAlign:"right" }}>
+                                    <h4 className="font-black text-xl text-slate-800 hover:text-indigo-600">{req.employee_name}</h4>
+                                    <p style={{ fontSize:"11px", color:"#4f46e5", fontWeight:"700", marginTop:"2px" }}>👁 اضغط لرؤية البيانات</p>
+                                  </button>
                                   <p className="text-xs text-slate-400 font-bold mt-1">{dept?.name || ""}</p>
                                   {req.status === "dept_approved" && (
                                     <p className="text-xs text-indigo-600 font-bold mt-1">وافق عليها مدير القسم: {req.dept_approved_by}</p>
@@ -3098,7 +3108,13 @@ ${JSON.stringify(systemData)}
                           const isOnVacation = req.status === "approved" && req.start_date <= today && back > today;
                           return (
                             <tr key={req.id} className="border-b hover:bg-slate-50">
-                              <td className="p-4 font-bold">{req.employee_name}</td>
+                              <td className="p-4">
+                                <button onClick={() => { const e=employees.find(em=>em.id===req.employee_id); setEmpInfoTarget({...e, req}); setShowEmpInfoModal(true); }}
+                                  style={{ background:"none", border:"none", cursor:"pointer", textAlign:"right", padding:0 }}>
+                                  <span style={{ fontWeight:"800", color:"#1e293b" }}>{req.employee_name}</span>
+                                  <span style={{ display:"block", fontSize:"10px", color:"#4f46e5", fontWeight:"700" }}>👁 عرض البيانات</span>
+                                </button>
+                              </td>
                               <td className="p-4">{vacType && <span className="px-2 py-1 rounded-full text-xs font-bold" style={{ backgroundColor: vacType.color+'20', color: vacType.color }}>{vacType.name}</span>}</td>
                               <td className="p-4 text-center">{formatDate(req.start_date)}</td>
                               <td className="p-4 text-center font-bold">{req.days}</td>
@@ -3500,6 +3516,130 @@ ${JSON.stringify(systemData)}
                   }}
                   style={{ padding:"13px", background:!printSelected.length?"#f1f5f9":"linear-gradient(135deg,#059669,#10b981)", color:!printSelected.length?"#94a3b8":"white", border:"none", borderRadius:"12px", fontWeight:"800", cursor:!printSelected.length?"not-allowed":"pointer", fontSize:"14px" }}>
                   📤 مشاركة ({printSelected.length})
+                </button>
+              </div>
+            </div>
+          </div>
+          );
+        })()}
+
+        {/* ===== Employee Info Modal ===== */}
+        {showEmpInfoModal && empInfoTarget && (() => {
+          const e = empInfoTarget;
+          const workedDays = calculateWorkedDays(e.return_date);
+          const dept = departments.find(d => d.id === e.department_id);
+          const totalApproved = requests.filter(r => r.employee_id === e.id && r.status === "approved").reduce((s,r)=>s+Number(r.days),0);
+          const pendingCount = requests.filter(r => r.employee_id === e.id && (r.status==="pending"||r.status==="dept_approved")).length;
+          const req = e.req;
+          const vacType = req ? vacationTypes.find(vt=>vt.id===req.vacation_type_id) : null;
+          const reqBack = req ? getCalculatedDates(req.start_date, req.days).back : null;
+          return (
+          <div style={{ position:"fixed", inset:0, background:"rgba(15,23,42,0.65)", backdropFilter:"blur(6px)", display:"flex", alignItems:"center", justifyContent:"center", padding:"16px", zIndex:300 }}
+            onClick={() => { setShowEmpInfoModal(false); setEmpInfoTarget(null); }}>
+            <div style={{ background:"white", borderRadius:"28px", width:"100%", maxWidth:"440px", overflow:"hidden", boxShadow:"0 32px 80px rgba(0,0,0,0.25)" }}
+              dir="rtl" onClick={ev => ev.stopPropagation()}>
+
+              {/* Header بالـ gradient */}
+              <div style={{ background:"linear-gradient(135deg,#1e1b4b 0%,#4f46e5 60%,#7c3aed 100%)", padding:"24px 24px 20px", position:"relative" }}>
+                <button onClick={() => { setShowEmpInfoModal(false); setEmpInfoTarget(null); }}
+                  style={{ position:"absolute", top:"16px", left:"16px", background:"rgba(255,255,255,0.15)", border:"none", borderRadius:"10px", padding:"6px 10px", cursor:"pointer", color:"white", fontSize:"16px" }}>✕</button>
+                <div style={{ display:"flex", alignItems:"center", gap:"14px" }}>
+                  <div style={{ width:"58px", height:"58px", borderRadius:"50%", background:"linear-gradient(135deg,rgba(255,255,255,0.3),rgba(255,255,255,0.1))", border:"2px solid rgba(255,255,255,0.4)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:"24px", fontWeight:"900", color:"white", flexShrink:0 }}>
+                    {e.name?.charAt(0)}
+                  </div>
+                  <div>
+                    <div style={{ fontWeight:"900", fontSize:"20px", color:"white" }}>{e.name}</div>
+                    <div style={{ fontSize:"12px", color:"rgba(255,255,255,0.75)", marginTop:"3px" }}>{e.position || "—"}</div>
+                    <div style={{ display:"flex", gap:"8px", marginTop:"6px" }}>
+                      {e.code && <span style={{ background:"rgba(255,255,255,0.2)", borderRadius:"20px", padding:"2px 10px", fontSize:"11px", color:"white", fontWeight:"700" }}>#{e.code}</span>}
+                      {dept && <span style={{ background:"rgba(255,255,255,0.2)", borderRadius:"20px", padding:"2px 10px", fontSize:"11px", color:"white", fontWeight:"700" }}>🏢 {dept.name}</span>}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Stats */}
+              <div style={{ padding:"18px 20px", display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:"10px", borderBottom:"1px solid #f1f5f9" }}>
+                <div style={{ background: Number(e.balance||0) >= Number(req?.days||0) ? "#f0fdf4" : "#fff1f2", borderRadius:"14px", padding:"12px", textAlign:"center", border: Number(e.balance||0) >= Number(req?.days||0) ? "1px solid #bbf7d0" : "2px solid #fecdd3" }}>
+                  <div style={{ fontSize:"26px", fontWeight:"900", color: Number(e.balance||0) >= Number(req?.days||0) ? "#16a34a" : "#dc2626" }}>{e.balance ?? 0}</div>
+                  <div style={{ fontSize:"10px", color:"#64748b", marginTop:"2px", fontWeight:"600" }}>رصيد الإجازة</div>
+                  {Number(e.balance||0) < Number(req?.days||0) && <div style={{ fontSize:"9px", color:"#dc2626", fontWeight:"800", marginTop:"2px" }}>⚠️ غير كافٍ</div>}
+                </div>
+                <div style={{ background:"#fffbeb", borderRadius:"14px", padding:"12px", textAlign:"center", border:"1px solid #fde68a" }}>
+                  <div style={{ fontSize:"26px", fontWeight:"900", color:"#d97706" }}>{workedDays}</div>
+                  <div style={{ fontSize:"10px", color:"#64748b", marginTop:"2px", fontWeight:"600" }}>أيام العمل</div>
+                </div>
+                <div style={{ background:"#f5f3ff", borderRadius:"14px", padding:"12px", textAlign:"center", border:"1px solid #ddd6fe" }}>
+                  <div style={{ fontSize:"26px", fontWeight:"900", color:"#7c3aed" }}>{totalApproved}</div>
+                  <div style={{ fontSize:"10px", color:"#64748b", marginTop:"2px", fontWeight:"600" }}>إجمالي الإجازات</div>
+                </div>
+              </div>
+
+              {/* بيانات إضافية */}
+              <div style={{ padding:"16px 20px", display:"flex", flexDirection:"column", gap:"8px", borderBottom:"1px solid #f1f5f9" }}>
+                {e.hire_date && (
+                  <div style={{ display:"flex", justifyContent:"space-between", fontSize:"13px" }}>
+                    <span style={{ color:"#94a3b8", fontWeight:"600" }}>📅 تاريخ التعيين</span>
+                    <span style={{ fontWeight:"700", color:"#1e293b" }}>{e.hire_date}</span>
+                  </div>
+                )}
+                <div style={{ display:"flex", justifyContent:"space-between", fontSize:"13px" }}>
+                  <span style={{ color:"#94a3b8", fontWeight:"600" }}>💰 الرصيد الشهري</span>
+                  <span style={{ fontWeight:"700", color:"#059669" }}>{e.monthly_balance || 0} يوم</span>
+                </div>
+                {pendingCount > 0 && (
+                  <div style={{ display:"flex", justifyContent:"space-between", fontSize:"13px" }}>
+                    <span style={{ color:"#94a3b8", fontWeight:"600" }}>⏳ طلبات معلقة</span>
+                    <span style={{ fontWeight:"700", color:"#d97706" }}>{pendingCount} طلب</span>
+                  </div>
+                )}
+                {e.email && (
+                  <div style={{ display:"flex", justifyContent:"space-between", fontSize:"13px" }}>
+                    <span style={{ color:"#94a3b8", fontWeight:"600" }}>✉️ البريد</span>
+                    <span style={{ fontWeight:"700", color:"#4f46e5", fontSize:"12px" }}>{e.email}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* تفاصيل الطلب الحالي */}
+              {req && (
+                <div style={{ padding:"16px 20px", background:"#f8faff", borderBottom:"1px solid #e0e7ff" }}>
+                  <div style={{ fontSize:"11px", fontWeight:"800", color:"#4f46e5", marginBottom:"10px", textTransform:"uppercase", letterSpacing:"0.5px" }}>📋 الطلب الحالي</div>
+                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px" }}>
+                    <div style={{ background:"white", borderRadius:"10px", padding:"10px", border:"1px solid #e0e7ff" }}>
+                      <div style={{ fontSize:"10px", color:"#94a3b8", marginBottom:"2px" }}>تاريخ البداية</div>
+                      <div style={{ fontWeight:"800", fontSize:"13px", color:"#1e293b" }}>{req.start_date}</div>
+                    </div>
+                    <div style={{ background:"white", borderRadius:"10px", padding:"10px", border:"1px solid #e0e7ff" }}>
+                      <div style={{ fontSize:"10px", color:"#94a3b8", marginBottom:"2px" }}>المدة المطلوبة</div>
+                      <div style={{ fontWeight:"900", fontSize:"18px", color:"#4f46e5" }}>{req.days} يوم</div>
+                    </div>
+                    {reqBack && (
+                      <div style={{ background:"white", borderRadius:"10px", padding:"10px", border:"1px solid #e0e7ff" }}>
+                        <div style={{ fontSize:"10px", color:"#94a3b8", marginBottom:"2px" }}>تاريخ العودة</div>
+                        <div style={{ fontWeight:"800", fontSize:"13px", color:"#059669" }}>{reqBack}</div>
+                      </div>
+                    )}
+                    {vacType && (
+                      <div style={{ background:"white", borderRadius:"10px", padding:"10px", border:"1px solid #e0e7ff" }}>
+                        <div style={{ fontSize:"10px", color:"#94a3b8", marginBottom:"2px" }}>نوع الإجازة</div>
+                        <div style={{ fontWeight:"800", fontSize:"12px", color:vacType.color }}>{vacType.name}</div>
+                      </div>
+                    )}
+                  </div>
+                  {req.notes && (
+                    <div style={{ marginTop:"8px", background:"#fffbeb", borderRadius:"10px", padding:"10px", border:"1px solid #fde68a", fontSize:"12px", color:"#92400e", fontStyle:"italic" }}>
+                      💬 "{req.notes}"
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* زر إغلاق */}
+              <div style={{ padding:"16px 20px" }}>
+                <button onClick={() => { setShowEmpInfoModal(false); setEmpInfoTarget(null); }}
+                  style={{ width:"100%", padding:"12px", background:"#f1f5f9", border:"1px solid #e2e8f0", borderRadius:"14px", fontWeight:"700", cursor:"pointer", fontSize:"14px", color:"#475569" }}>
+                  إغلاق
                 </button>
               </div>
             </div>
