@@ -1479,7 +1479,7 @@ ${JSON.stringify(summaryData)}
       );
     }
     return (
-      <div style={{ width:"100%", boxSizing:"border-box" }} style={{ background:"#161b22", padding:"24px", borderRadius:"1.5rem", border:"1px solid #30363d" }}>
+      <div style={{ width:"100%", boxSizing:"border-box", background:"#161b22", padding:"24px", borderRadius:"1.5rem", border:"1px solid #30363d" }}>
         <div className="flex items-center justify-between mb-4">
           <button onClick={() => setCurrentMonth(new Date(year, month-1))} className="p-2 hover:bg-slate-100 rounded-xl">❯</button>
           <h3 className="text-lg font-black">{currentMonth.toLocaleDateString('ar-EG', { month: 'long', year: 'numeric' })}</h3>
@@ -2577,7 +2577,7 @@ ${JSON.stringify(systemData)}
                           const height = maxCount > 0 ? (item.count / maxCount) * 100 : 0;
                           return (
                             <div key={idx} className="flex-1 flex flex-col items-center">
-                              <div style={{ width:"100%", background:"linear-gradient(180deg,#6366f1,#4f46e5)", borderRadius:"4px 4px 0 0", transition:"all 0.2s" }} style={{ height: `${height}%` }} title={`${item.month}: ${item.count}`}></div>
+                              <div style={{ width:"100%", background:"linear-gradient(180deg,#6366f1,#4f46e5)", borderRadius:"4px 4px 0 0", transition:"all 0.2s", height: `${height}%` }} title={`${item.month}: ${item.count}`}></div>
                               <span style={{ fontSize:"11px", marginTop:"6px", color:"#8b949e" }}>{item.month.slice(0,3)}</span>
                             </div>
                           );
@@ -2617,12 +2617,12 @@ ${JSON.stringify(systemData)}
                     </div>
                     {/* فلاتر */}
                     {departments.length > 0 && (
-                      <select style={{ padding:"10px 14px", background:"#0d1117", border:"1px solid #30363d", borderRadius:"12px", color:"#e6edf3", fontSize:"13px", outline:"none", color:"#8b949e" }} value={departmentFilter} onChange={(e) => setDepartmentFilter(e.target.value)}>
+                      <select style={{ padding:"10px 14px", background:"#0d1117", border:"1px solid #30363d", borderRadius:"12px", color:"#8b949e", fontSize:"13px", outline:"none" }} value={departmentFilter} onChange={(e) => setDepartmentFilter(e.target.value)}>
                         <option value="all">كل الأقسام</option>
                         {departments.map(dept => <option key={dept.id} value={dept.id}>{dept.name}</option>)}
                       </select>
                     )}
-                    <select style={{ padding:"10px 14px", background:"#0d1117", border:"1px solid #30363d", borderRadius:"12px", color:"#e6edf3", fontSize:"13px", outline:"none", color:"#8b949e" }} value={empStatusFilter} onChange={(e) => setEmpStatusFilter(e.target.value)}>
+                    <select style={{ padding:"10px 14px", background:"#0d1117", border:"1px solid #30363d", borderRadius:"12px", color:"#8b949e", fontSize:"13px", outline:"none" }} value={empStatusFilter} onChange={(e) => setEmpStatusFilter(e.target.value)}>
                       <option value="all">كل الحالات</option>
                       <option value="عمل">🟢 في العمل</option>
                       <option value="إجازة">🟡 في إجازة</option>
@@ -3062,7 +3062,7 @@ ${JSON.stringify(systemData)}
                     </div>
 
                     {/* الجدول */}
-                    <div style={{ background:"#161b22", borderRadius:"16px", border:"1px solid #30363d", overflow:"hidden", background:"#1c2333" }}>
+                    <div style={{ background:"#1c2333", borderRadius:"16px", border:"1px solid #30363d", overflow:"hidden" }}>
                       {filtered.length === 0 ? (
                         <div style={{ padding:"60px", textAlign:"center", color:"#6e7681" }}>
                           <CheckCircle size={48} style={{ margin:"0 auto 12px", opacity:0.3 }}/>
