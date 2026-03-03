@@ -13,8 +13,8 @@ import {
 } from "lucide-react";
 
 // ==================== SUPABASE CONFIG ====================
-const supabaseUrl = process.env.REACT_APP_SUPABASE_URL || "https://rxeminlotawcfqalxoqy.supabase.co";
-const supabaseKey = process.env.REACT_APP_SUPABASE_ANON_KEY || "sb_publishable_nExTWl7CRubKfDuiqbX1Sw_EwyMdUoX";
+const supabaseUrl = "https://rxeminlotawcfqalxoqy.supabase.co";
+const supabaseKey = "sb_publishable_nExTWl7CRubKfDuiqbX1Sw_EwyMdUoX";
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 // ==================== EMAILJS CONFIG ====================
@@ -114,18 +114,15 @@ const calculateWorkedDays = (returnDate: string) => {
   return Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
 };
 
-// ==================== DARK MODE GLOBAL STYLES ====================
-const darkModeStyle = `
-  * { box-sizing: border-box; }
-  input, select, textarea {
-    color-scheme: dark;
-  }
-  input::placeholder { color: #484f58 !important; }
-  textarea::placeholder { color: #484f58 !important; }
+// ==================== GLOBAL STYLES (LIGHT MODE) ====================
+const globalStyle = `
+  @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap');
+  * { box-sizing: border-box; font-family: Cairo, sans-serif; }
+  body { background: #f0f2f5 !important; }
   ::-webkit-scrollbar { width: 6px; height: 6px; }
-  ::-webkit-scrollbar-track { background: #0d1117; }
-  ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
-  ::-webkit-scrollbar-thumb:hover { background: #484f58; }
+  ::-webkit-scrollbar-track { background: #f1f5f9; }
+  ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
   @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 `;
 
@@ -178,8 +175,8 @@ const ManagersTab: React.FC<{ departments: any[], supabase: any, logAction: any,
   };
 
   const inputStyle: React.CSSProperties = {
-    width: "100%", padding: "11px 14px", background: "#0d1117",
-    border: "1px solid #30363d", borderRadius: "10px", color: "#e6edf3",
+    width: "100%", padding: "11px 14px", background: "#f8fafc",
+    border: "1px solid #e2e8f0", borderRadius: "10px", color: "#1e293b",
     outline: "none", boxSizing: "border-box", fontSize: "13px",
   };
 
@@ -188,8 +185,8 @@ const ManagersTab: React.FC<{ departments: any[], supabase: any, logAction: any,
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div>
-          <h2 style={{ fontSize: "22px", fontWeight: "900", color: "#e6edf3", margin: 0 }}>مديرو الأقسام</h2>
-          <p style={{ fontSize: "13px", color: "#8b949e", margin: "4px 0 0" }}>{managers.length} مدير مسجل</p>
+          <h2 style={{ fontSize: "22px", fontWeight: "900", color: "#1e293b", margin: 0 }}>مديرو الأقسام</h2>
+          <p style={{ fontSize: "13px", color: "#64748b", margin: "4px 0 0" }}>{managers.length} مدير مسجل</p>
         </div>
         <button onClick={() => setShowAddForm(!showAddForm)}
           style={{ padding: "10px 18px", background: "linear-gradient(135deg,#4f46e5,#7c3aed)", color: "white", border: "none", borderRadius: "12px", fontWeight: "700", cursor: "pointer", fontSize: "13px", display: "flex", alignItems: "center", gap: "6px" }}>
@@ -199,23 +196,23 @@ const ManagersTab: React.FC<{ departments: any[], supabase: any, logAction: any,
 
       {/* Add Form */}
       {showAddForm && (
-        <div style={{ background: "#161b22", borderRadius: "16px", padding: "20px", border: "1px solid #30363d" }}>
-          <h3 style={{ margin: "0 0 16px", fontWeight: "900", color: "#e6edf3", fontSize: "15px" }}>➕ إضافة مدير قسم جديد</h3>
+        <div style={{ background: "#ffffff", borderRadius: "16px", padding: "20px", border: "1px solid #e2e8f0" }}>
+          <h3 style={{ margin: "0 0 16px", fontWeight: "900", color: "#1e293b", fontSize: "15px" }}>➕ إضافة مدير قسم جديد</h3>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
             <div>
-              <label style={{ fontSize: "11px", color: "#8b949e", fontWeight: "700", display: "block", marginBottom: "5px" }}>الاسم *</label>
+              <label style={{ fontSize: "11px", color: "#64748b", fontWeight: "700", display: "block", marginBottom: "5px" }}>الاسم *</label>
               <input style={inputStyle} placeholder="اسم المدير" value={newMgr.name} onChange={e => setNewMgr({ ...newMgr, name: e.target.value })} />
             </div>
             <div>
-              <label style={{ fontSize: "11px", color: "#8b949e", fontWeight: "700", display: "block", marginBottom: "5px" }}>البريد الإلكتروني *</label>
+              <label style={{ fontSize: "11px", color: "#64748b", fontWeight: "700", display: "block", marginBottom: "5px" }}>البريد الإلكتروني *</label>
               <input type="email" style={inputStyle} placeholder="email@example.com" value={newMgr.email} onChange={e => setNewMgr({ ...newMgr, email: e.target.value })} />
             </div>
             <div>
-              <label style={{ fontSize: "11px", color: "#8b949e", fontWeight: "700", display: "block", marginBottom: "5px" }}>كلمة المرور *</label>
+              <label style={{ fontSize: "11px", color: "#64748b", fontWeight: "700", display: "block", marginBottom: "5px" }}>كلمة المرور *</label>
               <input type="password" style={inputStyle} placeholder="كلمة المرور" value={newMgr.password} onChange={e => setNewMgr({ ...newMgr, password: e.target.value })} />
             </div>
             <div>
-              <label style={{ fontSize: "11px", color: "#8b949e", fontWeight: "700", display: "block", marginBottom: "5px" }}>القسم *</label>
+              <label style={{ fontSize: "11px", color: "#64748b", fontWeight: "700", display: "block", marginBottom: "5px" }}>القسم *</label>
               <select style={inputStyle} value={newMgr.department_id} onChange={e => setNewMgr({ ...newMgr, department_id: e.target.value })}>
                 <option value="">اختر القسم</option>
                 {departments.map((d: any) => <option key={d.id} value={d.id}>{d.name}</option>)}
@@ -228,7 +225,7 @@ const ManagersTab: React.FC<{ departments: any[], supabase: any, logAction: any,
               {saving ? "جاري الحفظ..." : "✅ حفظ"}
             </button>
             <button onClick={() => setShowAddForm(false)}
-              style={{ padding: "11px 20px", background: "#21262d", color: "#8b949e", border: "1px solid #30363d", borderRadius: "10px", fontWeight: "700", cursor: "pointer", fontSize: "13px" }}>
+              style={{ padding: "11px 20px", background: "#f1f5f9", color: "#64748b", border: "1px solid #e2e8f0", borderRadius: "10px", fontWeight: "700", cursor: "pointer", fontSize: "13px" }}>
               إلغاء
             </button>
           </div>
@@ -237,24 +234,24 @@ const ManagersTab: React.FC<{ departments: any[], supabase: any, logAction: any,
 
       {/* Managers List */}
       {loading ? (
-        <div style={{ textAlign: "center", padding: "40px", color: "#8b949e" }}>جاري التحميل...</div>
+        <div style={{ textAlign: "center", padding: "40px", color: "#64748b" }}>جاري التحميل...</div>
       ) : managers.length === 0 ? (
-        <div style={{ textAlign: "center", padding: "60px", background: "#161b22", borderRadius: "16px", border: "1px solid #30363d" }}>
-          <ShieldCheck size={48} style={{ color: "#484f58", marginBottom: "12px" }} />
-          <p style={{ color: "#6e7681", fontWeight: "700", margin: 0 }}>لم يتم إضافة أي مديرين بعد</p>
-          <p style={{ color: "#484f58", fontSize: "12px", marginTop: "6px" }}>اضغط "إضافة مدير" لإضافة أول مدير قسم</p>
+        <div style={{ textAlign: "center", padding: "60px", background: "#ffffff", borderRadius: "16px", border: "1px solid #e2e8f0" }}>
+          <ShieldCheck size={48} style={{ color: "#94a3b8", marginBottom: "12px" }} />
+          <p style={{ color: "#94a3b8", fontWeight: "700", margin: 0 }}>لم يتم إضافة أي مديرين بعد</p>
+          <p style={{ color: "#94a3b8", fontSize: "12px", marginTop: "6px" }}>اضغط "إضافة مدير" لإضافة أول مدير قسم</p>
         </div>
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "14px" }}>
           {managers.map((mgr: any) => (
-            <div key={mgr.id} style={{ background: "#161b22", borderRadius: "16px", padding: "18px", border: "1px solid #30363d" }}>
+            <div key={mgr.id} style={{ background: "#ffffff", borderRadius: "16px", padding: "18px", border: "1px solid #e2e8f0" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "12px" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                   <div style={{ width: "44px", height: "44px", borderRadius: "50%", background: "linear-gradient(135deg,#059669,#10b981)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "900", fontSize: "18px", color: "white", flexShrink: 0 }}>
                     {mgr.name?.charAt(0)}
                   </div>
                   <div>
-                    <div style={{ fontWeight: "800", fontSize: "14px", color: "#e6edf3" }}>{mgr.name}</div>
+                    <div style={{ fontWeight: "800", fontSize: "14px", color: "#1e293b" }}>{mgr.name}</div>
                     <div style={{ fontSize: "11px", color: "#10b981", fontWeight: "700", marginTop: "2px" }}>🏢 {mgr.departments?.name || "—"}</div>
                   </div>
                 </div>
@@ -264,7 +261,7 @@ const ManagersTab: React.FC<{ departments: any[], supabase: any, logAction: any,
                 </button>
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
-                <div style={{ fontSize: "12px", color: "#8b949e", display: "flex", alignItems: "center", gap: "6px" }}>
+                <div style={{ fontSize: "12px", color: "#64748b", display: "flex", alignItems: "center", gap: "6px" }}>
                   <Mail size={11} /> {mgr.email}
                 </div>
               </div>
@@ -347,7 +344,9 @@ const VacationManagementSystem = () => {
   const [showEmpDropdown, setShowEmpDropdown] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [expandedRequestId, setExpandedRequestId] = useState<string | null>(null);
-  // ===== States للميزات الجديدة =====
+  const [showRequestDetailModal, setShowRequestDetailModal] = useState(false);
+  const [requestDetailData, setRequestDetailData] = useState<any>(null);
+  const [showDeptStructure, setShowDeptStructure] = useState(false);
   const [showEditDaysModal, setShowEditDaysModal] = useState(false);
   const [editDaysForm, setEditDaysForm] = useState({ days: 0, reason: "", requestId: "", oldDays: 0, empName: "" });
   const [showPrintModal, setShowPrintModal] = useState(false);
@@ -368,13 +367,13 @@ const VacationManagementSystem = () => {
   });
   const [showPWAGuide, setShowPWAGuide] = useState(false);
   const [lastBackup, setLastBackup] = useState<string>("");
-  const GOOGLE_SCRIPT_URL = process.env.REACT_APP_GOOGLE_SCRIPT_URL || "";
+  const GOOGLE_SCRIPT_URL = "";
   const [aiMessages, setAiMessages] = useState<{role:string, content:string}[]>([
     { role: "assistant", content: "مرحباً! أنا مساعدك الذكي لإدارة الإجازات 🤖\n\nأستطيع مساعدتك في:\n• إضافة أو حذف موظف\n• عرض الإحصائيات والتقارير\n• الاستفسار عن أي موظف\n• مراجعة الطلبات المعلقة\n• وأي شيء آخر تحتاجه!\n\nاكتب أمرك بالعربي وأنا أنفذه." }
   ]);
   const [aiInput, setAiInput] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
-  const GROQ_API_KEY = process.env.REACT_APP_GROQ_API_KEY || "";
+  const GROQ_API_KEY = "";
   const [currentTime, setCurrentTime] = useState(new Date());
 
   // تحديث الساعة كل ثانية
@@ -396,7 +395,7 @@ const VacationManagementSystem = () => {
   const generateAIInsights = async () => {
     setInsightsLoading(true);
     setShowInsights(true);
-    const GROQ_KEY = process.env.REACT_APP_GROQ_API_KEY || "";
+    const GROQ_KEY = "";
     if (!GROQ_KEY) { setAiInsights("⚠️ لم يتم إعداد REACT_APP_GROQ_API_KEY"); setInsightsLoading(false); return; }
 
     const today = new Date().toISOString().split("T")[0];
@@ -1793,20 +1792,43 @@ ${JSON.stringify(systemData)}
   };
 
   // ==================== LOGIN VIEW ====================
-  // inject dark mode styles once
+  // inject global styles + force light theme
   React.useEffect(() => {
     const style = document.createElement("style");
-    style.innerHTML = darkModeStyle;
-    style.id = "vms-dark-mode";
-    if (!document.getElementById("vms-dark-mode")) document.head.appendChild(style);
-    document.body.style.background = "#0d1117";
+    style.innerHTML = globalStyle;
+    style.id = "vms-global-style";
+    if (!document.getElementById("vms-global-style")) document.head.appendChild(style);
+    document.body.style.background = "#f0f2f5";
     document.body.style.margin = "0";
-    return () => {};
+    
+    const fixColors = () => {
+      document.querySelectorAll("[style]").forEach((el) => {
+        const h = el as HTMLElement;
+        if (h.closest('[data-login-page]')) return;
+        const s = h.style;
+        if (s.background) s.background = s.background.replace(/#0d1117/g,"#f8fafc").replace(/#161b22/g,"#ffffff").replace(/#1c2333/g,"#f1f5f9").replace(/#21262d/g,"#e2e8f0");
+        if (s.backgroundColor) s.backgroundColor = s.backgroundColor.replace(/#0d1117/g,"#f8fafc").replace(/#161b22/g,"#ffffff").replace(/#1c2333/g,"#f1f5f9").replace(/#21262d/g,"#e2e8f0");
+        if (s.color === "#e6edf3" || s.color === "rgb(230, 237, 243)") s.color = "#1e293b";
+        if (s.color === "#c9d1d9" || s.color === "rgb(201, 209, 217)") s.color = "#334155";
+        if (s.color === "#8b949e" || s.color === "rgb(139, 148, 158)") s.color = "#64748b";
+        if (s.color === "#6e7681" || s.color === "rgb(110, 118, 129)") s.color = "#94a3b8";
+        if (s.color === "#484f58" || s.color === "rgb(72, 79, 88)") s.color = "#94a3b8";
+        ["border","borderBottom","borderTop","borderColor"].forEach(p => {
+          const v = (s as any)[p];
+          if (v && typeof v === "string") (s as any)[p] = v.replace(/#30363d/g,"#e2e8f0").replace(/#21262d/g,"#e2e8f0");
+        });
+      });
+      document.querySelectorAll('[fill="#161b22"]').forEach(el => el.setAttribute("fill","#ffffff"));
+      document.querySelectorAll('[fill="#e6edf3"]').forEach(el => el.setAttribute("fill","#1e293b"));
+    };
+    const t = setInterval(fixColors, 600);
+    setTimeout(fixColors, 100);
+    return () => clearInterval(t);
   }, []);
 
   if (currentView === "login") {
     return (
-      <div dir="rtl" style={{
+      <div dir="rtl" data-login-page style={{
         minHeight: "100vh",
         background: "linear-gradient(135deg, #0f0c29, #302b63, #24243e)",
         display: "flex",
@@ -1909,7 +1931,7 @@ ${JSON.stringify(systemData)}
   // ==================== ADMIN VIEW ====================
   if (currentView === "admin") {
     return (
-      <div style={{ minHeight:"100vh", background:"#0d1117", display:"flex" }} dir="rtl">
+      <div style={{ minHeight:"100vh", background:"#f0f2f5", display:"flex" }} dir="rtl">
 
         {/* Overlay للموبايل */}
         {sidebarOpen && (
@@ -1933,7 +1955,7 @@ ${JSON.stringify(systemData)}
         <aside style={{
           width: sidebarOpen ? "220px" : "0",
           minWidth: sidebarOpen ? "220px" : "0",
-          background:"#0f172a",
+          background:"#ffffff",
           height:"100vh",
           position:"fixed",
           right:0, top:0,
@@ -1942,16 +1964,16 @@ ${JSON.stringify(systemData)}
           zIndex:20,
           transition:"all 0.3s ease",
           overflow:"hidden",
-          boxShadow: sidebarOpen ? "4px 0 24px rgba(0,0,0,0.3)" : "none",
+          boxShadow: sidebarOpen ? "-4px 0 24px rgba(0,0,0,0.08)" : "none",
         }}>
           {/* الشعار */}
-          <div style={{ padding:"24px 16px 16px", borderBottom:"1px solid rgba(255,255,255,0.07)", marginTop:"48px" }}>
+          <div style={{ padding:"24px 16px 16px", borderBottom:"1px solid #e2e8f0", marginTop:"48px" }}>
             <div style={{ display:"flex", alignItems:"center", gap:"10px" }}>
               <div style={{ background: isOwner ? "#4f46e5" : "#059669", borderRadius:"10px", padding:"8px", flexShrink:0 }}>
                 <CalendarDays size={18} className="text-white" />
               </div>
               <div>
-                <div style={{ color:"white", fontWeight:"900", fontSize:"13px", lineHeight:"1.2" }}>نظام الإجازات</div>
+                <div style={{ color:"#1e293b", fontWeight:"900", fontSize:"13px", lineHeight:"1.2" }}>نظام الإجازات</div>
                 <div style={{ fontSize:"10px", fontWeight:"700", color: isOwner ? "#a5b4fc" : "#6ee7b7" }}>
                   {isOwner ? "👑 المالك" : `🏢 ${currentUser?.dept_name || "مدير قسم"}`}
                 </div>
@@ -1981,12 +2003,12 @@ ${JSON.stringify(systemData)}
                   width:"100%", display:"flex", alignItems:"center", gap:"10px",
                   padding:"10px 12px", borderRadius:"10px", border:"none", cursor:"pointer",
                   background: activeTab === item.id ? "#4f46e5" : "transparent",
-                  color: activeTab === item.id ? "white" : "#94a3b8",
+                  color: activeTab === item.id ? "white" : "#64748b",
                   fontWeight:"700", fontSize:"13px", transition:"all 0.15s", textAlign:"right",
                   position:"relative",
                 }}
-                onMouseEnter={e => { if(activeTab !== item.id) e.currentTarget.style.background = "#1e293b"; e.currentTarget.style.color = "white"; }}
-                onMouseLeave={e => { if(activeTab !== item.id) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#94a3b8"; } }}
+                onMouseEnter={e => { if(activeTab !== item.id) e.currentTarget.style.background = "#f1f5f9"; e.currentTarget.style.color = "#1e293b"; }}
+                onMouseLeave={e => { if(activeTab !== item.id) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#64748b"; } }}
               >
                 <item.icon size={17} style={{ flexShrink:0 }} />
                 <span style={{ whiteSpace:"nowrap" }}>{item.label}</span>
@@ -1998,7 +2020,7 @@ ${JSON.stringify(systemData)}
           </nav>
 
           {/* PWA + خروج */}
-          <div style={{ padding:"10px", borderTop:"1px solid rgba(255,255,255,0.07)", display:"flex", flexDirection:"column", gap:"6px" }}>
+          <div style={{ padding:"10px", borderTop:"1px solid #e2e8f0", display:"flex", flexDirection:"column", gap:"6px" }}>
             {/* زر تثبيت التطبيق */}
             <button onClick={() => setShowPWAGuide(true)} style={{
               width:"100%", display:"flex", alignItems:"center", gap:"10px",
@@ -2021,24 +2043,24 @@ ${JSON.stringify(systemData)}
           {/* PWA Guide Modal */}
           {showPWAGuide && (
             <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", zIndex:999, display:"flex", alignItems:"center", justifyContent:"center", padding:"20px" }} onClick={() => setShowPWAGuide(false)}>
-              <div style={{ background:"#161b22", borderRadius:"24px", padding:"32px", maxWidth:"440px", width:"100%", direction:"rtl" }} onClick={e => e.stopPropagation()}>
+               <div style={{ background:"#ffffff", borderRadius:"24px", padding:"32px", maxWidth:"440px", width:"100%", direction:"rtl" }} onClick={e => e.stopPropagation()}>
                 <div style={{ textAlign:"center", marginBottom:"24px" }}>
                   <div style={{ fontSize:"48px", marginBottom:"12px" }}>📱</div>
-                  <h2 style={{ margin:0, fontWeight:"900", fontSize:"22px", color:"#e6edf3" }}>تثبيت التطبيق</h2>
-                  <p style={{ color:"#8b949e", fontSize:"14px", marginTop:"8px" }}>وصول سريع من شاشتك الرئيسية</p>
+                  <h2 style={{ margin:0, fontWeight:"900", fontSize:"22px", color:"#1e293b" }}>تثبيت التطبيق</h2>
+                  <p style={{ color:"#64748b", fontSize:"14px", marginTop:"8px" }}>وصول سريع من شاشتك الرئيسية</p>
                 </div>
                 <div style={{ display:"flex", flexDirection:"column", gap:"16px" }}>
-                  <div style={{ background:"#0d1117", borderRadius:"16px", padding:"16px" }}>
-                    <p style={{ fontWeight:"800", fontSize:"14px", color:"#e6edf3", marginBottom:"8px" }}>🤖 Android (Chrome):</p>
-                    <ol style={{ margin:0, padding:"0 20px", fontSize:"13px", color:"#8b949e", lineHeight:"2" }}>
+                  <div style={{ background:"#f8fafc", borderRadius:"16px", padding:"16px" }}>
+                    <p style={{ fontWeight:"800", fontSize:"14px", color:"#1e293b", marginBottom:"8px" }}>🤖 Android (Chrome):</p>
+                    <ol style={{ margin:0, padding:"0 20px", fontSize:"13px", color:"#64748b", lineHeight:"2" }}>
                       <li>اضغط على ⋮ (القائمة) في Chrome</li>
                       <li>اختر "إضافة إلى الشاشة الرئيسية"</li>
                       <li>اضغط "إضافة"</li>
                     </ol>
                   </div>
-                  <div style={{ background:"#0d1117", borderRadius:"16px", padding:"16px" }}>
-                    <p style={{ fontWeight:"800", fontSize:"14px", color:"#e6edf3", marginBottom:"8px" }}>🍎 iPhone (Safari):</p>
-                    <ol style={{ margin:0, padding:"0 20px", fontSize:"13px", color:"#8b949e", lineHeight:"2" }}>
+                  <div style={{ background:"#f8fafc", borderRadius:"16px", padding:"16px" }}>
+                    <p style={{ fontWeight:"800", fontSize:"14px", color:"#1e293b", marginBottom:"8px" }}>🍎 iPhone (Safari):</p>
+                    <ol style={{ margin:0, padding:"0 20px", fontSize:"13px", color:"#64748b", lineHeight:"2" }}>
                       <li>اضغط على زر المشاركة ⬆️</li>
                       <li>اختر "إضافة إلى الشاشة الرئيسية"</li>
                       <li>اضغط "إضافة"</li>
@@ -2063,7 +2085,7 @@ ${JSON.stringify(systemData)}
           marginRight: sidebarOpen ? "220px" : "0", 
           width: sidebarOpen ? "calc(100% - 220px)" : "100%",
           transition:"all 0.3s ease", 
-          padding:"16px 24px", minHeight:"100vh", paddingTop:"60px", boxSizing:"border-box", background:"#0d1117",
+          padding:"16px 24px", minHeight:"100vh", paddingTop:"60px", boxSizing:"border-box", background:"#f0f2f5",
         }}>
           {loading && <div className="flex items-center justify-center h-screen"><Loader2 className="animate-spin text-indigo-600" size={48} /></div>}
 
@@ -2164,7 +2186,7 @@ ${JSON.stringify(systemData)}
                         </div>
 
                         {/* ===== Pie Chart + شريط نسبة الحضور ===== */}
-                        <div style={{ background:"#161b22", borderRadius:"20px", border:"1px solid #30363d", padding:"20px", boxShadow:"0 2px 8px rgba(0,0,0,0.06)" }}>
+                        <div style={{ background:"#ffffff", borderRadius:"20px", border:"1px solid #e2e8f0", padding:"20px", boxShadow:"0 2px 8px rgba(0,0,0,0.06)" }}>
                           <div style={{ fontWeight:"900", fontSize:"15px", marginBottom:"16px", display:"flex", alignItems:"center", gap:"8px" }}>
                             <PieChart size={18} style={{color:"#4f46e5"}}/> حالة موظفي القسم
                           </div>
@@ -2186,8 +2208,8 @@ ${JSON.stringify(systemData)}
                                   <path d={`M60,60 L${x1},${y1} A50,50 0 ${1-large},1 60,10 Z`} fill="#10b981"/>
                                 </>;
                               })()}
-                              <circle cx="60" cy="60" r="32" fill="#161b22"/>
-                              <text x="60" y="57" textAnchor="middle" fontSize="13" fontWeight="bold" fill="#e6edf3">{workPct}%</text>
+                              <circle cx="60" cy="60" r="32" fill="#ffffff"/>
+                              <text x="60" y="57" textAnchor="middle" fontSize="13" fontWeight="bold" fill="#1e293b">{workPct}%</text>
                               <text x="60" y="70" textAnchor="middle" fontSize="8" fill="#94a3b8">حضور</text>
                             </svg>
                             <div style={{ flex:1, display:"flex", flexDirection:"column", gap:"10px" }}>
@@ -2195,11 +2217,11 @@ ${JSON.stringify(systemData)}
                                 <div style={{ display:"flex", justifyContent:"space-between", marginBottom:"4px" }}>
                                   <div style={{ display:"flex", alignItems:"center", gap:"6px" }}>
                                     <div style={{ width:"10px", height:"10px", borderRadius:"2px", background:"#10b981" }}/>
-                                    <span style={{ fontSize:"12px", fontWeight:"700", color:"#c9d1d9" }}>في عمل</span>
+                                    <span style={{ fontSize:"12px", fontWeight:"700", color:"#334155" }}>في عمل</span>
                                   </div>
                                   <span style={{ fontSize:"12px", fontWeight:"900", color:"#10b981" }}>{atWork} موظف</span>
                                 </div>
-                                <div style={{ height:"6px", background:"#161b22", borderRadius:"3px" }}>
+                                <div style={{ height:"6px", background:"#e2e8f0", borderRadius:"3px" }}>
                                   <div style={{ height:"100%", width:`${workPct}%`, background:"linear-gradient(90deg,#10b981,#34d399)", borderRadius:"3px" }}/>
                                 </div>
                               </div>
@@ -2207,11 +2229,11 @@ ${JSON.stringify(systemData)}
                                 <div style={{ display:"flex", justifyContent:"space-between", marginBottom:"4px" }}>
                                   <div style={{ display:"flex", alignItems:"center", gap:"6px" }}>
                                     <div style={{ width:"10px", height:"10px", borderRadius:"2px", background:"#ef4444" }}/>
-                                    <span style={{ fontSize:"12px", fontWeight:"700", color:"#c9d1d9" }}>في إجازة</span>
+                                    <span style={{ fontSize:"12px", fontWeight:"700", color:"#334155" }}>في إجازة</span>
                                   </div>
                                   <span style={{ fontSize:"12px", fontWeight:"900", color:"#ef4444" }}>{onVacNow.length} موظف</span>
                                 </div>
-                                <div style={{ height:"6px", background:"#161b22", borderRadius:"3px" }}>
+                                <div style={{ height:"6px", background:"#e2e8f0", borderRadius:"3px" }}>
                                   <div style={{ height:"100%", width:`${vacPct}%`, background:"linear-gradient(90deg,#ef4444,#f87171)", borderRadius:"3px" }}/>
                                 </div>
                               </div>
@@ -2220,10 +2242,15 @@ ${JSON.stringify(systemData)}
                         </div>
 
                         {/* ===== هيكل القسم ===== */}
-                        <div style={{ background:"#161b22", borderRadius:"20px", border:"1px solid #30363d", overflow:"hidden", boxShadow:"0 2px 8px rgba(0,0,0,0.06)" }}>
-                          <div style={{ padding:"16px 20px", borderBottom:"1px solid #30363d", fontWeight:"900", fontSize:"15px", display:"flex", alignItems:"center", gap:"8px" }}>
-                            <Briefcase size={17} style={{color:"#7c3aed"}}/> هيكل القسم
+                        <div style={{ background:"#ffffff", borderRadius:"20px", border:"1px solid #e2e8f0", overflow:"hidden", boxShadow:"0 2px 8px rgba(0,0,0,0.06)" }}>
+                          <div style={{ padding:"16px 20px", borderBottom:"1px solid #e2e8f0", fontWeight:"900", fontSize:"15px", display:"flex", alignItems:"center", gap:"8px", cursor:"pointer", justifyContent:"space-between" }}
+                            onClick={() => setShowDeptStructure(!showDeptStructure)}>
+                            <div style={{ display:"flex", alignItems:"center", gap:"8px" }}>
+                              <Briefcase size={17} style={{color:"#7c3aed"}}/> هيكل القسم
+                            </div>
+                            <span style={{ color:"#94a3b8", fontSize:"18px", transition:"transform 0.2s", transform: showDeptStructure ? "rotate(180deg)" : "rotate(0deg)" }}>▼</span>
                           </div>
+                          {showDeptStructure && (
                           <div style={{ padding:"12px", display:"flex", flexDirection:"column", gap:"12px" }}>
                             {grouped.map(group => (
                               <div key={group.rank}>
@@ -2243,12 +2270,12 @@ ${JSON.stringify(systemData)}
                                             {emp.name.charAt(0)}
                                           </div>
                                           <div>
-                                            <div style={{ fontWeight:"700", fontSize:"13px", color:"#e6edf3" }}>{emp.name}</div>
-                                            <div style={{ fontSize:"10px", color:"#6e7681" }}>{emp.position}</div>
+                                            <div style={{ fontWeight:"700", fontSize:"13px", color:"#1e293b" }}>{emp.name}</div>
+                                            <div style={{ fontSize:"10px", color:"#64748b" }}>{emp.position}</div>
                                           </div>
                                         </div>
                                         <div style={{ display:"flex", alignItems:"center", gap:"6px" }}>
-                                          <span style={{ fontSize:"10px", fontWeight:"700", color:"#8b949e" }}>{emp.balance} يوم</span>
+                                          <span style={{ fontSize:"10px", fontWeight:"700", color:"#64748b" }}>{emp.balance} يوم</span>
                                           <span style={{ padding:"2px 8px", borderRadius:"20px", fontSize:"10px", fontWeight:"700", background: isVac ? "#fee2e2" : "#dcfce7", color: isVac ? "#dc2626" : "#16a34a" }}>
                                             {isVac ? "إجازة" : "عمل"}
                                           </span>
@@ -2260,14 +2287,15 @@ ${JSON.stringify(systemData)}
                               </div>
                             ))}
                           </div>
+                          )}
                         </div>
 
                         {/* ===== 3 جداول في Row ===== */}
                         <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))", gap:"16px" }}>
 
                           {/* أعلى رصيد */}
-                          <div style={{ background:"#161b22", borderRadius:"20px", border:"1px solid #30363d", overflow:"hidden", boxShadow:"0 2px 8px rgba(0,0,0,0.06)" }}>
-                            <div style={{ padding:"14px 16px", background:"linear-gradient(135deg,#eef2ff,#e0e7ff)", borderBottom:"1px solid #30363d", fontWeight:"900", fontSize:"13px", color:"#4f46e5", display:"flex", alignItems:"center", gap:"6px" }}>
+                          <div style={{ background:"#ffffff", borderRadius:"20px", border:"1px solid #e2e8f0", overflow:"hidden", boxShadow:"0 2px 8px rgba(0,0,0,0.06)" }}>
+                            <div style={{ padding:"14px 16px", background:"linear-gradient(135deg,#eef2ff,#e0e7ff)", borderBottom:"1px solid #e2e8f0", fontWeight:"900", fontSize:"13px", color:"#4f46e5", display:"flex", alignItems:"center", gap:"6px" }}>
                               🏆 أعلى رصيد في القسم
                             </div>
                             {[...deptEmps].sort((a,b) => b.balance - a.balance).slice(0,5).map((emp,i) => (
@@ -2770,63 +2798,16 @@ ${JSON.stringify(systemData)}
                           const vacType = vacationTypes.find(vt => vt.id === req.vacation_type_id);
                           return (
                             <div key={req.id} style={{ background:"#161b22", padding:"24px", borderRadius:"1.5rem", border:"2px solid rgba(245,158,11,0.3)" }}>
-                              <div className="flex justify-between items-start mb-6" style={{ cursor:"pointer" }} onClick={() => setExpandedRequestId(expandedRequestId === req.id ? null : req.id)}>
+                              <div className="flex justify-between items-start mb-6" style={{ cursor:"pointer" }} onClick={() => { setRequestDetailData(req); setShowRequestDetailModal(true); }}>
                                 <div>
                                   <h4 className="font-black text-xl text-slate-800">{req.employee_name}</h4>
                                   <p className="text-slate-400 text-sm mt-1">بانتظار موافقتك — <span style={{color:"#818cf8", fontSize:"11px"}}>اضغط لعرض بيانات الموظف</span></p>
                                 </div>
                                 <div className="flex gap-2 items-center">
                                   {vacType && <span className="px-3 py-1 rounded-full text-xs font-bold" style={{ backgroundColor: vacType.color+'20', color: vacType.color }}>{vacType.name}</span>}
-                                  <span style={{ color:"#6e7681", fontSize:"18px" }}>{expandedRequestId === req.id ? "▲" : "▼"}</span>
+                                  <span style={{ color:"#6e7681", fontSize:"18px" }}>👁️</span>
                                 </div>
                               </div>
-                              {/* بيانات الموظف عند الضغط */}
-                              {expandedRequestId === req.id && (() => {
-                                const empInfo = employees.find(e => e.id === req.employee_id);
-                                if (!empInfo) return null;
-                                const workedDaysEmp = calculateWorkedDays(empInfo.return_date);
-                                const totalVacDays = requests.filter(r => r.employee_id === empInfo.id && r.status === "approved").reduce((s,r) => s + Number(r.days), 0);
-                                const isBalanceSufficient = Number(empInfo.balance) >= Number(req.days);
-                                return (
-                                  <div style={{ background:"linear-gradient(135deg,#1c2333,#21262d)", borderRadius:"16px", padding:"16px", marginBottom:"16px", border:"1px solid #30363d" }}>
-                                    <div style={{ display:"flex", alignItems:"center", gap:"12px", marginBottom:"14px" }}>
-                                      <div style={{ width:"46px", height:"46px", borderRadius:"50%", background:"linear-gradient(135deg,#4f46e5,#7c3aed)", display:"flex", alignItems:"center", justifyContent:"center", fontWeight:"900", fontSize:"18px", color:"white", flexShrink:0 }}>
-                                        {empInfo.name?.charAt(0)}
-                                      </div>
-                                      <div>
-                                        <div style={{ fontWeight:"900", fontSize:"15px", color:"#e6edf3" }}>{empInfo.name}</div>
-                                        <div style={{ fontSize:"11px", color:"#6e7681" }}>{empInfo.position || "-"} | كود: {empInfo.code || "-"}</div>
-                                        {empInfo.hire_date && <div style={{ fontSize:"10px", color:"#484f58" }}>تاريخ التعيين: {formatDate(empInfo.hire_date)}</div>}
-                                      </div>
-                                    </div>
-                                    <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:"8px" }}>
-                                      <div style={{ background: isBalanceSufficient ? "rgba(16,185,129,0.1)" : "rgba(239,68,68,0.15)", borderRadius:"12px", padding:"10px", textAlign:"center", border: isBalanceSufficient ? "1px solid rgba(16,185,129,0.2)" : "1px solid rgba(239,68,68,0.3)" }}>
-                                        <div style={{ fontSize:"20px", fontWeight:"900", color: isBalanceSufficient ? "#10b981" : "#ef4444" }}>{empInfo.balance}</div>
-                                        <div style={{ fontSize:"10px", color:"#6e7681", marginTop:"2px" }}>رصيد الإجازة</div>
-                                        {!isBalanceSufficient && <div style={{ fontSize:"9px", color:"#ef4444", marginTop:"2px" }}>⚠️ رصيد غير كافٍ!</div>}
-                                      </div>
-                                      <div style={{ background:"rgba(245,158,11,0.1)", borderRadius:"12px", padding:"10px", textAlign:"center", border:"1px solid rgba(245,158,11,0.2)" }}>
-                                        <div style={{ fontSize:"20px", fontWeight:"900", color:"#f59e0b" }}>{workedDaysEmp}</div>
-                                        <div style={{ fontSize:"10px", color:"#6e7681", marginTop:"2px" }}>أيام العمل</div>
-                                      </div>
-                                      <div style={{ background:"rgba(129,140,248,0.1)", borderRadius:"12px", padding:"10px", textAlign:"center", border:"1px solid rgba(129,140,248,0.2)" }}>
-                                        <div style={{ fontSize:"20px", fontWeight:"900", color:"#818cf8" }}>{totalVacDays}</div>
-                                        <div style={{ fontSize:"10px", color:"#6e7681", marginTop:"2px" }}>إجمالي إجازاته</div>
-                                      </div>
-                                    </div>
-                                    <div style={{ marginTop:"10px", display:"flex", justifyContent:"space-between", fontSize:"11px", color:"#6e7681" }}>
-                                      <span>الرصيد الشهري: <b style={{color:"#6ee7b7"}}>{empInfo.monthly_balance || 0} يوم/شهر</b></span>
-                                      {empInfo.email ? <span style={{color:"#818cf8"}}>📧 {empInfo.email}</span> : <span style={{color:"#f59e0b"}}>⚠️ لا يوجد بريد</span>}
-                                    </div>
-                                    {/* هل يستاهل الإجازة؟ */}
-                                    <div style={{ marginTop:"12px", padding:"10px 14px", borderRadius:"12px", background: isBalanceSufficient && workedDaysEmp >= 30 ? "rgba(16,185,129,0.15)" : "rgba(239,68,68,0.1)", border: isBalanceSufficient && workedDaysEmp >= 30 ? "1px solid rgba(16,185,129,0.3)" : "1px solid rgba(239,68,68,0.2)", textAlign:"center" }}>
-                                      <div style={{ fontWeight:"900", fontSize:"14px", color: isBalanceSufficient && workedDaysEmp >= 30 ? "#10b981" : "#ef4444" }}>
-                                        {isBalanceSufficient && workedDaysEmp >= 30 ? "✅ الموظف يستحق الإجازة" : !isBalanceSufficient ? "❌ الرصيد غير كافٍ" : "⚠️ أيام العمل أقل من 30 يوم"}
-                                      </div>
-                                    </div>
-                                  </div>
-                                );
-                              })()}
                               <div style={{ background:"#1c2333", padding:"20px", borderRadius:"16px", marginBottom:"20px" }}>
                                 <div className="flex justify-between text-sm font-bold"><span style={{ color:"#6e7681" }}>تاريخ البداية</span><span>{formatDate(req.start_date)}</span></div>
                                 <div className="flex justify-between text-sm font-bold"><span style={{ color:"#6e7681" }}>المدة</span><span>{req.days} يوم</span></div>
@@ -2863,49 +2844,17 @@ ${JSON.stringify(systemData)}
                           const dept = departments.find(d => d.id === employees.find(e => e.id === req.employee_id)?.department_id);
                           return (
                             <div key={req.id} style={{ background:"#161b22", padding:"20px", borderRadius:"1.5rem", border:"1px solid #30363d" }}>
-                              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"14px", cursor:"pointer" }} onClick={() => setExpandedRequestId(expandedRequestId === req.id ? null : req.id)}>
+                              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"14px", cursor:"pointer" }} onClick={() => { setRequestDetailData(req); setShowRequestDetailModal(true); }}>
                                 <div>
                                   <h4 className="font-black text-xl text-slate-800">{req.employee_name}</h4>
                                   <p className="text-xs text-amber-600 font-bold mt-1">🏢 {dept?.name || "—"} — بانتظار مدير القسم — <span style={{color:"#818cf8", fontSize:"11px"}}>اضغط لعرض بيانات الموظف</span></p>
                                 </div>
                                 <div className="flex gap-2">
                                   {vacType && <span className="px-3 py-1 rounded-full text-xs font-bold" style={{ backgroundColor: vacType.color+'20', color: vacType.color }}>{vacType.name}</span>}
-                                  <span style={{ color:"#6e7681", fontSize:"18px" }}>{expandedRequestId === req.id ? "▲" : "▼"}</span>
+                                  <span style={{ color:"#6e7681", fontSize:"18px" }}>👁️</span>
                                   <button onClick={(e) => { e.stopPropagation(); handleDeleteVacation(req.id); }} className="p-2 text-red-400 hover:bg-red-50 rounded-xl"><Trash2 size={16} /></button>
                                 </div>
                               </div>
-                              {/* بيانات الموظف عند الضغط */}
-                              {expandedRequestId === req.id && (() => {
-                                const empInfo = employees.find(e => e.id === req.employee_id);
-                                if (!empInfo) return null;
-                                const workedDaysEmp = calculateWorkedDays(empInfo.return_date);
-                                const totalVacDays = requests.filter(r => r.employee_id === empInfo.id && r.status === "approved").reduce((s,r) => s + Number(r.days), 0);
-                                const isBalanceSufficient = Number(empInfo.balance) >= Number(req.days);
-                                return (
-                                  <div style={{ background:"linear-gradient(135deg,#1c2333,#21262d)", borderRadius:"16px", padding:"16px", marginBottom:"16px", border:"1px solid #30363d" }}>
-                                    <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:"8px" }}>
-                                      <div style={{ background: isBalanceSufficient ? "rgba(16,185,129,0.1)" : "rgba(239,68,68,0.15)", borderRadius:"12px", padding:"10px", textAlign:"center", border: isBalanceSufficient ? "1px solid rgba(16,185,129,0.2)" : "1px solid rgba(239,68,68,0.3)" }}>
-                                        <div style={{ fontSize:"20px", fontWeight:"900", color: isBalanceSufficient ? "#10b981" : "#ef4444" }}>{empInfo.balance}</div>
-                                        <div style={{ fontSize:"10px", color:"#6e7681", marginTop:"2px" }}>رصيد الإجازة</div>
-                                        {!isBalanceSufficient && <div style={{ fontSize:"9px", color:"#ef4444", marginTop:"2px" }}>⚠️ غير كافٍ</div>}
-                                      </div>
-                                      <div style={{ background:"rgba(245,158,11,0.1)", borderRadius:"12px", padding:"10px", textAlign:"center", border:"1px solid rgba(245,158,11,0.2)" }}>
-                                        <div style={{ fontSize:"20px", fontWeight:"900", color:"#f59e0b" }}>{workedDaysEmp}</div>
-                                        <div style={{ fontSize:"10px", color:"#6e7681", marginTop:"2px" }}>أيام العمل</div>
-                                      </div>
-                                      <div style={{ background:"rgba(129,140,248,0.1)", borderRadius:"12px", padding:"10px", textAlign:"center", border:"1px solid rgba(129,140,248,0.2)" }}>
-                                        <div style={{ fontSize:"20px", fontWeight:"900", color:"#818cf8" }}>{totalVacDays}</div>
-                                        <div style={{ fontSize:"10px", color:"#6e7681", marginTop:"2px" }}>إجمالي إجازاته</div>
-                                      </div>
-                                    </div>
-                                    <div style={{ marginTop:"12px", padding:"10px 14px", borderRadius:"12px", background: isBalanceSufficient && workedDaysEmp >= 30 ? "rgba(16,185,129,0.15)" : "rgba(239,68,68,0.1)", border: isBalanceSufficient && workedDaysEmp >= 30 ? "1px solid rgba(16,185,129,0.3)" : "1px solid rgba(239,68,68,0.2)", textAlign:"center" }}>
-                                      <div style={{ fontWeight:"900", fontSize:"14px", color: isBalanceSufficient && workedDaysEmp >= 30 ? "#10b981" : "#ef4444" }}>
-                                        {isBalanceSufficient && workedDaysEmp >= 30 ? "✅ الموظف يستحق الإجازة" : !isBalanceSufficient ? "❌ الرصيد غير كافٍ" : "⚠️ أيام العمل أقل من 30 يوم"}
-                                      </div>
-                                    </div>
-                                  </div>
-                                );
-                              })()}
                               <div style={{ background:"#1c2333", padding:"14px", borderRadius:"14px", fontSize:"13px" }}>
                                 <div className="flex justify-between font-bold"><span style={{ color:"#6e7681" }}>البداية</span><span>{formatDate(req.start_date)}</span></div>
                                 <div className="flex justify-between font-bold"><span style={{ color:"#6e7681" }}>المدة</span><span>{req.days} يوم</span></div>
@@ -2930,53 +2879,17 @@ ${JSON.stringify(systemData)}
                           const dept = departments.find(d => d.id === emp?.department_id);
                           return (
                             <div key={req.id} style={{ background:"#161b22", padding:"20px", borderRadius:"1.5rem", border:"1px solid #30363d" }}>
-                              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"14px", cursor:"pointer" }} onClick={() => setExpandedRequestId(expandedRequestId === req.id ? null : req.id)}>
+                              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"14px", cursor:"pointer" }} onClick={() => { setRequestDetailData(req); setShowRequestDetailModal(true); }}>
                                 <div>
                                   <h4 className="font-black text-xl text-slate-800">{req.employee_name}</h4>
                                   <p className="text-xs text-indigo-600 font-bold mt-1">✅ وافق عليها: {req.dept_approved_by || dept?.name} — <span style={{color:"#818cf8", fontSize:"11px"}}>اضغط لعرض بيانات الموظف</span></p>
                                 </div>
                                 <div className="flex gap-2 items-center">
                                   {vacType && <span className="px-3 py-1 rounded-full text-xs font-bold" style={{ backgroundColor: vacType.color+'20', color: vacType.color }}>{vacType.name}</span>}
-                                  <span style={{ color:"#6e7681", fontSize:"18px" }}>{expandedRequestId === req.id ? "▲" : "▼"}</span>
+                                  <span style={{ color:"#6e7681", fontSize:"18px" }}>👁️</span>
                                   <button onClick={(e) => { e.stopPropagation(); handleDeleteVacation(req.id); }} className="p-2 text-red-400 hover:bg-red-50 rounded-xl"><Trash2 size={16} /></button>
                                 </div>
                               </div>
-                              {/* بيانات الموظف عند الضغط */}
-                              {expandedRequestId === req.id && (() => {
-                                const empInfo = employees.find(e => e.id === req.employee_id);
-                                if (!empInfo) return null;
-                                const workedDaysEmp = calculateWorkedDays(empInfo.return_date);
-                                const totalVacDays = requests.filter(r => r.employee_id === empInfo.id && r.status === "approved").reduce((s,r) => s + Number(r.days), 0);
-                                const isBalanceSufficient = Number(empInfo.balance) >= Number(req.days);
-                                return (
-                                  <div style={{ background:"linear-gradient(135deg,#1c2333,#21262d)", borderRadius:"16px", padding:"16px", marginBottom:"16px", border:"1px solid #30363d" }}>
-                                    <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:"8px" }}>
-                                      <div style={{ background: isBalanceSufficient ? "rgba(16,185,129,0.1)" : "rgba(239,68,68,0.15)", borderRadius:"12px", padding:"10px", textAlign:"center", border: isBalanceSufficient ? "1px solid rgba(16,185,129,0.2)" : "1px solid rgba(239,68,68,0.3)" }}>
-                                        <div style={{ fontSize:"20px", fontWeight:"900", color: isBalanceSufficient ? "#10b981" : "#ef4444" }}>{empInfo.balance}</div>
-                                        <div style={{ fontSize:"10px", color:"#6e7681", marginTop:"2px" }}>رصيد الإجازة</div>
-                                        {!isBalanceSufficient && <div style={{ fontSize:"9px", color:"#ef4444", marginTop:"2px" }}>⚠️ غير كافٍ</div>}
-                                      </div>
-                                      <div style={{ background:"rgba(245,158,11,0.1)", borderRadius:"12px", padding:"10px", textAlign:"center", border:"1px solid rgba(245,158,11,0.2)" }}>
-                                        <div style={{ fontSize:"20px", fontWeight:"900", color:"#f59e0b" }}>{workedDaysEmp}</div>
-                                        <div style={{ fontSize:"10px", color:"#6e7681", marginTop:"2px" }}>أيام العمل</div>
-                                      </div>
-                                      <div style={{ background:"rgba(129,140,248,0.1)", borderRadius:"12px", padding:"10px", textAlign:"center", border:"1px solid rgba(129,140,248,0.2)" }}>
-                                        <div style={{ fontSize:"20px", fontWeight:"900", color:"#818cf8" }}>{totalVacDays}</div>
-                                        <div style={{ fontSize:"10px", color:"#6e7681", marginTop:"2px" }}>إجمالي إجازاته</div>
-                                      </div>
-                                    </div>
-                                    <div style={{ marginTop:"10px", display:"flex", justifyContent:"space-between", fontSize:"11px", color:"#6e7681" }}>
-                                      <span>الرصيد الشهري: <b style={{color:"#6ee7b7"}}>{empInfo.monthly_balance || 0} يوم/شهر</b></span>
-                                      {empInfo.email ? <span style={{color:"#818cf8"}}>📧 {empInfo.email}</span> : <span style={{color:"#f59e0b"}}>⚠️ لا يوجد بريد</span>}
-                                    </div>
-                                    <div style={{ marginTop:"12px", padding:"10px 14px", borderRadius:"12px", background: isBalanceSufficient && workedDaysEmp >= 30 ? "rgba(16,185,129,0.15)" : "rgba(239,68,68,0.1)", border: isBalanceSufficient && workedDaysEmp >= 30 ? "1px solid rgba(16,185,129,0.3)" : "1px solid rgba(239,68,68,0.2)", textAlign:"center" }}>
-                                      <div style={{ fontWeight:"900", fontSize:"14px", color: isBalanceSufficient && workedDaysEmp >= 30 ? "#10b981" : "#ef4444" }}>
-                                        {isBalanceSufficient && workedDaysEmp >= 30 ? "✅ الموظف يستحق الإجازة" : !isBalanceSufficient ? "❌ الرصيد غير كافٍ" : "⚠️ أيام العمل أقل من 30 يوم"}
-                                      </div>
-                                    </div>
-                                  </div>
-                                );
-                              })()}
                               <div className="bg-indigo-50 p-6 rounded-2xl space-y-3 mb-6">
                                 <div className="flex justify-between text-sm font-bold"><span style={{ color:"#6e7681" }}>تاريخ البداية</span><span>{formatDate(req.start_date)}</span></div>
                                 <div className="flex justify-between text-sm font-bold"><span style={{ color:"#6e7681" }}>المدة</span><span>{req.days} يوم</span></div>
@@ -3659,6 +3572,88 @@ ${JSON.stringify(systemData)}
           );
         })()}
 
+        {/* ===== Modal عائم لبيانات الموظف عند الضغط على طلب الإجازة ===== */}
+        {showRequestDetailModal && requestDetailData && (() => {
+          const empInfo = employees.find(e => e.id === requestDetailData.employee_id);
+          if (!empInfo) return null;
+          const workedDaysEmp = calculateWorkedDays(empInfo.return_date);
+          const totalVacDays = requests.filter(r => r.employee_id === empInfo.id && r.status === "approved").reduce((s: number,r: any) => s + Number(r.days), 0);
+          const isBalanceSufficient = Number(empInfo.balance) >= Number(requestDetailData.days);
+          const vacType = vacationTypes.find(vt => vt.id === requestDetailData.vacation_type_id);
+          const dept = departments.find(d => d.id === empInfo.department_id);
+          return (
+            <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", backdropFilter:"blur(6px)", display:"flex", alignItems:"center", justifyContent:"center", padding:"20px", zIndex:300 }} onClick={() => setShowRequestDetailModal(false)}>
+              <div style={{ background:"white", borderRadius:"24px", width:"100%", maxWidth:"520px", padding:"28px", boxShadow:"0 20px 60px rgba(0,0,0,0.2)", maxHeight:"85vh", overflowY:"auto" }} dir="rtl" onClick={e => e.stopPropagation()}>
+                {/* Header */}
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"20px" }}>
+                  <h3 style={{ margin:0, fontWeight:"900", fontSize:"18px", color:"#1e293b" }}>📋 بيانات الموظف والطلب</h3>
+                  <button onClick={() => setShowRequestDetailModal(false)} style={{ background:"#f1f5f9", border:"none", borderRadius:"8px", padding:"6px 10px", cursor:"pointer", color:"#64748b" }}><X size={18}/></button>
+                </div>
+
+                {/* بيانات الموظف */}
+                <div style={{ display:"flex", alignItems:"center", gap:"12px", marginBottom:"16px" }}>
+                  <div style={{ width:"50px", height:"50px", borderRadius:"50%", background:"linear-gradient(135deg,#4f46e5,#7c3aed)", display:"flex", alignItems:"center", justifyContent:"center", fontWeight:"900", fontSize:"20px", color:"white", flexShrink:0 }}>
+                    {empInfo.name?.charAt(0)}
+                  </div>
+                  <div>
+                    <div style={{ fontWeight:"900", fontSize:"16px", color:"#1e293b" }}>{empInfo.name}</div>
+                    <div style={{ fontSize:"12px", color:"#64748b" }}>{empInfo.position || "-"} | كود: {empInfo.code || "-"}</div>
+                    {dept && <div style={{ fontSize:"11px", color:"#4f46e5", fontWeight:"700" }}>🏢 {dept.name}</div>}
+                    {empInfo.hire_date && <div style={{ fontSize:"10px", color:"#94a3b8" }}>تاريخ التعيين: {formatDate(empInfo.hire_date)}</div>}
+                  </div>
+                </div>
+
+                {/* إحصائيات */}
+                <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:"10px", marginBottom:"16px" }}>
+                  <div style={{ background: isBalanceSufficient ? "#f0fdf4" : "#fef2f2", borderRadius:"14px", padding:"14px", textAlign:"center", border: isBalanceSufficient ? "1px solid #bbf7d0" : "1px solid #fecaca" }}>
+                    <div style={{ fontSize:"24px", fontWeight:"900", color: isBalanceSufficient ? "#10b981" : "#ef4444" }}>{empInfo.balance}</div>
+                    <div style={{ fontSize:"11px", color:"#64748b", marginTop:"3px" }}>رصيد الإجازة</div>
+                    {!isBalanceSufficient && <div style={{ fontSize:"9px", color:"#ef4444", marginTop:"3px" }}>⚠️ رصيد غير كافٍ!</div>}
+                  </div>
+                  <div style={{ background:"#fffbeb", borderRadius:"14px", padding:"14px", textAlign:"center", border:"1px solid #fde68a" }}>
+                    <div style={{ fontSize:"24px", fontWeight:"900", color:"#f59e0b" }}>{workedDaysEmp}</div>
+                    <div style={{ fontSize:"11px", color:"#64748b", marginTop:"3px" }}>أيام العمل</div>
+                  </div>
+                  <div style={{ background:"#eef2ff", borderRadius:"14px", padding:"14px", textAlign:"center", border:"1px solid #c7d2fe" }}>
+                    <div style={{ fontSize:"24px", fontWeight:"900", color:"#818cf8" }}>{totalVacDays}</div>
+                    <div style={{ fontSize:"11px", color:"#64748b", marginTop:"3px" }}>إجمالي إجازاته</div>
+                  </div>
+                </div>
+
+                {/* معلومات إضافية */}
+                <div style={{ display:"flex", justifyContent:"space-between", fontSize:"12px", color:"#64748b", marginBottom:"16px", padding:"10px 14px", background:"#f8fafc", borderRadius:"10px" }}>
+                  <span>الرصيد الشهري: <b style={{color:"#10b981"}}>{empInfo.monthly_balance || 0} يوم/شهر</b></span>
+                  {empInfo.email ? <span style={{color:"#4f46e5"}}>📧 {empInfo.email}</span> : <span style={{color:"#f59e0b"}}>⚠️ لا يوجد بريد</span>}
+                </div>
+
+                {/* تفاصيل الطلب */}
+                <div style={{ background:"#f8fafc", borderRadius:"14px", padding:"16px", marginBottom:"16px", border:"1px solid #e2e8f0" }}>
+                  <div style={{ fontWeight:"800", fontSize:"13px", color:"#1e293b", marginBottom:"10px" }}>📅 تفاصيل الطلب</div>
+                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px", fontSize:"13px" }}>
+                    <div><span style={{color:"#64748b"}}>تاريخ البداية: </span><b>{formatDate(requestDetailData.start_date)}</b></div>
+                    <div><span style={{color:"#64748b"}}>المدة: </span><b>{requestDetailData.days} يوم</b></div>
+                    <div><span style={{color:"#64748b"}}>تاريخ العودة: </span><b style={{color:"#4f46e5"}}>{formatDate(getCalculatedDates(requestDetailData.start_date, requestDetailData.days).back)}</b></div>
+                    {vacType && <div><span style={{color:"#64748b"}}>النوع: </span><span style={{ padding:"2px 8px", borderRadius:"20px", fontSize:"11px", fontWeight:"700", backgroundColor:vacType.color+"20", color:vacType.color }}>{vacType.name}</span></div>}
+                  </div>
+                  {requestDetailData.notes && <div style={{ marginTop:"10px", fontSize:"12px", color:"#64748b", fontStyle:"italic" }}>"{requestDetailData.notes}"</div>}
+                </div>
+
+                {/* هل يستحق الإجازة */}
+                <div style={{ padding:"14px", borderRadius:"14px", background: isBalanceSufficient && workedDaysEmp >= 30 ? "#f0fdf4" : "#fef2f2", border: isBalanceSufficient && workedDaysEmp >= 30 ? "1px solid #bbf7d0" : "1px solid #fecaca", textAlign:"center" }}>
+                  <div style={{ fontWeight:"900", fontSize:"15px", color: isBalanceSufficient && workedDaysEmp >= 30 ? "#10b981" : "#ef4444" }}>
+                    {isBalanceSufficient && workedDaysEmp >= 30 ? "✅ الموظف يستحق الإجازة" : !isBalanceSufficient ? "❌ الرصيد غير كافٍ" : "⚠️ أيام العمل أقل من 30 يوم"}
+                  </div>
+                </div>
+
+                {/* زر إغلاق */}
+                <button onClick={() => setShowRequestDetailModal(false)} style={{ width:"100%", marginTop:"16px", padding:"14px", background:"#4f46e5", color:"white", border:"none", borderRadius:"12px", fontSize:"14px", fontWeight:"900", cursor:"pointer" }}>
+                  إغلاق
+                </button>
+              </div>
+            </div>
+          );
+        })()}
+
         {/* Modal تعديل عدد الأيام - للمدير */}
         {showEditDaysModal && (
           <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.65)", backdropFilter:"blur(6px)", display:"flex", alignItems:"center", justifyContent:"center", padding:"16px", zIndex:200 }} onClick={() => setShowEditDaysModal(false)}>
@@ -4157,7 +4152,7 @@ ${JSON.stringify(systemData)}
     const isOnVac = empStatus === "إجازة";
 
     return (
-      <div style={{ minHeight:"100vh", background:"#161b22", direction:"rtl", fontFamily:"inherit" }}>
+      <div style={{ minHeight:"100vh", background:"#f0f2f5", direction:"rtl", fontFamily:"inherit" }}>
 
         {/* ===== Header Banner ===== */}
         <div style={{
