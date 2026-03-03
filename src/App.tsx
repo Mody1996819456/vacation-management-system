@@ -982,6 +982,13 @@ ${JSON.stringify(summaryData)}
     }
 
     if (action === "rejected") {
+      // لو الطلب كان approved سابقاً، نرجع الرصيد للموظف
+      if (oldData?.status === "approved" && emp) {
+        await supabase.from("employees").update({
+          balance: Number(emp.balance) + Number(days),
+          status: "عمل",
+        }).eq("id", emp.id);
+      }
       if (emp?.email) sendEmail(EMAILJS_TEMPLATES.rejected, emp.email, {
         employee_name: emp?.name, start_date: formatDate(currentRequest.start_date),
         admin_notes: adminNotes || "تم رفض الطلب", request_id: id,
@@ -1004,14 +1011,21 @@ ${JSON.stringify(summaryData)}
   const handleDeleteVacation = async (id: string) => {
     if (!window.confirm("حذف طلب الإجازة؟")) return;
     const req = requests.find(r => r.id === id);
-    if (req?.status === "approved") {
-      const emp = employees.find(e => e.id === req.employee_id);
-      if (emp) await supabase.from("employees").update({ balance: emp.balance + Number(req.days) }).eq("id", emp.id);
+    const emp = req ? employees.find(e => e.id === req.employee_id) : null;
+
+    // إرجاع الرصيد عند الحذف لو كان الطلب معتمداً (approved) فقط
+    // الطلبات pending و dept_approved لم يُخصم منها رصيد بعد
+    if (req?.status === "approved" && emp) {
+      await supabase.from("employees").update({
+        balance: Number(emp.balance) + Number(req.days),
+        status: "عمل",
+      }).eq("id", emp.id);
     }
+
     await supabase.from("vacation_requests").delete().eq("id", id);
     await logAction("delete", "vacation_requests", id, req);
     fetchData();
-    alert("تم الحذف ✅");
+    alert("تم الحذف ✅" + (req?.status === "approved" ? "\nتم إرجاع " + req.days + " يوم للرصيد" : ""));
   };
 
   const handleUpdateVacation = async () => {
@@ -3911,6 +3925,7 @@ ${JSON.stringify(systemData)}
   if (currentView === "employee") {
     const empStatus = getEmployeeStatus(currentUser);
     return (
+      <>
       <div className="min-h-screen bg-slate-50 p-6" dir="rtl">
         <header className="max-w-4xl mx-auto flex justify-between items-center mb-10">
           <div>
@@ -4062,12 +4077,8 @@ ${JSON.stringify(systemData)}
           </section>
         </div>
       </div>
-    );
-  }
 
-  return (
-    <>
-      {/* ===== Modal تعديل طلب الموظف - مستقل عن أي view ===== */}
+      {/* Modal تعديل طلب الموظف - خارج الـ overflow div */}
       {showEditRequestModal && empEditReq && (() => {
         const created = new Date(empEditReq.created_at || Date.now());
         const daysOld = Math.floor((Date.now() - created.getTime()) / 86400000);
@@ -4075,10 +4086,10 @@ ${JSON.stringify(systemData)}
         const inp: React.CSSProperties = {
           width:"100%", padding:"11px 14px", border:"1px solid #e2e8f0",
           borderRadius:"12px", outline:"none", boxSizing:"border-box",
-          fontSize:"13px", background:"white"
+          fontSize:"13px", background:"white", direction:"rtl"
         };
         return (
-          <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.65)", backdropFilter:"blur(6px)", display:"flex", alignItems:"center", justifyContent:"center", padding:"16px", zIndex:9999 }}
+          <div style={{ position:"fixed", top:0, left:0, right:0, bottom:0, background:"rgba(0,0,0,0.65)", backdropFilter:"blur(6px)", display:"flex", alignItems:"center", justifyContent:"center", padding:"16px", zIndex:9999 }}
             onClick={() => setShowEditRequestModal(false)}>
             <div style={{ background:"white", borderRadius:"24px", width:"100%", maxWidth:"430px", padding:"24px", boxShadow:"0 32px 80px rgba(0,0,0,0.3)" }}
               dir="rtl" onClick={e => e.stopPropagation()}>
@@ -4123,10 +4134,13 @@ ${JSON.stringify(systemData)}
           </div>
         );
       })()}
-    </>
-  );
-};
+      </>
+    );
+  }
 
+  return null;
+
+};
 export default VacationManagementSystem;
 
 // ================================================================
