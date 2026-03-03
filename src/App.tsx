@@ -1124,12 +1124,9 @@ ${JSON.stringify(summaryData)}
     if (balance < days) {
       if (balance + monthly >= days) {
         const ok = window.confirm(
-          "رصيدك الحالي (" + balance + " يوم) غير كافٍ.
-" +
-          "بعد اضافة رصيدك الشهري (" + monthly + " يوم) سيصبح " + (balance + monthly) + " يوم وهو كافٍ.
-
-" +
-          "هل تريد المتابعة؟"
+          "رصيدك الحالي (" + balance + " يوم) غير كافٍ." +
+          "\nبعد اضافة رصيدك الشهري (" + monthly + " يوم) سيصبح " + (balance + monthly) + " يوم وهو كافٍ." +
+          "\n\nهل تريد المتابعة؟"
         );
         if (!ok) return;
       } else {
@@ -3548,8 +3545,7 @@ ${JSON.stringify(systemData)}
    ${vt?.name||"-"} | ${r.days} يوم
    📅 ${formatDate(r.start_date)} ← ${formatDate(back)}`;
                       })
-                    ].join("
-");
+                    ].join("\n");
                     try {
                       if (navigator.share) {
                         await navigator.share({ title:"تقرير الإجازات", text });
