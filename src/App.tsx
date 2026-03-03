@@ -1337,7 +1337,7 @@ ${JSON.stringify(summaryData)}
 
   // ========== تعديل عدد أيام الإجازة بواسطة المدير ==========
   const handleEditDays = async () => {
-    if (!editDaysForm.reason.trim()) return alert("اكتب سبب التعديل");
+    // سبب التعديل اختياري
     if (editDaysForm.days < 0.5) return alert("عدد الايام يجب ان يكون 0.5 على الاقل");
     const req = requests.find(r => r.id === editDaysForm.requestId);
     if (!req) return;
@@ -1346,7 +1346,7 @@ ${JSON.stringify(summaryData)}
     const daysDiff = editDaysForm.days - editDaysForm.oldDays;
     const { error } = await supabase.from("vacation_requests").update({
       days: editDaysForm.days,
-      admin_notes: "تم تعديل المدة من " + editDaysForm.oldDays + " الى " + editDaysForm.days + " يوم - السبب: " + editDaysForm.reason + " (بواسطة: " + currentUser?.name + ")",
+      admin_notes: "تم تعديل المدة من " + editDaysForm.oldDays + " الى " + editDaysForm.days + " يوم" + (editDaysForm.reason.trim() ? " - السبب: " + editDaysForm.reason : "") + " (بواسطة: " + currentUser?.name + ")",
     }).eq("id", editDaysForm.requestId);
     if (error) return alert(error.message);
     if (req.status === "approved" && daysDiff !== 0) {
@@ -1821,9 +1821,13 @@ ${JSON.stringify(systemData)}
       document.querySelectorAll('[fill="#161b22"]').forEach(el => el.setAttribute("fill","#ffffff"));
       document.querySelectorAll('[fill="#e6edf3"]').forEach(el => el.setAttribute("fill","#1e293b"));
     };
-    const t = setInterval(fixColors, 600);
-    setTimeout(fixColors, 100);
-    return () => clearInterval(t);
+    // تشغيل فوري بدون تأخير
+    fixColors();
+    requestAnimationFrame(fixColors);
+    // مراقبة تغييرات DOM لتطبيق الألوان الفاتحة فوراً
+    const observer = new MutationObserver(() => requestAnimationFrame(fixColors));
+    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['style'] });
+    return () => observer.disconnect();
   }, []);
 
   if (currentView === "login") {
@@ -3677,7 +3681,7 @@ ${JSON.stringify(systemData)}
                   </div>
                 </div>
                 <div>
-                  <label style={{ fontSize:"12px", color:"#8b949e", fontWeight:"700", display:"block", marginBottom:"6px" }}>سبب التعديل *</label>
+                  <label style={{ fontSize:"12px", color:"#8b949e", fontWeight:"700", display:"block", marginBottom:"6px" }}>سبب التعديل</label>
                   <textarea
                     style={{ width:"100%", padding:"12px", background:"#0d1117", border:"1px solid #30363d", borderRadius:"12px", color:"#e6edf3", outline:"none", resize:"none", boxSizing:"border-box", fontSize:"13px" }}
                     rows={3} placeholder="اكتب سبب تعديل عدد الأيام..."
@@ -3866,6 +3870,23 @@ ${JSON.stringify(systemData)}
                     <label style={{ fontSize:"12px", color:"#8b949e", fontWeight:"700", display:"block", marginBottom:"6px" }}>ملاحظات</label>
                     <textarea style={{ width:"100%", padding:"12px", background:"#0d1117", border:"1px solid #30363d", borderRadius:"12px", color:"#e6edf3", outline:"none", resize:"none", boxSizing:"border-box" }}
                       rows={2} value={empEditRequest.notes||""} onChange={e => setEmpEditRequest({...empEditRequest, notes: e.target.value})}/>
+                  </div>
+                  <div>
+                    <label style={{ fontSize:"12px", color:"#8b949e", fontWeight:"700", display:"block", marginBottom:"8px" }}>موعد النزول</label>
+                    <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:"8px" }}>
+                      {[
+                        { value:"actual",     icon:"✅", label:"بداية الإجازة الفعلي" },
+                        { value:"morning",    icon:"🌅", label:"صباحاً" },
+                        { value:"after_work", icon:"🌆", label:"بعد العمل" },
+                      ].map(opt => (
+                        <button key={opt.value} type="button"
+                          onClick={() => setEmpEditRequest({...empEditRequest, departure_time: opt.value})}
+                          style={{ padding:"10px 6px", borderRadius:"12px", border:`2px solid ${empEditRequest.departure_time === opt.value ? "#6366f1" : "#30363d"}`, background: empEditRequest.departure_time === opt.value ? "rgba(79,70,229,0.2)" : "#1c2333", color: empEditRequest.departure_time === opt.value ? "#4f46e5" : "#64748b", fontWeight:"700", fontSize:"11px", cursor:"pointer", textAlign:"center", transition:"all 0.15s" }}>
+                          <div style={{ fontSize:"18px", marginBottom:"3px" }}>{opt.icon}</div>
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                   <button onClick={handleEmpEditRequest}
                     style={{ width:"100%", padding:"14px", background:"linear-gradient(135deg,#4f46e5,#7c3aed)", color:"white", border:"none", borderRadius:"12px", fontWeight:"900", cursor:"pointer", fontSize:"14px" }}>
