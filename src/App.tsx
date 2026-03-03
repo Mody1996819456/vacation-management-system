@@ -3388,47 +3388,6 @@ ${JSON.stringify(systemData)}
           );
         })()}
 
-        {/* Modal: الموظف يعدّل طلبه */}
-        {showEditRequestModal && empEditReq && (() => {
-          const created = new Date(empEditReq.created_at || Date.now());
-          const daysOld = Math.floor((Date.now() - created.getTime()) / 86400000);
-          const canEdit = daysOld <= 3 && empEditReq.status === "pending";
-          const inp = { width:"100%", padding:"11px 14px", border:"1px solid #e2e8f0", borderRadius:"12px", outline:"none", boxSizing:"border-box" as const, fontSize:"13px" };
-          return (
-          <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", backdropFilter:"blur(4px)", display:"flex", alignItems:"center", justifyContent:"center", padding:"16px", zIndex:200 }} onClick={() => setShowEditRequestModal(false)}>
-            <div style={{ background:"white", borderRadius:"24px", width:"100%", maxWidth:"420px", padding:"24px" }} dir="rtl" onClick={e => e.stopPropagation()}>
-              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"18px" }}>
-                <h3 style={{ margin:0, fontWeight:"900", fontSize:"17px" }}>✏️ تعديل طلبي</h3>
-                <button onClick={() => setShowEditRequestModal(false)} style={{ border:"1px solid #e2e8f0", borderRadius:"8px", padding:"5px 9px", cursor:"pointer" }}><X size={16}/></button>
-              </div>
-              {!canEdit ? (
-                <div style={{ padding:"20px", textAlign:"center", background:"#fff1f2", borderRadius:"14px", color:"#dc2626", fontWeight:"700" }}>
-                  {daysOld > 3 ? "⏰ انتهت مهلة التعديل (3 أيام)" : "❌ لا يمكن تعديل طلب تمت مراجعته"}
-                </div>
-              ) : (
-                <div style={{ display:"flex", flexDirection:"column", gap:"14px" }}>
-                  <div style={{ background:"#fffbeb", borderRadius:"12px", padding:"10px 14px", fontSize:"12px", color:"#d97706", fontWeight:"700", border:"1px solid #fde68a" }}>
-                    ⏰ متبقي {3 - daysOld} يوم للتعديل
-                  </div>
-                  <div><label style={{ fontSize:"12px", color:"#64748b", fontWeight:"700", display:"block", marginBottom:"5px" }}>تاريخ البداية</label>
-                    <input type="date" style={inp} value={empEditReq.start_date} onChange={e => setEmpEditReq({...empEditReq, start_date: e.target.value})}/></div>
-                  <div><label style={{ fontSize:"12px", color:"#64748b", fontWeight:"700", display:"block", marginBottom:"5px" }}>عدد الأيام</label>
-                    <input type="number" step="0.5" min="0.5" style={inp} value={empEditReq.days} onChange={e => setEmpEditReq({...empEditReq, days: Number(e.target.value)})}/></div>
-                  <div><label style={{ fontSize:"12px", color:"#64748b", fontWeight:"700", display:"block", marginBottom:"5px" }}>نوع الإجازة</label>
-                    <select style={inp} value={empEditReq.vacation_type_id||""} onChange={e => setEmpEditReq({...empEditReq, vacation_type_id: e.target.value})}>
-                      <option value="">اختر النوع</option>
-                      {vacationTypes.map(vt => <option key={vt.id} value={vt.id}>{vt.name}</option>)}
-                    </select></div>
-                  <div><label style={{ fontSize:"12px", color:"#64748b", fontWeight:"700", display:"block", marginBottom:"5px" }}>ملاحظات</label>
-                    <textarea style={{ ...inp, resize:"none" } as any} rows={2} value={empEditReq.notes||""} onChange={e => setEmpEditReq({...empEditReq, notes: e.target.value})}/></div>
-                  <button onClick={handleEmpEditRequest} style={{ padding:"13px", background:"linear-gradient(135deg,#4f46e5,#7c3aed)", color:"white", border:"none", borderRadius:"12px", fontWeight:"900", cursor:"pointer", fontSize:"14px" }}>
-                    💾 حفظ التعديل
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-          );
         })()}
 
         {/* Modal: المدير يعدّل الإجازة */}
@@ -4104,6 +4063,60 @@ ${JSON.stringify(systemData)}
             )}
           </section>
         </div>
+
+        {/* Modal: تعديل طلب الموظف */}
+        {showEditRequestModal && empEditReq && (() => {
+          const created = new Date(empEditReq.created_at || Date.now());
+          const daysOld = Math.floor((Date.now() - created.getTime()) / 86400000);
+          const canEdit = daysOld <= 3 && empEditReq.status === "pending";
+          const inp: React.CSSProperties = { width:"100%", padding:"11px 14px", border:"1px solid #e2e8f0", borderRadius:"12px", outline:"none", boxSizing:"border-box", fontSize:"13px", background:"white" };
+          return (
+            <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.55)", backdropFilter:"blur(5px)", display:"flex", alignItems:"center", justifyContent:"center", padding:"16px", zIndex:999 }}
+              onClick={() => setShowEditRequestModal(false)}>
+              <div style={{ background:"white", borderRadius:"24px", width:"100%", maxWidth:"420px", padding:"24px", boxShadow:"0 24px 60px rgba(0,0,0,0.2)" }}
+                dir="rtl" onClick={e => e.stopPropagation()}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"18px" }}>
+                  <h3 style={{ margin:0, fontWeight:"900", fontSize:"17px" }}>✏️ تعديل طلبي</h3>
+                  <button onClick={() => setShowEditRequestModal(false)} style={{ border:"1px solid #e2e8f0", borderRadius:"8px", padding:"5px 10px", cursor:"pointer", background:"white", fontSize:"16px" }}>✕</button>
+                </div>
+                {!canEdit ? (
+                  <div style={{ padding:"20px", textAlign:"center", background:"#fff1f2", borderRadius:"14px", color:"#dc2626", fontWeight:"700" }}>
+                    {daysOld > 3 ? "⏰ انتهت مهلة التعديل (3 أيام)" : "❌ لا يمكن تعديل طلب تمت مراجعته"}
+                  </div>
+                ) : (
+                  <div style={{ display:"flex", flexDirection:"column", gap:"14px" }}>
+                    <div style={{ background:"#fffbeb", borderRadius:"12px", padding:"10px 14px", fontSize:"12px", color:"#d97706", fontWeight:"700", border:"1px solid #fde68a" }}>
+                      ⏰ متبقي {3 - daysOld} يوم للتعديل
+                    </div>
+                    <div>
+                      <label style={{ fontSize:"12px", color:"#64748b", fontWeight:"700", display:"block", marginBottom:"5px" }}>تاريخ البداية</label>
+                      <input type="date" style={inp} value={empEditReq.start_date} onChange={e => setEmpEditReq({...empEditReq, start_date: e.target.value})} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize:"12px", color:"#64748b", fontWeight:"700", display:"block", marginBottom:"5px" }}>عدد الأيام</label>
+                      <input type="number" step="0.5" min="0.5" style={inp} value={empEditReq.days} onChange={e => setEmpEditReq({...empEditReq, days: Number(e.target.value)})} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize:"12px", color:"#64748b", fontWeight:"700", display:"block", marginBottom:"5px" }}>نوع الإجازة</label>
+                      <select style={inp} value={empEditReq.vacation_type_id||""} onChange={e => setEmpEditReq({...empEditReq, vacation_type_id: e.target.value})}>
+                        <option value="">اختر النوع</option>
+                        {vacationTypes.map(vt => <option key={vt.id} value={vt.id}>{vt.name}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label style={{ fontSize:"12px", color:"#64748b", fontWeight:"700", display:"block", marginBottom:"5px" }}>ملاحظات</label>
+                      <textarea style={{ ...inp, resize:"none" } as any} rows={2} value={empEditReq.notes||""} onChange={e => setEmpEditReq({...empEditReq, notes: e.target.value})} />
+                    </div>
+                    <button onClick={handleEmpEditRequest} style={{ padding:"13px", background:"linear-gradient(135deg,#4f46e5,#7c3aed)", color:"white", border:"none", borderRadius:"12px", fontWeight:"900", cursor:"pointer", fontSize:"14px" }}>
+                      💾 حفظ التعديل
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })()}
+
       </div>
     );
   }
