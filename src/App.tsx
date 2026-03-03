@@ -200,6 +200,15 @@ const VacationManagementSystem = () => {
   const [selectedCalendarDay, setSelectedCalendarDay] = useState<string | null>(null);
   const [showEmpDropdown, setShowEmpDropdown] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  // ===== States للميزات الجديدة =====
+  const [showEditDaysModal, setShowEditDaysModal] = useState(false);
+  const [editDaysForm, setEditDaysForm] = useState({ days: 0, reason: "", requestId: "", oldDays: 0, empName: "" });
+  const [showPrintModal, setShowPrintModal] = useState(false);
+  const [printDateFrom, setPrintDateFrom] = useState("");
+  const [printDateTo, setPrintDateTo] = useState("");
+  const [selectedPrintRequests, setSelectedPrintRequests] = useState<string[]>([]);
+  const [showEmpEditModal, setShowEmpEditModal] = useState(false);
+  const [empEditRequest, setEmpEditRequest] = useState<any>(null);
   const [showAIChat, setShowAIChat] = useState(false);
   const [backupLoading, setBackupLoading] = useState(false);
   // ===== NEW FEATURES STATES =====
@@ -1099,15 +1108,46 @@ ${JSON.stringify(summaryData)}
   const submitVacationRequest = async () => {
     if (!newRequest.start_date) return alert("حدد تاريخ البداية");
     if (!newRequest.vacation_type_id) return alert("اختر نوع الإجازة");
-    setIsSubmitting(true);
 
-    // أول يوم إجازة فعلي حسب موعد النزول
+    // ===== منع الطلب الثاني (لو فيه طلب معلق) =====
+    const hasPending = requests.some(r =>
+      r.employee_id === currentUser.id && (r.status === "pending" || r.status === "dept_approved")
+    );
+    if (hasPending) {
+      return alert("لديك طلب اجازة قيد المراجعة. يمكنك تعديله فقط خلال 3 ايام من تقديمه ولا يمكن تقديم طلب جديد.");
+    }
+
+    // ===== التحقق من الرصيد مع مراعاة الرصيد الشهري =====
+    const days = Number(newRequest.days);
+    const balance = Number(currentUser.balance);
+    const monthly = Number(currentUser.monthly_balance || 0);
+    if (balance < days) {
+      if (balance + monthly >= days) {
+        const ok = window.confirm(
+          "رصيدك الحالي (" + balance + " يوم) غير كافٍ.
+" +
+          "بعد اضافة رصيدك الشهري (" + monthly + " يوم) سيصبح " + (balance + monthly) + " يوم وهو كافٍ.
+
+" +
+          "هل تريد المتابعة؟"
+        );
+        if (!ok) return;
+      } else {
+        return alert(
+          "رصيدك " + balance + " يوم غير كافٍ لـ " + days + " يوم.
+" +
+          "حتى بعد اضافة رصيدك الشهري (" + monthly + " يوم) = " + (balance + monthly) + " يوم لن يكفي."
+        );
+      }
+    }
+
+    setIsSubmitting(true);
     const actualStartDate = getActualStartDate(newRequest.start_date, newRequest.departure_time);
 
     const { error } = await supabase.from("vacation_requests").insert([{
       employee_id: currentUser.id, employee_name: currentUser.name,
-      start_date: actualStartDate,           // أول يوم إجازة فعلي
-      departure_date: newRequest.start_date, // تاريخ النزول
+      start_date: actualStartDate,
+      departure_date: newRequest.start_date,
       departure_time: newRequest.departure_time,
       days: newRequest.days,
       notes: newRequest.notes, vacation_type_id: newRequest.vacation_type_id, status: "pending",
@@ -1132,6 +1172,49 @@ ${JSON.stringify(summaryData)}
     }
     alert("❌ حصل خطأ في إرسال الطلب — حاول تاني");
     setIsSubmitting(false);
+  };
+
+  // ========== تعديل الموظف لطلبه (خلال 3 أيام) ==========
+  const handleEmpEditRequest = async () => {
+    if (!empEditRequest) return;
+    if (!empEditRequest.start_date) return alert("حدد تاريخ البداية");
+    if (!empEditRequest.days || empEditRequest.days < 0.5) return alert("عدد الايام يجب ان يكون 0.5 على الاقل");
+    const { error } = await supabase.from("vacation_requests").update({
+      start_date: empEditRequest.start_date,
+      days: empEditRequest.days,
+      notes: empEditRequest.notes,
+      vacation_type_id: empEditRequest.vacation_type_id,
+      departure_time: empEditRequest.departure_time,
+    }).eq("id", empEditRequest.id);
+    if (error) return alert("خطا: " + error.message);
+    setShowEmpEditModal(false);
+    setEmpEditRequest(null);
+    await fetchData();
+    alert("تم تعديل الطلب بنجاح");
+  };
+
+  // ========== تعديل عدد أيام الإجازة بواسطة المدير ==========
+  const handleEditDays = async () => {
+    if (!editDaysForm.reason.trim()) return alert("اكتب سبب التعديل");
+    if (editDaysForm.days < 0.5) return alert("عدد الايام يجب ان يكون 0.5 على الاقل");
+    const req = requests.find(r => r.id === editDaysForm.requestId);
+    if (!req) return;
+    const emp = employees.find(e => e.id === req.employee_id);
+    if (!emp) return;
+    const daysDiff = editDaysForm.days - editDaysForm.oldDays;
+    const { error } = await supabase.from("vacation_requests").update({
+      days: editDaysForm.days,
+      admin_notes: "تم تعديل المدة من " + editDaysForm.oldDays + " الى " + editDaysForm.days + " يوم - السبب: " + editDaysForm.reason + " (بواسطة: " + currentUser?.name + ")",
+    }).eq("id", editDaysForm.requestId);
+    if (error) return alert(error.message);
+    if (req.status === "approved" && daysDiff !== 0) {
+      await supabase.from("employees").update({ balance: Math.max(0, emp.balance - daysDiff) }).eq("id", emp.id);
+    }
+    await logAction("edit_days", "vacation_requests", editDaysForm.requestId, req, { newDays: editDaysForm.days, reason: editDaysForm.reason });
+    setShowEditDaysModal(false);
+    setEditDaysForm({ days: 0, reason: "", requestId: "", oldDays: 0, empName: "" });
+    await fetchData();
+    alert("تم تعديل عدد الايام بنجاح");
   };
 
   // ========== DIRECT VACATION (إجازة مباشرة) ==========
@@ -2523,10 +2606,16 @@ ${JSON.stringify(systemData)}
                       <h2 style={{ fontSize:"22px", fontWeight:"900", color:"#e6edf3" }}>طلبات الإجازات</h2>
                       {isDeptMgr && <p className="text-sm text-emerald-600 font-bold mt-1">🏢 تعرض طلبات قسم: {currentUser?.dept_name}</p>}
                     </div>
-                    <select style={{ padding:"10px 14px", background:"#0d1117", border:"1px solid #30363d", borderRadius:"12px", color:"#e6edf3", outline:"none" }} value={vacationTypeFilter} onChange={(e) => setVacationTypeFilter(e.target.value)}>
-                      <option value="all">كل الأنواع</option>
-                      {vacationTypes.map(vt => <option key={vt.id} value={vt.id}>{vt.name}</option>)}
-                    </select>
+                    <div style={{ display:"flex", gap:"8px", alignItems:"center" }}>
+                      <select style={{ padding:"10px 14px", background:"#0d1117", border:"1px solid #30363d", borderRadius:"12px", color:"#e6edf3", outline:"none" }} value={vacationTypeFilter} onChange={(e) => setVacationTypeFilter(e.target.value)}>
+                        <option value="all">كل الأنواع</option>
+                        {vacationTypes.map(vt => <option key={vt.id} value={vt.id}>{vt.name}</option>)}
+                      </select>
+                      <button onClick={() => { setSelectedPrintRequests([]); setPrintDateFrom(""); setPrintDateTo(""); setShowPrintModal(true); }}
+                        style={{ padding:"10px 16px", background:"linear-gradient(135deg,#1d4ed8,#3b82f6)", color:"white", border:"none", borderRadius:"12px", fontWeight:"700", cursor:"pointer", fontSize:"13px", display:"flex", alignItems:"center", gap:"6px", whiteSpace:"nowrap" }}>
+                        🖨️ طباعة / مشاركة
+                      </button>
+                    </div>
                   </div>
 
                   {/* طلبات بانتظار مدير القسم (للدور: مدير قسم) */}
@@ -2557,6 +2646,10 @@ ${JSON.stringify(systemData)}
                                 <button onClick={() => openApprovalModal(req, "approved")} className="flex-1 bg-amber-500 hover:bg-amber-600 text-white py-4 rounded-2xl font-black">موافقة مبدئية ✓</button>
                                 <button onClick={() => openApprovalModal(req, "rejected")} className="flex-1 bg-red-50 text-red-600 hover:bg-red-100 py-4 rounded-2xl font-black">رفض</button>
                               </div>
+                                <button onClick={() => { setEditDaysForm({ days: req.days, oldDays: req.days, reason: "", requestId: req.id, empName: req.employee_name }); setShowEditDaysModal(true); }}
+                                  style={{ width:"100%", marginTop:"6px", padding:"10px", background:"rgba(99,102,241,0.15)", border:"1px solid rgba(99,102,241,0.3)", borderRadius:"14px", color:"#818cf8", cursor:"pointer", fontWeight:"700", fontSize:"13px" }}>
+                                  ✏️ تعديل عدد الأيام
+                                </button>
                             </div>
                           );
                         })}
@@ -2635,6 +2728,10 @@ ${JSON.stringify(systemData)}
                                 <button onClick={() => openApprovalModal(req, "approved")} className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-4 rounded-2xl font-black">✅ موافقة نهائية</button>
                                 <button onClick={() => openApprovalModal(req, "rejected")} className="flex-1 bg-red-50 text-red-600 hover:bg-red-100 py-4 rounded-2xl font-black">❌ رفض</button>
                               </div>
+                                <button onClick={() => { setEditDaysForm({ days: req.days, oldDays: req.days, reason: "", requestId: req.id, empName: req.employee_name }); setShowEditDaysModal(true); }}
+                                  style={{ width:"100%", marginTop:"6px", padding:"10px", background:"rgba(99,102,241,0.15)", border:"1px solid rgba(99,102,241,0.3)", borderRadius:"14px", color:"#818cf8", cursor:"pointer", fontWeight:"700", fontSize:"13px" }}>
+                                  ✏️ تعديل عدد الأيام
+                                </button>
                             </div>
                           );
                         })}
@@ -3217,29 +3314,314 @@ ${JSON.stringify(systemData)}
           </div>
         )}
 
-        {/* Approval Modal */}
-        {showApprovalModal && currentRequest && (
-          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-6 z-[100]" onClick={() => setShowApprovalModal(false)}>
-            <div className="bg-transparent" style_override="bg-white p-10 rounded-[2.5rem] w-full max-w-lg shadow-2xl" dir="rtl" onClick={(e) => e.stopPropagation()}>
-              <div className="flex justify-between mb-8">
-                <h3 style={{ fontSize:"22px", fontWeight:"900", color:"#e6edf3" }}>{currentRequest.action === "approved" ? "✅ موافقة" : "❌ رفض"}</h3>
-                <button onClick={() => setShowApprovalModal(false)}><X size={28} /></button>
+        {/* Approval Modal - مع بيانات الموظف الكاملة */}
+        {showApprovalModal && currentRequest && (() => {
+          const empInfo = employees.find(e => e.id === currentRequest.employee_id);
+          const workedDaysEmp = calculateWorkedDays(empInfo?.return_date);
+          const totalVacDays = requests.filter(r => r.employee_id === empInfo?.id && r.status === "approved").reduce((s,r) => s + Number(r.days), 0);
+          const isBalanceSufficient = Number(empInfo?.balance || 0) >= Number(currentRequest.days);
+          return (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 z-[100]" onClick={() => setShowApprovalModal(false)}>
+            <div style={{ background:"#161b22", borderRadius:"20px", width:"100%", maxWidth:"500px", padding:"22px", border:"1px solid #30363d", maxHeight:"92vh", overflowY:"auto" }} dir="rtl" onClick={e => e.stopPropagation()}>
+
+              {/* Header */}
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"18px" }}>
+                <h3 style={{ margin:0, fontWeight:"900", fontSize:"18px", color:"#e6edf3" }}>
+                  {currentRequest.action === "approved" ? "✅ موافقة على الطلب" : "❌ رفض الطلب"}
+                </h3>
+                <button onClick={() => setShowApprovalModal(false)} style={{ background:"#21262d", border:"1px solid #30363d", borderRadius:"8px", padding:"6px 10px", cursor:"pointer", color:"#8b949e" }}><X size={16}/></button>
               </div>
-              <div style={{ background:"#1c2333", padding:"20px", borderRadius:"16px", marginBottom:"20px" }}>
-                <p style={{ fontWeight:"900", fontSize:"18px", color:"#e6edf3" }}>{currentRequest.employee_name}</p>
-                <div className="grid grid-cols-2 gap-4 mt-4 text-sm">
-                  <div><p style={{ color:"#8b949e" }}>البداية</p><p className="font-bold">{formatDate(currentRequest.start_date)}</p></div>
-                  <div><p style={{ color:"#8b949e" }}>المدة</p><p className="font-bold">{currentRequest.days} يوم</p></div>
+
+              {/* بطاقة الموظف الكاملة */}
+              {empInfo && (
+                <div style={{ background:"linear-gradient(135deg,#1c2333,#21262d)", borderRadius:"16px", padding:"16px", marginBottom:"14px", border:"1px solid #30363d" }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:"12px", marginBottom:"14px" }}>
+                    <div style={{ width:"46px", height:"46px", borderRadius:"50%", background:"linear-gradient(135deg,#4f46e5,#7c3aed)", display:"flex", alignItems:"center", justifyContent:"center", fontWeight:"900", fontSize:"18px", color:"white", flexShrink:0 }}>
+                      {empInfo.name?.charAt(0)}
+                    </div>
+                    <div>
+                      <div style={{ fontWeight:"900", fontSize:"15px", color:"#e6edf3" }}>{empInfo.name}</div>
+                      <div style={{ fontSize:"11px", color:"#6e7681" }}>{empInfo.position || "-"} | كود: {empInfo.code || "-"}</div>
+                      {empInfo.hire_date && <div style={{ fontSize:"10px", color:"#484f58" }}>تاريخ التعيين: {formatDate(empInfo.hire_date)}</div>}
+                    </div>
+                  </div>
+                  <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:"8px" }}>
+                    <div style={{ background: isBalanceSufficient ? "rgba(16,185,129,0.1)" : "rgba(239,68,68,0.15)", borderRadius:"12px", padding:"10px", textAlign:"center", border: isBalanceSufficient ? "1px solid rgba(16,185,129,0.2)" : "1px solid rgba(239,68,68,0.3)" }}>
+                      <div style={{ fontSize:"20px", fontWeight:"900", color: isBalanceSufficient ? "#10b981" : "#ef4444" }}>{empInfo.balance}</div>
+                      <div style={{ fontSize:"10px", color:"#6e7681", marginTop:"2px" }}>رصيد الإجازة</div>
+                      {!isBalanceSufficient && <div style={{ fontSize:"9px", color:"#ef4444", marginTop:"2px" }}>⚠️ غير كافٍ</div>}
+                    </div>
+                    <div style={{ background:"rgba(245,158,11,0.1)", borderRadius:"12px", padding:"10px", textAlign:"center", border:"1px solid rgba(245,158,11,0.2)" }}>
+                      <div style={{ fontSize:"20px", fontWeight:"900", color:"#f59e0b" }}>{workedDaysEmp}</div>
+                      <div style={{ fontSize:"10px", color:"#6e7681", marginTop:"2px" }}>أيام العمل</div>
+                    </div>
+                    <div style={{ background:"rgba(129,140,248,0.1)", borderRadius:"12px", padding:"10px", textAlign:"center", border:"1px solid rgba(129,140,248,0.2)" }}>
+                      <div style={{ fontSize:"20px", fontWeight:"900", color:"#818cf8" }}>{totalVacDays}</div>
+                      <div style={{ fontSize:"10px", color:"#6e7681", marginTop:"2px" }}>إجمالي إجازاته</div>
+                    </div>
+                  </div>
+                  <div style={{ marginTop:"10px", display:"flex", justifyContent:"space-between", fontSize:"11px", color:"#6e7681" }}>
+                    <span>الرصيد الشهري: <b style={{color:"#6ee7b7"}}>{empInfo.monthly_balance || 0} يوم/شهر</b></span>
+                    {empInfo.email
+                      ? <span style={{color:"#818cf8"}}><Mail size={11} style={{display:"inline"}}/> {empInfo.email}</span>
+                      : <span style={{color:"#f59e0b"}}>⚠️ لا يوجد بريد</span>
+                    }
+                  </div>
                 </div>
-                {(() => { const emp = employees.find(e => e.id === currentRequest.employee_id); return emp?.email ? <p className="text-xs text-indigo-600 mt-3 flex items-center gap-1"><Mail size={12} /> سيُرسل إشعار لـ {emp.email}</p> : <p className="text-xs text-amber-600 mt-3">⚠️ الموظف ليس لديه بريد إلكتروني</p>; })()}
+              )}
+
+              {/* تفاصيل الطلب */}
+              <div style={{ background:"#1c2333", borderRadius:"14px", padding:"14px", marginBottom:"14px", display:"grid", gridTemplateColumns:"1fr 1fr", gap:"12px" }}>
+                <div>
+                  <div style={{ fontSize:"11px", color:"#6e7681", marginBottom:"3px" }}>تاريخ البداية</div>
+                  <div style={{ fontWeight:"800", color:"#e6edf3" }}>{formatDate(currentRequest.start_date)}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize:"11px", color:"#6e7681", marginBottom:"3px" }}>المدة المطلوبة</div>
+                  <div style={{ fontWeight:"900", color:"#fde68a", fontSize:"22px" }}>{currentRequest.days} يوم</div>
+                </div>
               </div>
-              <textarea className="w-full p-4 border rounded-2xl outline-none resize-none" rows={4} placeholder="ملاحظات (اختياري)" value={adminNotes} onChange={(e) => setAdminNotes(e.target.value)} />
-              <button onClick={handleActionWithNotes} className={`w-full p-5 rounded-2xl font-black mt-4 ${currentRequest.action === "approved" ? "bg-emerald-600 hover:bg-emerald-700 text-white" : "bg-red-600 hover:bg-red-700 text-white"}`}>
-                تأكيد {currentRequest.action === "approved" ? "وإرسال الإشعار" : "وإرسال الإشعار"}
+
+              {/* ملاحظات */}
+              <textarea
+                style={{ width:"100%", padding:"12px", background:"#0d1117", border:"1px solid #30363d", borderRadius:"12px", color:"#e6edf3", outline:"none", resize:"none", boxSizing:"border-box", fontSize:"13px", marginBottom:"12px" }}
+                rows={3} placeholder="ملاحظات للموظف (اختياري)..." value={adminNotes} onChange={e => setAdminNotes(e.target.value)}
+              />
+
+              {/* زر التأكيد */}
+              <button onClick={handleActionWithNotes}
+                style={{ width:"100%", padding:"14px", borderRadius:"12px", fontWeight:"900", fontSize:"15px", border:"none", cursor:"pointer", color:"white", background: currentRequest.action === "approved" ? "linear-gradient(135deg,#059669,#10b981)" : "linear-gradient(135deg,#dc2626,#ef4444)" }}>
+                {currentRequest.action === "approved" ? "✅ تأكيد الموافقة وإرسال الإشعار" : "❌ تأكيد الرفض وإرسال الإشعار"}
               </button>
             </div>
           </div>
+          );
+        })()}
+
+        {/* Modal تعديل عدد الأيام - للمدير */}
+        {showEditDaysModal && (
+          <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.65)", backdropFilter:"blur(6px)", display:"flex", alignItems:"center", justifyContent:"center", padding:"16px", zIndex:200 }} onClick={() => setShowEditDaysModal(false)}>
+            <div style={{ background:"#161b22", borderRadius:"20px", width:"100%", maxWidth:"400px", padding:"24px", border:"1px solid #30363d" }} dir="rtl" onClick={e => e.stopPropagation()}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"20px" }}>
+                <div>
+                  <h3 style={{ margin:0, fontWeight:"900", fontSize:"17px", color:"#e6edf3" }}>✏️ تعديل عدد الأيام</h3>
+                  <div style={{ fontSize:"12px", color:"#8b949e", marginTop:"3px" }}>{editDaysForm.empName}</div>
+                </div>
+                <button onClick={() => setShowEditDaysModal(false)} style={{ background:"#21262d", border:"1px solid #30363d", borderRadius:"8px", padding:"6px 10px", cursor:"pointer", color:"#8b949e" }}><X size={16}/></button>
+              </div>
+              <div style={{ display:"flex", flexDirection:"column", gap:"14px" }}>
+                <div>
+                  <label style={{ fontSize:"12px", color:"#8b949e", fontWeight:"700", display:"block", marginBottom:"6px" }}>عدد الأيام الجديد</label>
+                  <input type="number" step="0.5" min="0.5"
+                    style={{ width:"100%", padding:"14px", background:"#0d1117", border:"1px solid #30363d", borderRadius:"12px", color:"#e6edf3", outline:"none", boxSizing:"border-box", fontSize:"20px", fontWeight:"900", textAlign:"center" }}
+                    value={editDaysForm.days} onChange={e => setEditDaysForm({...editDaysForm, days: Number(e.target.value)})}/>
+                  <div style={{ display:"flex", justifyContent:"space-between", fontSize:"12px", color:"#6e7681", marginTop:"6px" }}>
+                    <span>كان: <b style={{color:"#8b949e"}}>{editDaysForm.oldDays} يوم</b></span>
+                    <span>سيصبح: <b style={{color: editDaysForm.days > editDaysForm.oldDays ? "#ef4444" : "#10b981"}}>{editDaysForm.days} يوم</b></span>
+                  </div>
+                </div>
+                <div>
+                  <label style={{ fontSize:"12px", color:"#8b949e", fontWeight:"700", display:"block", marginBottom:"6px" }}>سبب التعديل *</label>
+                  <textarea
+                    style={{ width:"100%", padding:"12px", background:"#0d1117", border:"1px solid #30363d", borderRadius:"12px", color:"#e6edf3", outline:"none", resize:"none", boxSizing:"border-box", fontSize:"13px" }}
+                    rows={3} placeholder="اكتب سبب تعديل عدد الأيام..."
+                    value={editDaysForm.reason} onChange={e => setEditDaysForm({...editDaysForm, reason: e.target.value})}/>
+                </div>
+                <button onClick={handleEditDays}
+                  style={{ width:"100%", padding:"14px", background:"linear-gradient(135deg,#4f46e5,#7c3aed)", color:"white", border:"none", borderRadius:"12px", fontSize:"14px", fontWeight:"900", cursor:"pointer" }}>
+                  💾 حفظ التعديل
+                </button>
+              </div>
+            </div>
+          </div>
         )}
+
+        {/* Modal طباعة ومشاركة */}
+        {showPrintModal && (() => {
+          const filteredReqs = requests.filter(r => {
+            if (r.status !== "approved") return false;
+            if (printDateFrom && r.start_date < printDateFrom) return false;
+            if (printDateTo && r.start_date > printDateTo) return false;
+            return true;
+          });
+          const allSelected = filteredReqs.length > 0 && selectedPrintRequests.length === filteredReqs.length;
+          return (
+          <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", backdropFilter:"blur(6px)", display:"flex", alignItems:"center", justifyContent:"center", padding:"16px", zIndex:200 }} onClick={() => setShowPrintModal(false)}>
+            <div style={{ background:"#161b22", borderRadius:"20px", width:"100%", maxWidth:"580px", padding:"24px", border:"1px solid #30363d", maxHeight:"90vh", display:"flex", flexDirection:"column" }} dir="rtl" onClick={e => e.stopPropagation()}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"18px" }}>
+                <h3 style={{ margin:0, fontWeight:"900", fontSize:"17px", color:"#e6edf3" }}>🖨️ طباعة ومشاركة الطلبات</h3>
+                <button onClick={() => setShowPrintModal(false)} style={{ background:"#21262d", border:"1px solid #30363d", borderRadius:"8px", padding:"6px 10px", cursor:"pointer", color:"#8b949e" }}><X size={16}/></button>
+              </div>
+
+              {/* فلتر التاريخ */}
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"10px", marginBottom:"14px" }}>
+                {[
+                  { label:"من تاريخ", val:printDateFrom, set:setPrintDateFrom },
+                  { label:"إلى تاريخ", val:printDateTo, set:setPrintDateTo },
+                ].map(f => (
+                  <div key={f.label}>
+                    <label style={{ fontSize:"11px", color:"#8b949e", fontWeight:"700", display:"block", marginBottom:"5px" }}>{f.label}</label>
+                    <input type="date" style={{ width:"100%", padding:"10px", background:"#0d1117", border:"1px solid #30363d", borderRadius:"10px", color:"#e6edf3", outline:"none", boxSizing:"border-box" }}
+                      value={f.val} onChange={e => { f.set(e.target.value); setSelectedPrintRequests([]); }}/>
+                  </div>
+                ))}
+              </div>
+
+              {/* شريط التحديد */}
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"10px" }}>
+                <span style={{ fontSize:"12px", color:"#8b949e" }}>{filteredReqs.length} طلب • <b style={{color:"#818cf8"}}>{selectedPrintRequests.length} محدد</b></span>
+                <button onClick={() => setSelectedPrintRequests(allSelected ? [] : filteredReqs.map(r => r.id))}
+                  style={{ background:"#21262d", border:"1px solid #30363d", borderRadius:"8px", padding:"5px 12px", color:"#818cf8", cursor:"pointer", fontSize:"12px", fontWeight:"700" }}>
+                  {allSelected ? "إلغاء الكل" : "تحديد الكل"}
+                </button>
+              </div>
+
+              {/* قائمة الطلبات */}
+              <div style={{ flex:1, overflowY:"auto", display:"flex", flexDirection:"column", gap:"6px", marginBottom:"14px" }}>
+                {filteredReqs.length === 0
+                  ? <div style={{ padding:"30px", textAlign:"center", color:"#484f58" }}>لا توجد طلبات مقبولة في هذه الفترة</div>
+                  : filteredReqs.map(req => {
+                    const isSel = selectedPrintRequests.includes(req.id);
+                    const vt = vacationTypes.find(v => v.id === req.vacation_type_id);
+                    const { back } = getCalculatedDates(req.start_date, req.days);
+                    return (
+                      <div key={req.id} onClick={() => setSelectedPrintRequests(prev => isSel ? prev.filter(id => id !== req.id) : [...prev, req.id])}
+                        style={{ display:"flex", alignItems:"center", gap:"10px", padding:"10px 12px", borderRadius:"12px", border:`2px solid ${isSel ? "#4f46e5" : "#30363d"}`, background: isSel ? "rgba(79,70,229,0.1)" : "#1c2333", cursor:"pointer" }}>
+                        <div style={{ width:"18px", height:"18px", borderRadius:"5px", border:`2px solid ${isSel ? "#4f46e5" : "#484f58"}`, background: isSel ? "#4f46e5" : "transparent", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                          {isSel && <span style={{ color:"white", fontSize:"11px", lineHeight:1 }}>✓</span>}
+                        </div>
+                        <div style={{ flex:1 }}>
+                          <div style={{ fontWeight:"700", fontSize:"13px", color:"#e6edf3" }}>{req.employee_name}</div>
+                          <div style={{ fontSize:"11px", color:"#6e7681" }}>
+                            {formatDate(req.start_date)} ← {formatDate(back)} | {req.days} يوم
+                            {vt && <span style={{ marginRight:"6px", padding:"1px 7px", borderRadius:"10px", backgroundColor:vt.color+"25", color:vt.color }}>{vt.name}</span>}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                }
+              </div>
+
+              {/* أزرار الطباعة والمشاركة */}
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"10px" }}>
+                <button disabled={!selectedPrintRequests.length}
+                  onClick={() => {
+                    const sel = requests.filter(r => selectedPrintRequests.includes(r.id));
+                    const w = window.open("", "_blank");
+                    if (!w) return alert("السماح بالنوافذ المنبثقة");
+                    const rows = sel.map((r,i) => {
+                      const vt = vacationTypes.find(v => v.id === r.vacation_type_id);
+                      const { back } = getCalculatedDates(r.start_date, r.days);
+                      return `<tr style="background:${i%2?"#f9fafb":"white"}">
+                        <td>${i+1}</td><td>${r.employee_name}</td>
+                        <td>${vt?.name||"-"}</td><td>${formatDate(r.start_date)}</td>
+                        <td>${r.days}</td><td>${formatDate(back)}</td>
+                        <td style="color:#059669;font-weight:bold">✓ مقبول</td>
+                      </tr>`;
+                    }).join("");
+                    w.document.write(`<html dir="rtl"><head><title>تقرير الإجازات</title>
+                    <style>*{font-family:Arial,sans-serif} body{padding:30px} h2{color:#1e1b4b;border-bottom:3px solid #4f46e5;padding-bottom:10px} table{width:100%;border-collapse:collapse;margin-top:20px} th{background:#4f46e5;color:white;padding:12px;text-align:right} td{padding:10px;border-bottom:1px solid #e5e7eb;text-align:right} .meta{color:#6b7280;font-size:13px;margin-bottom:20px}</style>
+                    </head><body>
+                    <h2>📋 تقرير الإجازات المقبولة</h2>
+                    <div class="meta">الفترة: ${printDateFrom||"الكل"} — ${printDateTo||"الكل"} | عدد الطلبات: ${sel.length} | تاريخ الطباعة: ${new Date().toLocaleDateString("ar-EG")}</div>
+                    <table><thead><tr><th>#</th><th>الموظف</th><th>نوع الإجازة</th><th>تاريخ البداية</th><th>المدة</th><th>تاريخ العودة</th><th>الحالة</th></tr></thead>
+                    <tbody>${rows}</tbody></table>
+                    <script>window.onload=()=>window.print()</script>
+                    </body></html>`);
+                    w.document.close();
+                  }}
+                  style={{ padding:"13px", background:!selectedPrintRequests.length?"#21262d":"linear-gradient(135deg,#1d4ed8,#3b82f6)", color:!selectedPrintRequests.length?"#484f58":"white", border:"none", borderRadius:"12px", fontWeight:"800", cursor:!selectedPrintRequests.length?"not-allowed":"pointer", fontSize:"14px" }}>
+                  🖨️ طباعة ({selectedPrintRequests.length})
+                </button>
+                <button disabled={!selectedPrintRequests.length}
+                  onClick={async () => {
+                    const sel = requests.filter(r => selectedPrintRequests.includes(r.id));
+                    const text = [
+                      "📋 تقرير الإجازات المقبولة",
+                      "الفترة: " + (printDateFrom||"الكل") + " - " + (printDateTo||"الكل"),
+                      "━━━━━━━━━━━━━━━━━━━━━━",
+                      ...sel.map((r,i) => {
+                        const vt = vacationTypes.find(v => v.id === r.vacation_type_id);
+                        const { back } = getCalculatedDates(r.start_date, r.days);
+                        return `${i+1}. ${r.employee_name}
+   ${vt?.name||"-"} | ${r.days} يوم
+   📅 ${formatDate(r.start_date)} ← ${formatDate(back)}`;
+                      })
+                    ].join("
+");
+                    try {
+                      if (navigator.share) {
+                        await navigator.share({ title:"تقرير الإجازات", text });
+                      } else {
+                        await navigator.clipboard.writeText(text);
+                        alert("تم نسخ التقرير - الصقه في واتساب او اي تطبيق");
+                      }
+                    } catch { alert("حدث خطا في المشاركة"); }
+                  }}
+                  style={{ padding:"13px", background:!selectedPrintRequests.length?"#21262d":"linear-gradient(135deg,#059669,#10b981)", color:!selectedPrintRequests.length?"#484f58":"white", border:"none", borderRadius:"12px", fontWeight:"800", cursor:!selectedPrintRequests.length?"not-allowed":"pointer", fontSize:"14px" }}>
+                  📤 مشاركة ({selectedPrintRequests.length})
+                </button>
+              </div>
+            </div>
+          </div>
+          );
+        })()}
+
+        {/* Modal تعديل الموظف لطلبه */}
+        {showEmpEditModal && empEditRequest && (() => {
+          const createdAt = new Date(empEditRequest.created_at || Date.now());
+          const daysSince = Math.floor((Date.now() - createdAt.getTime()) / 86400000);
+          const canEdit = daysSince <= 3 && empEditRequest.status === "pending";
+          return (
+          <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.65)", backdropFilter:"blur(6px)", display:"flex", alignItems:"center", justifyContent:"center", padding:"16px", zIndex:200 }} onClick={() => setShowEmpEditModal(false)}>
+            <div style={{ background:"#161b22", borderRadius:"20px", width:"100%", maxWidth:"420px", padding:"24px", border:"1px solid #30363d" }} dir="rtl" onClick={e => e.stopPropagation()}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"16px" }}>
+                <h3 style={{ margin:0, fontWeight:"900", fontSize:"17px", color:"#e6edf3" }}>✏️ تعديل طلبي</h3>
+                <button onClick={() => setShowEmpEditModal(false)} style={{ background:"#21262d", border:"1px solid #30363d", borderRadius:"8px", padding:"6px 10px", cursor:"pointer", color:"#8b949e" }}><X size={16}/></button>
+              </div>
+              {!canEdit ? (
+                <div style={{ padding:"20px", textAlign:"center", background:"rgba(239,68,68,0.1)", borderRadius:"12px", border:"1px solid rgba(239,68,68,0.2)", color:"#ef4444", fontWeight:"700" }}>
+                  {daysSince > 3 ? "⏰ انتهت مهلة التعديل (3 أيام من تاريخ التقديم)" : "❌ لا يمكن تعديل طلب تمت مراجعته"}
+                </div>
+              ) : (
+                <div style={{ display:"flex", flexDirection:"column", gap:"14px" }}>
+                  <div style={{ background:"rgba(245,158,11,0.1)", borderRadius:"10px", padding:"10px 14px", border:"1px solid rgba(245,158,11,0.2)", fontSize:"12px", color:"#f59e0b", fontWeight:"700" }}>
+                    ⏰ متبقي {Math.max(0, 3 - daysSince)} يوم للتعديل من تاريخ تقديم الطلب
+                  </div>
+                  <div>
+                    <label style={{ fontSize:"12px", color:"#8b949e", fontWeight:"700", display:"block", marginBottom:"6px" }}>تاريخ البداية</label>
+                    <input type="date" style={{ width:"100%", padding:"12px", background:"#0d1117", border:"1px solid #30363d", borderRadius:"12px", color:"#e6edf3", outline:"none", boxSizing:"border-box" }}
+                      value={empEditRequest.start_date} onChange={e => setEmpEditRequest({...empEditRequest, start_date: e.target.value})}/>
+                  </div>
+                  <div>
+                    <label style={{ fontSize:"12px", color:"#8b949e", fontWeight:"700", display:"block", marginBottom:"6px" }}>عدد الأيام</label>
+                    <input type="number" step="0.5" min="0.5" style={{ width:"100%", padding:"12px", background:"#0d1117", border:"1px solid #30363d", borderRadius:"12px", color:"#e6edf3", outline:"none", boxSizing:"border-box" }}
+                      value={empEditRequest.days} onChange={e => setEmpEditRequest({...empEditRequest, days: Number(e.target.value)})}/>
+                  </div>
+                  <div>
+                    <label style={{ fontSize:"12px", color:"#8b949e", fontWeight:"700", display:"block", marginBottom:"6px" }}>نوع الإجازة</label>
+                    <select style={{ width:"100%", padding:"12px", background:"#0d1117", border:"1px solid #30363d", borderRadius:"12px", color:"#e6edf3", outline:"none", boxSizing:"border-box" }}
+                      value={empEditRequest.vacation_type_id||""} onChange={e => setEmpEditRequest({...empEditRequest, vacation_type_id: e.target.value})}>
+                      <option value="">اختر النوع</option>
+                      {vacationTypes.map(vt => <option key={vt.id} value={vt.id}>{vt.name}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ fontSize:"12px", color:"#8b949e", fontWeight:"700", display:"block", marginBottom:"6px" }}>ملاحظات</label>
+                    <textarea style={{ width:"100%", padding:"12px", background:"#0d1117", border:"1px solid #30363d", borderRadius:"12px", color:"#e6edf3", outline:"none", resize:"none", boxSizing:"border-box" }}
+                      rows={2} value={empEditRequest.notes||""} onChange={e => setEmpEditRequest({...empEditRequest, notes: e.target.value})}/>
+                  </div>
+                  <button onClick={handleEmpEditRequest}
+                    style={{ width:"100%", padding:"14px", background:"linear-gradient(135deg,#4f46e5,#7c3aed)", color:"white", border:"none", borderRadius:"12px", fontWeight:"900", cursor:"pointer", fontSize:"14px" }}>
+                    💾 حفظ التعديل
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+          );
+        })()}
 
         {/* Edit Vacation Modal */}
         {editingVac && (
@@ -3695,6 +4077,16 @@ ${JSON.stringify(systemData)}
                           <div style={{ fontSize:"12px", color:"#1e40af" }}>{req.admin_notes}</div>
                         </div>
                       )}
+                      {req.status === "pending" && (() => {
+                        const created = new Date(req.created_at || Date.now());
+                        const daysOld = Math.floor((Date.now() - created.getTime()) / 86400000);
+                        return daysOld <= 3 ? (
+                          <button onClick={() => { setEmpEditRequest({...req}); setShowEmpEditModal(true); }}
+                            style={{ marginTop:"10px", width:"100%", padding:"9px", background:"rgba(99,102,241,0.15)", border:"1px solid rgba(99,102,241,0.3)", borderRadius:"10px", color:"#818cf8", cursor:"pointer", fontWeight:"700", fontSize:"12px" }}>
+                            ✏️ تعديل الطلب (متبقي {3 - daysOld} يوم)
+                          </button>
+                        ) : null;
+                      })()}
                     </div>
                   </div>
                 );
@@ -3704,4 +4096,6 @@ ${JSON.stringify(systemData)}
         </div>
       </div>
     );
-  };
+  }
+
+export default VacationManagementSystem;
