@@ -185,6 +185,16 @@ const VacationManagementSystem = () => {
   const [selectedCalendarDay, setSelectedCalendarDay] = useState<string | null>(null);
   const [showEmpDropdown, setShowEmpDropdown] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  // ===== States للميزات الجديدة =====
+  const [showEditRequestModal, setShowEditRequestModal] = useState(false);
+  const [empEditReq, setEmpEditReq] = useState<any>(null);
+  const [showManagerEditModal, setShowManagerEditModal] = useState(false);
+  const [mgrEditForm, setMgrEditForm] = useState({ id:"", empName:"", days:1, start_date:"", reason:"", oldDays:1 });
+  const [showPrintModal, setShowPrintModal] = useState(false);
+  const [printFrom, setPrintFrom] = useState("");
+  const [printTo, setPrintTo] = useState("");
+  const [printSelected, setPrintSelected] = useState<string[]>([]);
+  const [expandedDeptGroups, setExpandedDeptGroups] = useState<Record<string,boolean>>({});
   const [showAIChat, setShowAIChat] = useState(false);
   const [backupLoading, setBackupLoading] = useState(false);
   // ===== NEW FEATURES STATES =====
@@ -937,54 +947,21 @@ ${JSON.stringify(summaryData)}
     const { id, action, employee_id, days } = currentRequest;
     const oldData = requests.find(r => r.id === id);
     const emp = employees.find(e => e.id === employee_id);
+    const approverName = currentUser?.name || "المدير";
 
-    // ===== مدير القسم: موافقة مبدئية فقط → تنتقل للـ Owner =====
-    const isDeptMgrNow = currentUser?.role === "dept_manager";
-    if (isDeptMgrNow && action === "approved") {
-      const { error: deptErr } = await supabase.from("vacation_requests").update({
-        status: "dept_approved",
-        dept_manager_notes: adminNotes || null,
-        dept_approved_by: currentUser?.name,
-        dept_approved_at: new Date().toISOString(),
-      }).eq("id", id);
-      if (deptErr) {
-        alert("❌ حصل خطأ: " + deptErr.message);
-        return;
-      }
-      setShowApprovalModal(false); setCurrentRequest(null); setAdminNotes("");
-      await fetchData();
-      alert("✅ تمت الموافقة المبدئية — الطلب منتظر موافقة المالك");
-      await logAction("dept_approved", "vacation_requests", id, oldData, { status: "dept_approved" });
-      return;
-    }
-
-    // مدير القسم يرفض نهائياً
-    if (isDeptMgrNow && action === "rejected") {
-      if (emp?.email) sendEmail(EMAILJS_TEMPLATES.rejected, emp.email, {
-        employee_name: emp.name,
-        start_date: formatDate(currentRequest.start_date),
-        admin_notes: adminNotes || "تم رفض الطلب من مدير القسم",
-        request_id: id,
-      });
-      const { error: rejectErr } = await supabase.from("vacation_requests").update({
-        status: "rejected",
-        admin_notes: adminNotes || null,
-        dept_approved_by: currentUser?.name,
-      }).eq("id", id);
-      if (rejectErr) {
-        alert("❌ حصل خطأ: " + rejectErr.message);
-        return;
-      }
-      setShowApprovalModal(false); setCurrentRequest(null); setAdminNotes("");
-      await fetchData();
-      await logAction("rejected", "vacation_requests", id, oldData);
-      return;
-    }
-
-    // ===== Owner: موافقة نهائية =====
+    // ===== موافقة نهائية من أي مدير =====
     if (action === "approved") {
-      if (emp.balance < days) { alert("رصيد غير كافٍ!"); setShowApprovalModal(false); return; }
-      await supabase.from("employees").update({ balance: emp.balance - days, status: "إجازة", return_date: null }).eq("id", emp.id);
+      if (!emp) return;
+      if (Number(emp.balance) < Number(days)) {
+        alert("رصيد الموظف غير كافٍ! الرصيد الحالي: " + emp.balance + " يوم");
+        setShowApprovalModal(false);
+        return;
+      }
+      await supabase.from("employees").update({
+        balance: Number(emp.balance) - Number(days),
+        status: "إجازة",
+        return_date: null,
+      }).eq("id", emp.id);
       if (emp.email) {
         const { back } = getCalculatedDates(currentRequest.start_date, days);
         sendEmail(EMAILJS_TEMPLATES.approved, emp.email, {
@@ -997,36 +974,31 @@ ${JSON.stringify(summaryData)}
         });
       }
     }
-
     if (action === "rejected" && emp?.email) {
       sendEmail(EMAILJS_TEMPLATES.rejected, emp.email, {
         employee_name: emp.name,
         start_date: formatDate(currentRequest.start_date),
-        admin_notes: adminNotes || "لا توجد ملاحظات",
+        admin_notes: adminNotes || "تم رفض الطلب",
         request_id: id,
       });
     }
-
-    const { error: ownerErr } = await supabase.from("vacation_requests").update({
+    const { error: updateErr } = await supabase.from("vacation_requests").update({
       status: action,
       admin_notes: adminNotes || null,
-      owner_approved_by: currentUser?.name,
+      owner_approved_by: approverName,
       owner_approved_at: new Date().toISOString(),
     }).eq("id", id);
-    if (ownerErr) {
-      alert("❌ حصل خطأ في الموافقة النهائية: " + ownerErr.message);
-      return;
-    }
-
+    if (updateErr) { alert("❌ خطأ: " + updateErr.message); return; }
     sendLocalNotification(
-      action === "approved" ? "✅ تمت الموافقة النهائية" : "❌ تم رفض طلب إجازة",
-      `${emp?.name} - ${currentRequest.days} يوم`
+      action === "approved" ? "✅ تمت الموافقة على إجازة" : "❌ تم رفض طلب إجازة",
+      (emp?.name || "") + " - " + days + " يوم"
     );
-
     setShowApprovalModal(false); setCurrentRequest(null); setAdminNotes("");
-    fetchData();
-    await logAction(action, "vacation_requests", id, oldData, { status: action, admin_notes: adminNotes });
+    await fetchData();
+    await logAction(action, "vacation_requests", id, oldData, { status: action, admin_notes: adminNotes, approved_by: approverName });
   };
+
+
 
   const handleDeleteVacation = async (id: string) => {
     if (!window.confirm("حذف طلب الإجازة؟")) return;
@@ -1084,15 +1056,58 @@ ${JSON.stringify(summaryData)}
   const submitVacationRequest = async () => {
     if (!newRequest.start_date) return alert("حدد تاريخ البداية");
     if (!newRequest.vacation_type_id) return alert("اختر نوع الإجازة");
-    setIsSubmitting(true);
 
-    // أول يوم إجازة فعلي حسب موعد النزول
+    // ===== منع الطلب المكرر =====
+    const pendingReq = requests.find(r =>
+      r.employee_id === currentUser.id && (r.status === "pending" || r.status === "dept_approved")
+    );
+    if (pendingReq) {
+      const submittedAt = new Date(pendingReq.created_at || Date.now());
+      const daysSince = Math.floor((Date.now() - submittedAt.getTime()) / 86400000);
+      if (daysSince <= 3) {
+        const edit = window.confirm(
+          "لديك طلب قيد المراجعة بتاريخ " + formatDate(pendingReq.start_date) + "\n" +
+          "لا يمكن تقديم طلب جديد.\n\n" +
+          "هل تريد تعديل طلبك الحالي؟ (متبقي " + (3 - daysSince) + " يوم للتعديل)"
+        );
+        if (edit) {
+          setEmpEditReq({ ...pendingReq });
+          setShowEditRequestModal(true);
+        }
+      } else {
+        alert("لديك طلب إجازة قيد المراجعة. لا يمكن تقديم طلب جديد حتى يتم البت في طلبك.");
+      }
+      return;
+    }
+
+    // ===== التحقق من الرصيد مع مراعاة الرصيد الشهري =====
+    const reqDays = Number(newRequest.days);
+    const currentBalance = Number(currentUser.balance || 0);
+    const monthlyBalance = Number(currentUser.monthly_balance || 0);
+    if (currentBalance < reqDays) {
+      const projected = currentBalance + monthlyBalance;
+      if (projected >= reqDays) {
+        const ok = window.confirm(
+          "رصيدك الحالي (" + currentBalance + " يوم) أقل من المطلوب (" + reqDays + " يوم).\n" +
+          "بعد إضافة رصيدك الشهري (" + monthlyBalance + " يوم) سيصبح " + projected + " يوم وهو كافٍ.\n\n" +
+          "هل تريد المتابعة؟"
+        );
+        if (!ok) return;
+      } else {
+        return alert(
+          "رصيدك الحالي " + currentBalance + " يوم غير كافٍ للطلب (" + reqDays + " يوم).\n" +
+          "حتى بعد إضافة الرصيد الشهري (" + monthlyBalance + " يوم) لن يكفي."
+        );
+      }
+    }
+
+    setIsSubmitting(true);
     const actualStartDate = getActualStartDate(newRequest.start_date, newRequest.departure_time);
 
     const { error } = await supabase.from("vacation_requests").insert([{
       employee_id: currentUser.id, employee_name: currentUser.name,
-      start_date: actualStartDate,           // أول يوم إجازة فعلي
-      departure_date: newRequest.start_date, // تاريخ النزول
+      start_date: actualStartDate,
+      departure_date: newRequest.start_date,
       departure_time: newRequest.departure_time,
       days: newRequest.days,
       notes: newRequest.notes, vacation_type_id: newRequest.vacation_type_id, status: "pending",
@@ -1117,6 +1132,50 @@ ${JSON.stringify(summaryData)}
     }
     alert("❌ حصل خطأ في إرسال الطلب — حاول تاني");
     setIsSubmitting(false);
+  };
+
+  // ===== Handler: الموظف يعدّل طلبه (خلال 3 أيام) =====
+  const handleEmpEditRequest = async () => {
+    if (!empEditReq) return;
+    if (!empEditReq.start_date) return alert("حدد تاريخ البداية");
+    if (!empEditReq.days || Number(empEditReq.days) < 0.5) return alert("عدد الأيام يجب أن يكون 0.5 على الأقل");
+    const { error } = await supabase.from("vacation_requests").update({
+      start_date: empEditReq.start_date,
+      days: empEditReq.days,
+      notes: empEditReq.notes,
+      vacation_type_id: empEditReq.vacation_type_id,
+      departure_time: empEditReq.departure_time,
+    }).eq("id", empEditReq.id);
+    if (error) return alert("خطأ: " + error.message);
+    setShowEditRequestModal(false);
+    setEmpEditReq(null);
+    await fetchData();
+    alert("✅ تم تعديل الطلب بنجاح");
+  };
+
+  // ===== Handler: المدير يعدّل الإجازة (أيام + تاريخ + سبب) =====
+  const handleManagerEditRequest = async () => {
+    if (!mgrEditForm.reason.trim()) return alert("يرجى كتابة سبب التعديل");
+    if (Number(mgrEditForm.days) < 0.5) return alert("عدد الأيام يجب أن يكون 0.5 على الأقل");
+    const req = requests.find(r => r.id === mgrEditForm.id);
+    if (!req) return;
+    const emp = employees.find(e => e.id === req.employee_id);
+    if (!emp) return;
+    const daysDiff = Number(mgrEditForm.days) - Number(mgrEditForm.oldDays);
+    const { error } = await supabase.from("vacation_requests").update({
+      days: mgrEditForm.days,
+      start_date: mgrEditForm.start_date,
+      admin_notes: "تعديل بواسطة " + currentUser?.name + ": من " + mgrEditForm.oldDays + " إلى " + mgrEditForm.days + " يوم" + (mgrEditForm.reason ? " - السبب: " + mgrEditForm.reason : ""),
+    }).eq("id", mgrEditForm.id);
+    if (error) return alert(error.message);
+    if (req.status === "approved" && daysDiff !== 0) {
+      await supabase.from("employees").update({ balance: Math.max(0, Number(emp.balance) - daysDiff) }).eq("id", emp.id);
+    }
+    await logAction("manager_edit", "vacation_requests", mgrEditForm.id, req, { newDays: mgrEditForm.days, reason: mgrEditForm.reason });
+    setShowManagerEditModal(false);
+    setMgrEditForm({ id:"", empName:"", days:1, start_date:"", reason:"", oldDays:1 });
+    await fetchData();
+    alert("✅ تم تعديل الإجازة بنجاح");
   };
 
   // ========== DIRECT VACATION (إجازة مباشرة) ==========
@@ -1970,46 +2029,57 @@ ${JSON.stringify(systemData)}
                           </div>
                         </div>
 
-                        {/* ===== هيكل القسم ===== */}
+                        {/* ===== هيكل القسم - قائمة منسدلة ===== */}
                         <div style={{ background:"white", borderRadius:"20px", border:"1px solid #e2e8f0", overflow:"hidden", boxShadow:"0 2px 8px rgba(0,0,0,0.06)" }}>
                           <div style={{ padding:"16px 20px", borderBottom:"1px solid #e2e8f0", fontWeight:"900", fontSize:"15px", display:"flex", alignItems:"center", gap:"8px" }}>
                             <Briefcase size={17} style={{color:"#7c3aed"}}/> هيكل القسم
                           </div>
-                          <div style={{ padding:"12px", display:"flex", flexDirection:"column", gap:"12px" }}>
-                            {grouped.map(group => (
-                              <div key={group.rank}>
-                                {/* عنوان الفئة */}
-                                <div style={{ display:"inline-flex", alignItems:"center", gap:"6px", background:group.bg, borderRadius:"20px", padding:"5px 14px", marginBottom:"8px" }}>
-                                  <span style={{ fontSize:"14px" }}>{group.icon}</span>
-                                  <span style={{ fontSize:"12px", fontWeight:"900", color:group.color }}>{group.label} ({group.emps.length})</span>
+                          <div style={{ padding:"12px", display:"flex", flexDirection:"column", gap:"8px" }}>
+                            {grouped.map(group => {
+                              const groupKey = dept.id + "_" + group.rank;
+                              const isOpen = expandedDeptGroups[groupKey] !== false;
+                              return (
+                              <div key={group.rank} style={{ border:"1px solid #f1f5f9", borderRadius:"14px", overflow:"hidden" }}>
+                                {/* رأس الفئة - قابل للطي */}
+                                <div
+                                  onClick={() => setExpandedDeptGroups(prev => ({ ...prev, [groupKey]: !isOpen }))}
+                                  style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 14px", cursor:"pointer", background: isOpen ? group.bg : "white", transition:"background 0.2s" }}>
+                                  <div style={{ display:"flex", alignItems:"center", gap:"8px" }}>
+                                    <span style={{ fontSize:"16px" }}>{group.icon}</span>
+                                    <span style={{ fontSize:"13px", fontWeight:"900", color:group.color }}>{group.label}</span>
+                                    <span style={{ background:group.color+"20", color:group.color, fontSize:"11px", fontWeight:"700", padding:"2px 8px", borderRadius:"20px" }}>{group.emps.length}</span>
+                                  </div>
+                                  <span style={{ fontSize:"12px", color:group.color, transition:"transform 0.2s", display:"inline-block", transform: isOpen ? "rotate(180deg)" : "rotate(0deg)" }}>▼</span>
                                 </div>
-                                {/* الموظفون */}
-                                <div style={{ display:"flex", flexDirection:"column", gap:"4px", paddingRight:"12px", borderRight:`3px solid ${group.color}20` }}>
-                                  {group.emps.map(emp => {
-                                    const isVac = onVacNow.some(e => e.id === emp.id);
-                                    return (
-                                      <div key={emp.id} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"8px 12px", borderRadius:"10px", background: isVac ? "#fff1f2" : "#f8fafc", border:`1px solid ${isVac ? "#fecdd3" : "#f1f5f9"}` }}>
-                                        <div style={{ display:"flex", alignItems:"center", gap:"8px" }}>
-                                          <div style={{ width:"32px", height:"32px", borderRadius:"50%", background:`linear-gradient(135deg,${group.color}30,${group.color}15)`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:"13px", fontWeight:"900", color:group.color, flexShrink:0 }}>
-                                            {emp.name.charAt(0)}
+                                {/* محتوى الفئة */}
+                                {isOpen && (
+                                  <div style={{ display:"flex", flexDirection:"column", gap:"4px", padding:"8px", borderTop:"1px solid #f1f5f9" }}>
+                                    {group.emps.map(emp => {
+                                      const isVac = onVacNow.some(e => e.id === emp.id);
+                                      return (
+                                        <div key={emp.id} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"8px 12px", borderRadius:"10px", background: isVac ? "#fff1f2" : "#f8fafc", border:`1px solid ${isVac ? "#fecdd3" : "#f1f5f9"}` }}>
+                                          <div style={{ display:"flex", alignItems:"center", gap:"8px" }}>
+                                            <div style={{ width:"32px", height:"32px", borderRadius:"50%", background:`linear-gradient(135deg,${group.color}30,${group.color}15)`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:"13px", fontWeight:"900", color:group.color, flexShrink:0 }}>
+                                              {emp.name.charAt(0)}
+                                            </div>
+                                            <div>
+                                              <div style={{ fontWeight:"700", fontSize:"13px", color:"#1e293b" }}>{emp.name}</div>
+                                              <div style={{ fontSize:"10px", color:"#94a3b8" }}>{emp.position}</div>
+                                            </div>
                                           </div>
-                                          <div>
-                                            <div style={{ fontWeight:"700", fontSize:"13px", color:"#1e293b" }}>{emp.name}</div>
-                                            <div style={{ fontSize:"10px", color:"#94a3b8" }}>{emp.position}</div>
+                                          <div style={{ display:"flex", alignItems:"center", gap:"6px" }}>
+                                            <span style={{ fontSize:"10px", fontWeight:"700", color:"#64748b" }}>{emp.balance} يوم</span>
+                                            <span style={{ padding:"2px 8px", borderRadius:"20px", fontSize:"10px", fontWeight:"700", background: isVac ? "#fee2e2" : "#dcfce7", color: isVac ? "#dc2626" : "#16a34a" }}>
+                                              {isVac ? "إجازة" : "عمل"}
+                                            </span>
                                           </div>
                                         </div>
-                                        <div style={{ display:"flex", alignItems:"center", gap:"6px" }}>
-                                          <span style={{ fontSize:"10px", fontWeight:"700", color:"#64748b" }}>{emp.balance} يوم</span>
-                                          <span style={{ padding:"2px 8px", borderRadius:"20px", fontSize:"10px", fontWeight:"700", background: isVac ? "#fee2e2" : "#dcfce7", color: isVac ? "#dc2626" : "#16a34a" }}>
-                                            {isVac ? "إجازة" : "عمل"}
-                                          </span>
-                                        </div>
-                                      </div>
-                                    );
-                                  })}
-                                </div>
+                                      );
+                                    })}
+                                  </div>
+                                )}
                               </div>
-                            ))}
+                            )})}
                           </div>
                         </div>
 
@@ -2497,7 +2567,13 @@ ${JSON.stringify(systemData)}
                 <div style={{ width:"100%", boxSizing:"border-box" }} className="space-y-6">
                   <div className="flex justify-between items-center">
                     <div>
-                      <h2 className="text-2xl font-black">طلبات الإجازات</h2>
+                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                    <h2 className="text-2xl font-black">طلبات الإجازات</h2>
+                    <button onClick={() => { setPrintSelected([]); setPrintFrom(""); setPrintTo(""); setShowPrintModal(true); }}
+                      style={{ padding:"10px 16px", background:"linear-gradient(135deg,#1d4ed8,#3b82f6)", color:"white", border:"none", borderRadius:"12px", fontWeight:"700", cursor:"pointer", fontSize:"13px", display:"flex", alignItems:"center", gap:"6px", whiteSpace:"nowrap" }}>
+                      🖨️ طباعة / مشاركة
+                    </button>
+                  </div>
                       {isDeptMgr && <p className="text-sm text-emerald-600 font-bold mt-1">🏢 تعرض طلبات قسم: {currentUser?.dept_name}</p>}
                     </div>
                     <select className="px-4 py-3 bg-white border rounded-xl" value={vacationTypeFilter} onChange={(e) => setVacationTypeFilter(e.target.value)}>
@@ -2531,8 +2607,12 @@ ${JSON.stringify(systemData)}
                               </div>
                               {req.notes && <p className="text-sm text-slate-500 italic mb-6">"{req.notes}"</p>}
                               <div className="flex gap-3">
-                                <button onClick={() => openApprovalModal(req, "approved")} className="flex-1 bg-amber-500 hover:bg-amber-600 text-white py-4 rounded-2xl font-black">موافقة مبدئية ✓</button>
+                                <button onClick={() => openApprovalModal(req, "approved")} className="flex-1 bg-amber-500 hover:bg-amber-600 text-white py-4 rounded-2xl font-black">✅ موافقة</button>
                                 <button onClick={() => openApprovalModal(req, "rejected")} className="flex-1 bg-red-50 text-red-600 hover:bg-red-100 py-4 rounded-2xl font-black">رفض</button>
+                                <button onClick={() => { setMgrEditForm({ id:req.id, empName:req.employee_name, days:req.days, start_date:req.start_date, reason:"", oldDays:req.days }); setShowManagerEditModal(true); }}
+                                  style={{ width:"100%", marginTop:"6px", padding:"10px", background:"#f5f3ff", border:"1px solid #ddd6fe", borderRadius:"14px", color:"#7c3aed", cursor:"pointer", fontWeight:"700", fontSize:"12px" }}>
+                                  ✏️ تعديل الإجازة
+                                </button>
                               </div>
                             </div>
                           );
@@ -2549,9 +2629,9 @@ ${JSON.stringify(systemData)}
                   {/* Owner: طلبات بانتظار موافقة مدير القسم */}
                   {isOwner && filteredRequests.filter(r => r.status === "pending").length > 0 && (
                     <>
-                      <h3 className="font-black text-lg text-amber-600">⏳ جديدة — بانتظار مدير القسم ({filteredRequests.filter(r => r.status === "pending").length})</h3>
+                      <h3 className="font-black text-lg text-amber-600">⏳ طلبات تحتاج موافقتك ({filteredRequests.filter(r => r.status === "pending" || r.status === "dept_approved").length})</h3>
                       <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(300px, 1fr))", gap:"16px" }}>
-                        {filteredRequests.filter(r => r.status === "pending").map(req => {
+                        {filteredRequests.filter(r => r.status === "pending" || r.status === "dept_approved").map(req => {
                           const vacType = vacationTypes.find(vt => vt.id === req.vacation_type_id);
                           const dept = departments.find(d => d.id === employees.find(e => e.id === req.employee_id)?.department_id);
                           return (
@@ -2569,6 +2649,18 @@ ${JSON.stringify(systemData)}
                               <div className="bg-slate-50 p-4 rounded-2xl text-sm space-y-2">
                                 <div className="flex justify-between font-bold"><span className="text-slate-400">البداية</span><span>{formatDate(req.start_date)}</span></div>
                                 <div className="flex justify-between font-bold"><span className="text-slate-400">المدة</span><span>{req.days} يوم</span></div>
+                                <div className="flex justify-between font-bold pt-2 border-t"><span className="text-indigo-600">تاريخ العودة</span><span className="text-indigo-600 font-black">{formatDate(getCalculatedDates(req.start_date, req.days).back)}</span></div>
+                              </div>
+                              {req.notes && <p className="text-sm text-slate-500 italic my-3">"{req.notes}"</p>}
+                              <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
+                                <div className="flex gap-3">
+                                  <button onClick={() => openApprovalModal(req, "approved")} className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-4 rounded-2xl font-black">✅ موافقة</button>
+                                  <button onClick={() => openApprovalModal(req, "rejected")} className="flex-1 bg-red-50 text-red-600 hover:bg-red-100 py-4 rounded-2xl font-black">❌ رفض</button>
+                                </div>
+                                <button onClick={() => { setMgrEditForm({ id:req.id, empName:req.employee_name, days:req.days, start_date:req.start_date, reason:"", oldDays:req.days }); setShowManagerEditModal(true); }}
+                                  style={{ width:"100%", padding:"10px", background:"#f5f3ff", border:"1px solid #ddd6fe", borderRadius:"14px", color:"#7c3aed", cursor:"pointer", fontWeight:"700", fontSize:"12px" }}>
+                                  ✏️ تعديل الإجازة
+                                </button>
                               </div>
                             </div>
                           );
@@ -2577,8 +2669,8 @@ ${JSON.stringify(systemData)}
                     </>
                   )}
 
-                  {/* Owner: طلبات وافق عليها مدير القسم — تنتظر الموافقة النهائية */}
-                  {isOwner && (
+                  {/* --- separator removed: owner sees all pending directly --- */}
+                  {isOwner && false && (
                     <>
                       <h3 className="font-black text-lg text-indigo-600">
                         🔔 وافق عليها مدير القسم — بانتظار موافقتك النهائية ({filteredRequests.filter(r => r.status === "dept_approved").length})
@@ -2611,6 +2703,10 @@ ${JSON.stringify(systemData)}
                               <div className="flex gap-3">
                                 <button onClick={() => openApprovalModal(req, "approved")} className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-4 rounded-2xl font-black">✅ موافقة نهائية</button>
                                 <button onClick={() => openApprovalModal(req, "rejected")} className="flex-1 bg-red-50 text-red-600 hover:bg-red-100 py-4 rounded-2xl font-black">❌ رفض</button>
+                                <button onClick={() => { setMgrEditForm({ id:req.id, empName:req.employee_name, days:req.days, start_date:req.start_date, reason:"", oldDays:req.days }); setShowManagerEditModal(true); }}
+                                  style={{ width:"100%", marginTop:"6px", padding:"10px", background:"#f5f3ff", border:"1px solid #ddd6fe", borderRadius:"14px", color:"#7c3aed", cursor:"pointer", fontWeight:"700", fontSize:"12px" }}>
+                                  ✏️ تعديل الإجازة
+                                </button>
                               </div>
                             </div>
                           );
@@ -3017,8 +3113,10 @@ ${JSON.stringify(systemData)}
                       <input className="px-4 py-3 bg-white border rounded-xl" placeholder="بحث بالاسم..." onChange={(e) => setVacSearch(e.target.value)} />
                       <select className="px-4 py-3 bg-white border rounded-xl" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
                         <option value="all">كل الحالات</option>
-                        <option value="approved">مقبول</option>
-                        <option value="rejected">مرفوض</option>
+                        <option value="approved">✓ مقبول</option>
+                        <option value="rejected">✗ مرفوض</option>
+                        <option value="dept_approved">◑ موافقة مبدئية</option>
+                        <option value="pending">⏳ معلق</option>
                       </select>
                       <button onClick={() => setShowAuditLog(true)} className="bg-purple-600 text-white px-6 py-3 rounded-xl flex items-center gap-2 font-bold"><History size={20} /> سجل التعديلات</button>
                       <button onClick={() => { setShowBalanceLog(true); fetchBalanceLogs(); }} className="bg-emerald-600 text-white px-6 py-3 rounded-xl flex items-center gap-2 font-bold">💰 سجل حركات الرصيد</button>
@@ -3040,7 +3138,7 @@ ${JSON.stringify(systemData)}
                         </tr>
                       </thead>
                       <tbody>
-                        {filteredRequests.filter(r => r.status !== "pending").map(req => {
+                        {filteredRequests.map(req => {
                           const { back } = getCalculatedDates(req.start_date, req.days);
                           const vacType = vacationTypes.find(vt => vt.id === req.vacation_type_id);
                           const today = new Date().toISOString().split("T")[0];
@@ -3060,8 +3158,16 @@ ${JSON.stringify(systemData)}
                                 ) : "-"}
                               </td>
                               <td className="p-4 text-center">
-                                <span className={`px-3 py-1 rounded-full text-xs font-bold ${req.status === "approved" ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}`}>
-                                  {req.status === "approved" ? "مقبول" : "مرفوض"}
+                                <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                                  req.status === "approved" ? "bg-emerald-100 text-emerald-700" :
+                                  req.status === "rejected" ? "bg-red-100 text-red-700" :
+                                  req.status === "dept_approved" ? "bg-indigo-100 text-indigo-700" :
+                                  "bg-amber-100 text-amber-700"
+                                }`}>
+                                  {req.status === "approved" ? "✓ مقبول" :
+                                   req.status === "rejected" ? "✗ مرفوض" :
+                                   req.status === "dept_approved" ? "◑ موافقة مبدئية" :
+                                   "⏳ معلق"}
                                 </span>
                               </td>
                               <td className="p-4 text-center">{req.admin_notes && <button className="text-blue-600" title={req.admin_notes}><MessageSquare size={16} /></button>}</td>
@@ -3194,29 +3300,259 @@ ${JSON.stringify(systemData)}
           </div>
         )}
 
-        {/* Approval Modal */}
-        {showApprovalModal && currentRequest && (
-          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-6 z-[100]" onClick={() => setShowApprovalModal(false)}>
-            <div className="bg-white p-10 rounded-[2.5rem] w-full max-w-lg shadow-2xl" dir="rtl" onClick={(e) => e.stopPropagation()}>
-              <div className="flex justify-between mb-8">
-                <h3 className="text-2xl font-black">{currentRequest.action === "approved" ? "✅ موافقة" : "❌ رفض"}</h3>
-                <button onClick={() => setShowApprovalModal(false)}><X size={28} /></button>
+        {/* Approval Modal - مع بيانات الموظف الكاملة */}
+        {showApprovalModal && currentRequest && (() => {
+          const empInfo = employees.find(e => e.id === currentRequest.employee_id);
+          const workedDays = calculateWorkedDays(empInfo?.return_date);
+          const totalApproved = requests.filter(r => r.employee_id === empInfo?.id && r.status === "approved").reduce((s,r) => s + Number(r.days), 0);
+          const balanceOk = Number(empInfo?.balance || 0) >= Number(currentRequest.days);
+          return (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 z-[100]" onClick={() => setShowApprovalModal(false)}>
+            <div style={{ background:"white", borderRadius:"24px", width:"100%", maxWidth:"480px", padding:"24px", boxShadow:"0 24px 60px rgba(0,0,0,0.18)", maxHeight:"90vh", overflowY:"auto" }} dir="rtl" onClick={e => e.stopPropagation()}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"18px" }}>
+                <h3 style={{ margin:0, fontWeight:"900", fontSize:"18px" }}>
+                  {currentRequest.action === "approved" ? "✅ موافقة على الطلب" : "❌ رفض الطلب"}
+                </h3>
+                <button onClick={() => setShowApprovalModal(false)} style={{ border:"1px solid #e2e8f0", borderRadius:"10px", padding:"6px 10px", cursor:"pointer", background:"white" }}><X size={16}/></button>
               </div>
-              <div className="bg-slate-50 p-6 rounded-2xl mb-6">
-                <p className="font-black text-lg">{currentRequest.employee_name}</p>
-                <div className="grid grid-cols-2 gap-4 mt-4 text-sm">
-                  <div><p className="text-slate-500">البداية</p><p className="font-bold">{formatDate(currentRequest.start_date)}</p></div>
-                  <div><p className="text-slate-500">المدة</p><p className="font-bold">{currentRequest.days} يوم</p></div>
+
+              {/* بطاقة الموظف */}
+              {empInfo && (
+                <div style={{ background:"linear-gradient(135deg,#f8faff,#f0f4ff)", borderRadius:"18px", padding:"16px", marginBottom:"14px", border:"1px solid #e0e7ff" }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:"12px", marginBottom:"14px" }}>
+                    <div style={{ width:"50px", height:"50px", borderRadius:"50%", background:"linear-gradient(135deg,#4f46e5,#7c3aed)", display:"flex", alignItems:"center", justifyContent:"center", fontWeight:"900", fontSize:"20px", color:"white", flexShrink:0 }}>
+                      {empInfo.name?.charAt(0)}
+                    </div>
+                    <div>
+                      <div style={{ fontWeight:"900", fontSize:"16px", color:"#1e293b" }}>{empInfo.name}</div>
+                      <div style={{ fontSize:"12px", color:"#64748b" }}>{empInfo.position || "-"} {empInfo.code ? "· كود: " + empInfo.code : ""}</div>
+                      {empInfo.hire_date && <div style={{ fontSize:"11px", color:"#94a3b8" }}>تاريخ التعيين: {formatDate(empInfo.hire_date)}</div>}
+                    </div>
+                  </div>
+                  <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:"8px" }}>
+                    <div style={{ background: balanceOk ? "#f0fdf4" : "#fff1f2", borderRadius:"12px", padding:"10px", textAlign:"center", border: balanceOk ? "1px solid #bbf7d0" : "2px solid #fecdd3" }}>
+                      <div style={{ fontSize:"22px", fontWeight:"900", color: balanceOk ? "#16a34a" : "#dc2626" }}>{empInfo.balance}</div>
+                      <div style={{ fontSize:"10px", color:"#64748b", marginTop:"2px" }}>رصيد الإجازة</div>
+                      {!balanceOk && <div style={{ fontSize:"9px", color:"#dc2626", fontWeight:"700" }}>⚠️ غير كافٍ!</div>}
+                    </div>
+                    <div style={{ background:"#fffbeb", borderRadius:"12px", padding:"10px", textAlign:"center", border:"1px solid #fde68a" }}>
+                      <div style={{ fontSize:"22px", fontWeight:"900", color:"#d97706" }}>{workedDays}</div>
+                      <div style={{ fontSize:"10px", color:"#64748b", marginTop:"2px" }}>أيام العمل</div>
+                    </div>
+                    <div style={{ background:"#f5f3ff", borderRadius:"12px", padding:"10px", textAlign:"center", border:"1px solid #ddd6fe" }}>
+                      <div style={{ fontSize:"22px", fontWeight:"900", color:"#7c3aed" }}>{totalApproved}</div>
+                      <div style={{ fontSize:"10px", color:"#64748b", marginTop:"2px" }}>إجمالي الإجازات</div>
+                    </div>
+                  </div>
+                  <div style={{ marginTop:"10px", display:"flex", justifyContent:"space-between", fontSize:"11px", color:"#94a3b8" }}>
+                    <span>الرصيد الشهري: <b style={{color:"#059669"}}>{empInfo.monthly_balance || 0} يوم</b></span>
+                    {empInfo.email
+                      ? <span style={{color:"#4f46e5", display:"flex", alignItems:"center", gap:"3px"}}><Mail size={11}/> {empInfo.email}</span>
+                      : <span style={{color:"#f59e0b"}}>⚠️ لا يوجد بريد إلكتروني</span>
+                    }
+                  </div>
                 </div>
-                {(() => { const emp = employees.find(e => e.id === currentRequest.employee_id); return emp?.email ? <p className="text-xs text-indigo-600 mt-3 flex items-center gap-1"><Mail size={12} /> سيُرسل إشعار لـ {emp.email}</p> : <p className="text-xs text-amber-600 mt-3">⚠️ الموظف ليس لديه بريد إلكتروني</p>; })()}
+              )}
+
+              {/* تفاصيل الطلب */}
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"10px", marginBottom:"14px" }}>
+                <div style={{ background:"#f8fafc", borderRadius:"12px", padding:"12px" }}>
+                  <div style={{ fontSize:"11px", color:"#94a3b8", marginBottom:"3px" }}>تاريخ البداية</div>
+                  <div style={{ fontWeight:"800", fontSize:"14px" }}>{formatDate(currentRequest.start_date)}</div>
+                </div>
+                <div style={{ background:"#f8fafc", borderRadius:"12px", padding:"12px" }}>
+                  <div style={{ fontSize:"11px", color:"#94a3b8", marginBottom:"3px" }}>المدة المطلوبة</div>
+                  <div style={{ fontWeight:"900", fontSize:"22px", color:"#4f46e5" }}>{currentRequest.days} يوم</div>
+                </div>
               </div>
-              <textarea className="w-full p-4 border rounded-2xl outline-none resize-none" rows={4} placeholder="ملاحظات (اختياري)" value={adminNotes} onChange={(e) => setAdminNotes(e.target.value)} />
-              <button onClick={handleActionWithNotes} className={`w-full p-5 rounded-2xl font-black mt-4 ${currentRequest.action === "approved" ? "bg-emerald-600 hover:bg-emerald-700 text-white" : "bg-red-600 hover:bg-red-700 text-white"}`}>
-                تأكيد {currentRequest.action === "approved" ? "وإرسال الإشعار" : "وإرسال الإشعار"}
+
+              <textarea style={{ width:"100%", padding:"12px", border:"1px solid #e2e8f0", borderRadius:"12px", outline:"none", resize:"none", boxSizing:"border-box", fontSize:"13px", marginBottom:"12px" }}
+                rows={3} placeholder="ملاحظات للموظف (اختياري)..." value={adminNotes} onChange={e => setAdminNotes(e.target.value)}/>
+
+              <button onClick={handleActionWithNotes}
+                style={{ width:"100%", padding:"14px", borderRadius:"14px", fontWeight:"900", fontSize:"15px", border:"none", cursor:"pointer", color:"white",
+                  background: currentRequest.action === "approved" ? "linear-gradient(135deg,#059669,#10b981)" : "linear-gradient(135deg,#dc2626,#ef4444)" }}>
+                {currentRequest.action === "approved" ? "✅ تأكيد الموافقة وإرسال الإشعار" : "❌ تأكيد الرفض وإرسال الإشعار"}
               </button>
             </div>
           </div>
+          );
+        })()}
+
+        {/* Modal: الموظف يعدّل طلبه */}
+        {showEditRequestModal && empEditReq && (() => {
+          const created = new Date(empEditReq.created_at || Date.now());
+          const daysOld = Math.floor((Date.now() - created.getTime()) / 86400000);
+          const canEdit = daysOld <= 3 && empEditReq.status === "pending";
+          const inp = { width:"100%", padding:"11px 14px", border:"1px solid #e2e8f0", borderRadius:"12px", outline:"none", boxSizing:"border-box" as const, fontSize:"13px" };
+          return (
+          <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", backdropFilter:"blur(4px)", display:"flex", alignItems:"center", justifyContent:"center", padding:"16px", zIndex:200 }} onClick={() => setShowEditRequestModal(false)}>
+            <div style={{ background:"white", borderRadius:"24px", width:"100%", maxWidth:"420px", padding:"24px" }} dir="rtl" onClick={e => e.stopPropagation()}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"18px" }}>
+                <h3 style={{ margin:0, fontWeight:"900", fontSize:"17px" }}>✏️ تعديل طلبي</h3>
+                <button onClick={() => setShowEditRequestModal(false)} style={{ border:"1px solid #e2e8f0", borderRadius:"8px", padding:"5px 9px", cursor:"pointer" }}><X size={16}/></button>
+              </div>
+              {!canEdit ? (
+                <div style={{ padding:"20px", textAlign:"center", background:"#fff1f2", borderRadius:"14px", color:"#dc2626", fontWeight:"700" }}>
+                  {daysOld > 3 ? "⏰ انتهت مهلة التعديل (3 أيام)" : "❌ لا يمكن تعديل طلب تمت مراجعته"}
+                </div>
+              ) : (
+                <div style={{ display:"flex", flexDirection:"column", gap:"14px" }}>
+                  <div style={{ background:"#fffbeb", borderRadius:"12px", padding:"10px 14px", fontSize:"12px", color:"#d97706", fontWeight:"700", border:"1px solid #fde68a" }}>
+                    ⏰ متبقي {3 - daysOld} يوم للتعديل
+                  </div>
+                  <div><label style={{ fontSize:"12px", color:"#64748b", fontWeight:"700", display:"block", marginBottom:"5px" }}>تاريخ البداية</label>
+                    <input type="date" style={inp} value={empEditReq.start_date} onChange={e => setEmpEditReq({...empEditReq, start_date: e.target.value})}/></div>
+                  <div><label style={{ fontSize:"12px", color:"#64748b", fontWeight:"700", display:"block", marginBottom:"5px" }}>عدد الأيام</label>
+                    <input type="number" step="0.5" min="0.5" style={inp} value={empEditReq.days} onChange={e => setEmpEditReq({...empEditReq, days: Number(e.target.value)})}/></div>
+                  <div><label style={{ fontSize:"12px", color:"#64748b", fontWeight:"700", display:"block", marginBottom:"5px" }}>نوع الإجازة</label>
+                    <select style={inp} value={empEditReq.vacation_type_id||""} onChange={e => setEmpEditReq({...empEditReq, vacation_type_id: e.target.value})}>
+                      <option value="">اختر النوع</option>
+                      {vacationTypes.map(vt => <option key={vt.id} value={vt.id}>{vt.name}</option>)}
+                    </select></div>
+                  <div><label style={{ fontSize:"12px", color:"#64748b", fontWeight:"700", display:"block", marginBottom:"5px" }}>ملاحظات</label>
+                    <textarea style={{ ...inp, resize:"none" } as any} rows={2} value={empEditReq.notes||""} onChange={e => setEmpEditReq({...empEditReq, notes: e.target.value})}/></div>
+                  <button onClick={handleEmpEditRequest} style={{ padding:"13px", background:"linear-gradient(135deg,#4f46e5,#7c3aed)", color:"white", border:"none", borderRadius:"12px", fontWeight:"900", cursor:"pointer", fontSize:"14px" }}>
+                    💾 حفظ التعديل
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+          );
+        })()}
+
+        {/* Modal: المدير يعدّل الإجازة */}
+        {showManagerEditModal && (
+          <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", backdropFilter:"blur(4px)", display:"flex", alignItems:"center", justifyContent:"center", padding:"16px", zIndex:200 }} onClick={() => setShowManagerEditModal(false)}>
+            <div style={{ background:"white", borderRadius:"24px", width:"100%", maxWidth:"420px", padding:"24px" }} dir="rtl" onClick={e => e.stopPropagation()}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"18px" }}>
+                <div>
+                  <h3 style={{ margin:0, fontWeight:"900", fontSize:"17px" }}>✏️ تعديل الإجازة</h3>
+                  <div style={{ fontSize:"12px", color:"#64748b", marginTop:"3px" }}>{mgrEditForm.empName}</div>
+                </div>
+                <button onClick={() => setShowManagerEditModal(false)} style={{ border:"1px solid #e2e8f0", borderRadius:"8px", padding:"5px 9px", cursor:"pointer" }}><X size={16}/></button>
+              </div>
+              <div style={{ display:"flex", flexDirection:"column", gap:"14px" }}>
+                {[
+                  { label:"تاريخ البداية", type:"date", val:mgrEditForm.start_date, set:(v:string) => setMgrEditForm({...mgrEditForm, start_date:v}) },
+                ].map(f => (
+                  <div key={f.label}><label style={{ fontSize:"12px", color:"#64748b", fontWeight:"700", display:"block", marginBottom:"5px" }}>{f.label}</label>
+                    <input type={f.type} style={{ width:"100%", padding:"11px 14px", border:"1px solid #e2e8f0", borderRadius:"12px", outline:"none", boxSizing:"border-box", fontSize:"13px" }} value={f.val} onChange={e => f.set(e.target.value)}/></div>
+                ))}
+                <div><label style={{ fontSize:"12px", color:"#64748b", fontWeight:"700", display:"block", marginBottom:"5px" }}>عدد الأيام الجديد</label>
+                  <input type="number" step="0.5" min="0.5" style={{ width:"100%", padding:"11px 14px", border:"1px solid #e2e8f0", borderRadius:"12px", outline:"none", boxSizing:"border-box", fontSize:"20px", fontWeight:"900", textAlign:"center" }}
+                    value={mgrEditForm.days} onChange={e => setMgrEditForm({...mgrEditForm, days: Number(e.target.value)})}/>
+                  <div style={{ display:"flex", justifyContent:"space-between", fontSize:"12px", color:"#94a3b8", marginTop:"5px" }}>
+                    <span>كان: <b>{mgrEditForm.oldDays} يوم</b></span>
+                    <span>سيصبح: <b style={{color: mgrEditForm.days > mgrEditForm.oldDays ? "#dc2626" : "#16a34a"}}>{mgrEditForm.days} يوم</b></span>
+                  </div>
+                </div>
+                <div><label style={{ fontSize:"12px", color:"#64748b", fontWeight:"700", display:"block", marginBottom:"5px" }}>سبب التعديل *</label>
+                  <textarea style={{ width:"100%", padding:"11px 14px", border:"1px solid #e2e8f0", borderRadius:"12px", outline:"none", resize:"none", boxSizing:"border-box", fontSize:"13px" }}
+                    rows={3} placeholder="اكتب سبب التعديل..." value={mgrEditForm.reason} onChange={e => setMgrEditForm({...mgrEditForm, reason: e.target.value})}/></div>
+                <button onClick={handleManagerEditRequest} style={{ padding:"13px", background:"linear-gradient(135deg,#059669,#10b981)", color:"white", border:"none", borderRadius:"12px", fontWeight:"900", cursor:"pointer", fontSize:"14px" }}>
+                  💾 حفظ التعديل
+                </button>
+              </div>
+            </div>
+          </div>
         )}
+
+        {/* Modal: طباعة ومشاركة الطلبات */}
+        {showPrintModal && (() => {
+          const approvedReqs = requests.filter(r => {
+            if (r.status !== "approved") return false;
+            if (printFrom && r.start_date < printFrom) return false;
+            if (printTo && r.start_date > printTo) return false;
+            return true;
+          });
+          const allSel = approvedReqs.length > 0 && printSelected.length === approvedReqs.length;
+          return (
+          <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.6)", backdropFilter:"blur(5px)", display:"flex", alignItems:"center", justifyContent:"center", padding:"16px", zIndex:200 }} onClick={() => setShowPrintModal(false)}>
+            <div style={{ background:"white", borderRadius:"24px", width:"100%", maxWidth:"580px", padding:"24px", maxHeight:"90vh", display:"flex", flexDirection:"column" }} dir="rtl" onClick={e => e.stopPropagation()}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"16px" }}>
+                <h3 style={{ margin:0, fontWeight:"900", fontSize:"17px" }}>🖨️ طباعة ومشاركة الطلبات المقبولة</h3>
+                <button onClick={() => setShowPrintModal(false)} style={{ border:"1px solid #e2e8f0", borderRadius:"8px", padding:"5px 9px", cursor:"pointer" }}><X size={16}/></button>
+              </div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"10px", marginBottom:"12px" }}>
+                {[{ label:"من تاريخ", val:printFrom, set:setPrintFrom }, { label:"إلى تاريخ", val:printTo, set:setPrintTo }].map(f => (
+                  <div key={f.label}><label style={{ fontSize:"11px", color:"#64748b", fontWeight:"700", display:"block", marginBottom:"4px" }}>{f.label}</label>
+                    <input type="date" style={{ width:"100%", padding:"9px 12px", border:"1px solid #e2e8f0", borderRadius:"10px", outline:"none", boxSizing:"border-box" }}
+                      value={f.val} onChange={e => { f.set(e.target.value); setPrintSelected([]); }}/></div>
+                ))}
+              </div>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"8px" }}>
+                <span style={{ fontSize:"12px", color:"#64748b" }}>{approvedReqs.length} طلب · <b style={{color:"#4f46e5"}}>{printSelected.length} محدد</b></span>
+                <button onClick={() => setPrintSelected(allSel ? [] : approvedReqs.map(r => r.id))}
+                  style={{ background:"#f1f5f9", border:"1px solid #e2e8f0", borderRadius:"8px", padding:"5px 12px", cursor:"pointer", fontSize:"12px", fontWeight:"700" }}>
+                  {allSel ? "إلغاء الكل" : "تحديد الكل"}
+                </button>
+              </div>
+              <div style={{ flex:1, overflowY:"auto", display:"flex", flexDirection:"column", gap:"6px", marginBottom:"14px" }}>
+                {approvedReqs.length === 0
+                  ? <div style={{ textAlign:"center", padding:"30px", color:"#94a3b8" }}>لا توجد طلبات مقبولة في هذه الفترة</div>
+                  : approvedReqs.map(req => {
+                    const isSel = printSelected.includes(req.id);
+                    const vt = vacationTypes.find(v => v.id === req.vacation_type_id);
+                    const { back } = getCalculatedDates(req.start_date, req.days);
+                    return (
+                      <div key={req.id} onClick={() => setPrintSelected(prev => isSel ? prev.filter(i => i !== req.id) : [...prev, req.id])}
+                        style={{ display:"flex", alignItems:"center", gap:"10px", padding:"10px 12px", borderRadius:"12px", border:`2px solid ${isSel ? "#4f46e5" : "#e2e8f0"}`, background: isSel ? "#f5f3ff" : "white", cursor:"pointer" }}>
+                        <div style={{ width:"18px", height:"18px", borderRadius:"5px", border:`2px solid ${isSel ? "#4f46e5" : "#cbd5e1"}`, background: isSel ? "#4f46e5" : "white", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                          {isSel && <span style={{ color:"white", fontSize:"11px" }}>✓</span>}
+                        </div>
+                        <div style={{ flex:1 }}>
+                          <div style={{ fontWeight:"700", fontSize:"13px" }}>{req.employee_name}</div>
+                          <div style={{ fontSize:"11px", color:"#64748b" }}>
+                            {formatDate(req.start_date)} ← {formatDate(back)} | {req.days} يوم
+                            {vt && <span style={{ marginRight:"6px", padding:"1px 7px", borderRadius:"20px", background:vt.color+"20", color:vt.color, fontSize:"10px", fontWeight:"700" }}>{vt.name}</span>}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                }
+              </div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"10px" }}>
+                <button disabled={!printSelected.length}
+                  onClick={() => {
+                    const sel = requests.filter(r => printSelected.includes(r.id));
+                    const w = window.open("","_blank");
+                    if (!w) return alert("السماح بالنوافذ المنبثقة");
+                    const rows = sel.map((r,i) => {
+                      const vt = vacationTypes.find(v => v.id === r.vacation_type_id);
+                      const { back } = getCalculatedDates(r.start_date, r.days);
+                      return "<tr style=\"background:" + (i%2?"#f9fafb":"white") + "\"><td>" + (i+1) + "</td><td>" + r.employee_name + "</td><td>" + (vt?.name||"-") + "</td><td>" + formatDate(r.start_date) + "</td><td>" + r.days + "</td><td>" + formatDate(back) + "</td></tr>";
+                    }).join("");
+                    w.document.write("<html dir=\"rtl\"><head><title>تقرير الإجازات</title><style>*{font-family:Arial,sans-serif}body{padding:30px}h2{color:#1e1b4b;border-bottom:3px solid #4f46e5;padding-bottom:10px}table{width:100%;border-collapse:collapse;margin-top:20px}th{background:#4f46e5;color:white;padding:12px;text-align:right}td{padding:10px;border-bottom:1px solid #e5e7eb;text-align:right}.meta{color:#6b7280;font-size:13px;margin-bottom:20px}</style></head><body><h2>📋 تقرير الإجازات المقبولة</h2><div class=\"meta\">الفترة: " + (printFrom||"الكل") + " — " + (printTo||"الكل") + " | عدد الطلبات: " + sel.length + "</div><table><thead><tr><th>#</th><th>الموظف</th><th>نوع الإجازة</th><th>تاريخ البداية</th><th>المدة</th><th>تاريخ العودة</th></tr></thead><tbody>" + rows + "</tbody></table><script>window.onload=()=>window.print()<" + "/script></body></html>");
+                    w.document.close();
+                  }}
+                  style={{ padding:"13px", background:!printSelected.length?"#f1f5f9":"linear-gradient(135deg,#1d4ed8,#3b82f6)", color:!printSelected.length?"#94a3b8":"white", border:"none", borderRadius:"12px", fontWeight:"800", cursor:!printSelected.length?"not-allowed":"pointer", fontSize:"14px" }}>
+                  🖨️ طباعة ({printSelected.length})
+                </button>
+                <button disabled={!printSelected.length}
+                  onClick={async () => {
+                    const sel = requests.filter(r => printSelected.includes(r.id));
+                    const text = ["📋 تقرير الإجازات المقبولة", "الفترة: " + (printFrom||"الكل") + " - " + (printTo||"الكل"), "━━━━━━━━━━━━━━━━",
+                      ...sel.map((r,i) => {
+                        const vt = vacationTypes.find(v => v.id === r.vacation_type_id);
+                        const { back } = getCalculatedDates(r.start_date, r.days);
+                        return (i+1) + ". " + r.employee_name + "\n   " + (vt?.name||"-") + " | " + r.days + " يوم\n   📅 " + formatDate(r.start_date) + " ← " + formatDate(back);
+                      })].join("\n");
+                    try {
+                      if (navigator.share) { await navigator.share({ title:"تقرير الإجازات", text }); }
+                      else { await navigator.clipboard.writeText(text); alert("✅ تم نسخ التقرير — الصقه في واتساب أو أي تطبيق"); }
+                    } catch { alert("حدث خطأ في المشاركة"); }
+                  }}
+                  style={{ padding:"13px", background:!printSelected.length?"#f1f5f9":"linear-gradient(135deg,#059669,#10b981)", color:!printSelected.length?"#94a3b8":"white", border:"none", borderRadius:"12px", fontWeight:"800", cursor:!printSelected.length?"not-allowed":"pointer", fontSize:"14px" }}>
+                  📤 مشاركة ({printSelected.length})
+                </button>
+              </div>
+            </div>
+          </div>
+          );
+        })()}
 
         {/* Edit Vacation Modal */}
         {editingVac && (
@@ -3606,7 +3942,7 @@ ${JSON.stringify(systemData)}
                       {vacType && <span className="inline-block mt-2 px-2 py-1 rounded-full text-xs font-bold" style={{ backgroundColor: vacType.color+'20', color: vacType.color }}>{vacType.name}</span>}
                     </div>
                     <span className={`px-4 py-1.5 rounded-full text-xs font-black ${req.status === 'approved' ? 'bg-emerald-100 text-emerald-700' : req.status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
-                      {req.status === 'approved' ? '✓ مقبول' : req.status === 'rejected' ? '✗ مرفوض' : '⏳ معلق'}
+                      {req.status === 'approved' ? '✓ مقبول' : req.status === 'rejected' ? '✗ مرفوض' : req.status === 'dept_approved' ? '◑ موافقة مبدئية' : '⏳ معلق'}
                     </span>
                   </div>
                   {req.admin_notes && (
@@ -3615,6 +3951,16 @@ ${JSON.stringify(systemData)}
                       <p className="text-sm text-blue-900">{req.admin_notes}</p>
                     </div>
                   )}
+                  {req.status === "pending" && (() => {
+                    const created = new Date(req.created_at || Date.now());
+                    const daysOld = Math.floor((Date.now() - created.getTime()) / 86400000);
+                    return daysOld <= 3 ? (
+                      <button onClick={() => { setEmpEditReq({...req}); setShowEditRequestModal(true); }}
+                        style={{ marginTop:"10px", width:"100%", padding:"9px", background:"#f5f3ff", border:"1px solid #ddd6fe", borderRadius:"10px", color:"#7c3aed", cursor:"pointer", fontWeight:"700", fontSize:"12px" }}>
+                        ✏️ تعديل الطلب (متبقي {3 - daysOld} يوم)
+                      </button>
+                    ) : null;
+                  })()}
                 </div>
               );
             })}
