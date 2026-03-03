@@ -346,6 +346,7 @@ const VacationManagementSystem = () => {
   const [selectedCalendarDay, setSelectedCalendarDay] = useState<string | null>(null);
   const [showEmpDropdown, setShowEmpDropdown] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [expandedRequestId, setExpandedRequestId] = useState<string | null>(null);
   // ===== States للميزات الجديدة =====
   const [showEditDaysModal, setShowEditDaysModal] = useState(false);
   const [editDaysForm, setEditDaysForm] = useState({ days: 0, reason: "", requestId: "", oldDays: 0, empName: "" });
@@ -2769,15 +2770,63 @@ ${JSON.stringify(systemData)}
                           const vacType = vacationTypes.find(vt => vt.id === req.vacation_type_id);
                           return (
                             <div key={req.id} style={{ background:"#161b22", padding:"24px", borderRadius:"1.5rem", border:"2px solid rgba(245,158,11,0.3)" }}>
-                              <div className="flex justify-between items-start mb-6">
+                              <div className="flex justify-between items-start mb-6" style={{ cursor:"pointer" }} onClick={() => setExpandedRequestId(expandedRequestId === req.id ? null : req.id)}>
                                 <div>
                                   <h4 className="font-black text-xl text-slate-800">{req.employee_name}</h4>
-                                  <p className="text-slate-400 text-sm mt-1">بانتظار موافقتك</p>
+                                  <p className="text-slate-400 text-sm mt-1">بانتظار موافقتك — <span style={{color:"#818cf8", fontSize:"11px"}}>اضغط لعرض بيانات الموظف</span></p>
                                 </div>
                                 <div className="flex gap-2 items-center">
                                   {vacType && <span className="px-3 py-1 rounded-full text-xs font-bold" style={{ backgroundColor: vacType.color+'20', color: vacType.color }}>{vacType.name}</span>}
+                                  <span style={{ color:"#6e7681", fontSize:"18px" }}>{expandedRequestId === req.id ? "▲" : "▼"}</span>
                                 </div>
                               </div>
+                              {/* بيانات الموظف عند الضغط */}
+                              {expandedRequestId === req.id && (() => {
+                                const empInfo = employees.find(e => e.id === req.employee_id);
+                                if (!empInfo) return null;
+                                const workedDaysEmp = calculateWorkedDays(empInfo.return_date);
+                                const totalVacDays = requests.filter(r => r.employee_id === empInfo.id && r.status === "approved").reduce((s,r) => s + Number(r.days), 0);
+                                const isBalanceSufficient = Number(empInfo.balance) >= Number(req.days);
+                                return (
+                                  <div style={{ background:"linear-gradient(135deg,#1c2333,#21262d)", borderRadius:"16px", padding:"16px", marginBottom:"16px", border:"1px solid #30363d" }}>
+                                    <div style={{ display:"flex", alignItems:"center", gap:"12px", marginBottom:"14px" }}>
+                                      <div style={{ width:"46px", height:"46px", borderRadius:"50%", background:"linear-gradient(135deg,#4f46e5,#7c3aed)", display:"flex", alignItems:"center", justifyContent:"center", fontWeight:"900", fontSize:"18px", color:"white", flexShrink:0 }}>
+                                        {empInfo.name?.charAt(0)}
+                                      </div>
+                                      <div>
+                                        <div style={{ fontWeight:"900", fontSize:"15px", color:"#e6edf3" }}>{empInfo.name}</div>
+                                        <div style={{ fontSize:"11px", color:"#6e7681" }}>{empInfo.position || "-"} | كود: {empInfo.code || "-"}</div>
+                                        {empInfo.hire_date && <div style={{ fontSize:"10px", color:"#484f58" }}>تاريخ التعيين: {formatDate(empInfo.hire_date)}</div>}
+                                      </div>
+                                    </div>
+                                    <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:"8px" }}>
+                                      <div style={{ background: isBalanceSufficient ? "rgba(16,185,129,0.1)" : "rgba(239,68,68,0.15)", borderRadius:"12px", padding:"10px", textAlign:"center", border: isBalanceSufficient ? "1px solid rgba(16,185,129,0.2)" : "1px solid rgba(239,68,68,0.3)" }}>
+                                        <div style={{ fontSize:"20px", fontWeight:"900", color: isBalanceSufficient ? "#10b981" : "#ef4444" }}>{empInfo.balance}</div>
+                                        <div style={{ fontSize:"10px", color:"#6e7681", marginTop:"2px" }}>رصيد الإجازة</div>
+                                        {!isBalanceSufficient && <div style={{ fontSize:"9px", color:"#ef4444", marginTop:"2px" }}>⚠️ رصيد غير كافٍ!</div>}
+                                      </div>
+                                      <div style={{ background:"rgba(245,158,11,0.1)", borderRadius:"12px", padding:"10px", textAlign:"center", border:"1px solid rgba(245,158,11,0.2)" }}>
+                                        <div style={{ fontSize:"20px", fontWeight:"900", color:"#f59e0b" }}>{workedDaysEmp}</div>
+                                        <div style={{ fontSize:"10px", color:"#6e7681", marginTop:"2px" }}>أيام العمل</div>
+                                      </div>
+                                      <div style={{ background:"rgba(129,140,248,0.1)", borderRadius:"12px", padding:"10px", textAlign:"center", border:"1px solid rgba(129,140,248,0.2)" }}>
+                                        <div style={{ fontSize:"20px", fontWeight:"900", color:"#818cf8" }}>{totalVacDays}</div>
+                                        <div style={{ fontSize:"10px", color:"#6e7681", marginTop:"2px" }}>إجمالي إجازاته</div>
+                                      </div>
+                                    </div>
+                                    <div style={{ marginTop:"10px", display:"flex", justifyContent:"space-between", fontSize:"11px", color:"#6e7681" }}>
+                                      <span>الرصيد الشهري: <b style={{color:"#6ee7b7"}}>{empInfo.monthly_balance || 0} يوم/شهر</b></span>
+                                      {empInfo.email ? <span style={{color:"#818cf8"}}>📧 {empInfo.email}</span> : <span style={{color:"#f59e0b"}}>⚠️ لا يوجد بريد</span>}
+                                    </div>
+                                    {/* هل يستاهل الإجازة؟ */}
+                                    <div style={{ marginTop:"12px", padding:"10px 14px", borderRadius:"12px", background: isBalanceSufficient && workedDaysEmp >= 30 ? "rgba(16,185,129,0.15)" : "rgba(239,68,68,0.1)", border: isBalanceSufficient && workedDaysEmp >= 30 ? "1px solid rgba(16,185,129,0.3)" : "1px solid rgba(239,68,68,0.2)", textAlign:"center" }}>
+                                      <div style={{ fontWeight:"900", fontSize:"14px", color: isBalanceSufficient && workedDaysEmp >= 30 ? "#10b981" : "#ef4444" }}>
+                                        {isBalanceSufficient && workedDaysEmp >= 30 ? "✅ الموظف يستحق الإجازة" : !isBalanceSufficient ? "❌ الرصيد غير كافٍ" : "⚠️ أيام العمل أقل من 30 يوم"}
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })()}
                               <div style={{ background:"#1c2333", padding:"20px", borderRadius:"16px", marginBottom:"20px" }}>
                                 <div className="flex justify-between text-sm font-bold"><span style={{ color:"#6e7681" }}>تاريخ البداية</span><span>{formatDate(req.start_date)}</span></div>
                                 <div className="flex justify-between text-sm font-bold"><span style={{ color:"#6e7681" }}>المدة</span><span>{req.days} يوم</span></div>
@@ -2813,17 +2862,50 @@ ${JSON.stringify(systemData)}
                           const vacType = vacationTypes.find(vt => vt.id === req.vacation_type_id);
                           const dept = departments.find(d => d.id === employees.find(e => e.id === req.employee_id)?.department_id);
                           return (
-                            <div key={req.id} className="bg-transparent">
-                              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"14px" }}>
+                            <div key={req.id} style={{ background:"#161b22", padding:"20px", borderRadius:"1.5rem", border:"1px solid #30363d" }}>
+                              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"14px", cursor:"pointer" }} onClick={() => setExpandedRequestId(expandedRequestId === req.id ? null : req.id)}>
                                 <div>
                                   <h4 className="font-black text-xl text-slate-800">{req.employee_name}</h4>
-                                  <p className="text-xs text-amber-600 font-bold mt-1">🏢 {dept?.name || "—"} — بانتظار مدير القسم</p>
+                                  <p className="text-xs text-amber-600 font-bold mt-1">🏢 {dept?.name || "—"} — بانتظار مدير القسم — <span style={{color:"#818cf8", fontSize:"11px"}}>اضغط لعرض بيانات الموظف</span></p>
                                 </div>
                                 <div className="flex gap-2">
                                   {vacType && <span className="px-3 py-1 rounded-full text-xs font-bold" style={{ backgroundColor: vacType.color+'20', color: vacType.color }}>{vacType.name}</span>}
-                                  <button onClick={() => handleDeleteVacation(req.id)} className="p-2 text-red-400 hover:bg-red-50 rounded-xl"><Trash2 size={16} /></button>
+                                  <span style={{ color:"#6e7681", fontSize:"18px" }}>{expandedRequestId === req.id ? "▲" : "▼"}</span>
+                                  <button onClick={(e) => { e.stopPropagation(); handleDeleteVacation(req.id); }} className="p-2 text-red-400 hover:bg-red-50 rounded-xl"><Trash2 size={16} /></button>
                                 </div>
                               </div>
+                              {/* بيانات الموظف عند الضغط */}
+                              {expandedRequestId === req.id && (() => {
+                                const empInfo = employees.find(e => e.id === req.employee_id);
+                                if (!empInfo) return null;
+                                const workedDaysEmp = calculateWorkedDays(empInfo.return_date);
+                                const totalVacDays = requests.filter(r => r.employee_id === empInfo.id && r.status === "approved").reduce((s,r) => s + Number(r.days), 0);
+                                const isBalanceSufficient = Number(empInfo.balance) >= Number(req.days);
+                                return (
+                                  <div style={{ background:"linear-gradient(135deg,#1c2333,#21262d)", borderRadius:"16px", padding:"16px", marginBottom:"16px", border:"1px solid #30363d" }}>
+                                    <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:"8px" }}>
+                                      <div style={{ background: isBalanceSufficient ? "rgba(16,185,129,0.1)" : "rgba(239,68,68,0.15)", borderRadius:"12px", padding:"10px", textAlign:"center", border: isBalanceSufficient ? "1px solid rgba(16,185,129,0.2)" : "1px solid rgba(239,68,68,0.3)" }}>
+                                        <div style={{ fontSize:"20px", fontWeight:"900", color: isBalanceSufficient ? "#10b981" : "#ef4444" }}>{empInfo.balance}</div>
+                                        <div style={{ fontSize:"10px", color:"#6e7681", marginTop:"2px" }}>رصيد الإجازة</div>
+                                        {!isBalanceSufficient && <div style={{ fontSize:"9px", color:"#ef4444", marginTop:"2px" }}>⚠️ غير كافٍ</div>}
+                                      </div>
+                                      <div style={{ background:"rgba(245,158,11,0.1)", borderRadius:"12px", padding:"10px", textAlign:"center", border:"1px solid rgba(245,158,11,0.2)" }}>
+                                        <div style={{ fontSize:"20px", fontWeight:"900", color:"#f59e0b" }}>{workedDaysEmp}</div>
+                                        <div style={{ fontSize:"10px", color:"#6e7681", marginTop:"2px" }}>أيام العمل</div>
+                                      </div>
+                                      <div style={{ background:"rgba(129,140,248,0.1)", borderRadius:"12px", padding:"10px", textAlign:"center", border:"1px solid rgba(129,140,248,0.2)" }}>
+                                        <div style={{ fontSize:"20px", fontWeight:"900", color:"#818cf8" }}>{totalVacDays}</div>
+                                        <div style={{ fontSize:"10px", color:"#6e7681", marginTop:"2px" }}>إجمالي إجازاته</div>
+                                      </div>
+                                    </div>
+                                    <div style={{ marginTop:"12px", padding:"10px 14px", borderRadius:"12px", background: isBalanceSufficient && workedDaysEmp >= 30 ? "rgba(16,185,129,0.15)" : "rgba(239,68,68,0.1)", border: isBalanceSufficient && workedDaysEmp >= 30 ? "1px solid rgba(16,185,129,0.3)" : "1px solid rgba(239,68,68,0.2)", textAlign:"center" }}>
+                                      <div style={{ fontWeight:"900", fontSize:"14px", color: isBalanceSufficient && workedDaysEmp >= 30 ? "#10b981" : "#ef4444" }}>
+                                        {isBalanceSufficient && workedDaysEmp >= 30 ? "✅ الموظف يستحق الإجازة" : !isBalanceSufficient ? "❌ الرصيد غير كافٍ" : "⚠️ أيام العمل أقل من 30 يوم"}
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })()}
                               <div style={{ background:"#1c2333", padding:"14px", borderRadius:"14px", fontSize:"13px" }}>
                                 <div className="flex justify-between font-bold"><span style={{ color:"#6e7681" }}>البداية</span><span>{formatDate(req.start_date)}</span></div>
                                 <div className="flex justify-between font-bold"><span style={{ color:"#6e7681" }}>المدة</span><span>{req.days} يوم</span></div>
@@ -2847,17 +2929,54 @@ ${JSON.stringify(systemData)}
                           const emp = employees.find(e => e.id === req.employee_id);
                           const dept = departments.find(d => d.id === emp?.department_id);
                           return (
-                            <div key={req.id} className="bg-transparent">
-                              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"14px" }}>
+                            <div key={req.id} style={{ background:"#161b22", padding:"20px", borderRadius:"1.5rem", border:"1px solid #30363d" }}>
+                              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"14px", cursor:"pointer" }} onClick={() => setExpandedRequestId(expandedRequestId === req.id ? null : req.id)}>
                                 <div>
                                   <h4 className="font-black text-xl text-slate-800">{req.employee_name}</h4>
-                                  <p className="text-xs text-indigo-600 font-bold mt-1">✅ وافق عليها: {req.dept_approved_by || dept?.name}</p>
+                                  <p className="text-xs text-indigo-600 font-bold mt-1">✅ وافق عليها: {req.dept_approved_by || dept?.name} — <span style={{color:"#818cf8", fontSize:"11px"}}>اضغط لعرض بيانات الموظف</span></p>
                                 </div>
                                 <div className="flex gap-2 items-center">
                                   {vacType && <span className="px-3 py-1 rounded-full text-xs font-bold" style={{ backgroundColor: vacType.color+'20', color: vacType.color }}>{vacType.name}</span>}
-                                  <button onClick={() => handleDeleteVacation(req.id)} className="p-2 text-red-400 hover:bg-red-50 rounded-xl"><Trash2 size={16} /></button>
+                                  <span style={{ color:"#6e7681", fontSize:"18px" }}>{expandedRequestId === req.id ? "▲" : "▼"}</span>
+                                  <button onClick={(e) => { e.stopPropagation(); handleDeleteVacation(req.id); }} className="p-2 text-red-400 hover:bg-red-50 rounded-xl"><Trash2 size={16} /></button>
                                 </div>
                               </div>
+                              {/* بيانات الموظف عند الضغط */}
+                              {expandedRequestId === req.id && (() => {
+                                const empInfo = employees.find(e => e.id === req.employee_id);
+                                if (!empInfo) return null;
+                                const workedDaysEmp = calculateWorkedDays(empInfo.return_date);
+                                const totalVacDays = requests.filter(r => r.employee_id === empInfo.id && r.status === "approved").reduce((s,r) => s + Number(r.days), 0);
+                                const isBalanceSufficient = Number(empInfo.balance) >= Number(req.days);
+                                return (
+                                  <div style={{ background:"linear-gradient(135deg,#1c2333,#21262d)", borderRadius:"16px", padding:"16px", marginBottom:"16px", border:"1px solid #30363d" }}>
+                                    <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:"8px" }}>
+                                      <div style={{ background: isBalanceSufficient ? "rgba(16,185,129,0.1)" : "rgba(239,68,68,0.15)", borderRadius:"12px", padding:"10px", textAlign:"center", border: isBalanceSufficient ? "1px solid rgba(16,185,129,0.2)" : "1px solid rgba(239,68,68,0.3)" }}>
+                                        <div style={{ fontSize:"20px", fontWeight:"900", color: isBalanceSufficient ? "#10b981" : "#ef4444" }}>{empInfo.balance}</div>
+                                        <div style={{ fontSize:"10px", color:"#6e7681", marginTop:"2px" }}>رصيد الإجازة</div>
+                                        {!isBalanceSufficient && <div style={{ fontSize:"9px", color:"#ef4444", marginTop:"2px" }}>⚠️ غير كافٍ</div>}
+                                      </div>
+                                      <div style={{ background:"rgba(245,158,11,0.1)", borderRadius:"12px", padding:"10px", textAlign:"center", border:"1px solid rgba(245,158,11,0.2)" }}>
+                                        <div style={{ fontSize:"20px", fontWeight:"900", color:"#f59e0b" }}>{workedDaysEmp}</div>
+                                        <div style={{ fontSize:"10px", color:"#6e7681", marginTop:"2px" }}>أيام العمل</div>
+                                      </div>
+                                      <div style={{ background:"rgba(129,140,248,0.1)", borderRadius:"12px", padding:"10px", textAlign:"center", border:"1px solid rgba(129,140,248,0.2)" }}>
+                                        <div style={{ fontSize:"20px", fontWeight:"900", color:"#818cf8" }}>{totalVacDays}</div>
+                                        <div style={{ fontSize:"10px", color:"#6e7681", marginTop:"2px" }}>إجمالي إجازاته</div>
+                                      </div>
+                                    </div>
+                                    <div style={{ marginTop:"10px", display:"flex", justifyContent:"space-between", fontSize:"11px", color:"#6e7681" }}>
+                                      <span>الرصيد الشهري: <b style={{color:"#6ee7b7"}}>{empInfo.monthly_balance || 0} يوم/شهر</b></span>
+                                      {empInfo.email ? <span style={{color:"#818cf8"}}>📧 {empInfo.email}</span> : <span style={{color:"#f59e0b"}}>⚠️ لا يوجد بريد</span>}
+                                    </div>
+                                    <div style={{ marginTop:"12px", padding:"10px 14px", borderRadius:"12px", background: isBalanceSufficient && workedDaysEmp >= 30 ? "rgba(16,185,129,0.15)" : "rgba(239,68,68,0.1)", border: isBalanceSufficient && workedDaysEmp >= 30 ? "1px solid rgba(16,185,129,0.3)" : "1px solid rgba(239,68,68,0.2)", textAlign:"center" }}>
+                                      <div style={{ fontWeight:"900", fontSize:"14px", color: isBalanceSufficient && workedDaysEmp >= 30 ? "#10b981" : "#ef4444" }}>
+                                        {isBalanceSufficient && workedDaysEmp >= 30 ? "✅ الموظف يستحق الإجازة" : !isBalanceSufficient ? "❌ الرصيد غير كافٍ" : "⚠️ أيام العمل أقل من 30 يوم"}
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })()}
                               <div className="bg-indigo-50 p-6 rounded-2xl space-y-3 mb-6">
                                 <div className="flex justify-between text-sm font-bold"><span style={{ color:"#6e7681" }}>تاريخ البداية</span><span>{formatDate(req.start_date)}</span></div>
                                 <div className="flex justify-between text-sm font-bold"><span style={{ color:"#6e7681" }}>المدة</span><span>{req.days} يوم</span></div>
