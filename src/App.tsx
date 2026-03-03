@@ -114,168 +114,7 @@ const calculateWorkedDays = (returnDate: string) => {
   return Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
 };
 
-// ==================== DARK MODE GLOBAL STYLES ====================
-const darkModeStyle = `
-  * { box-sizing: border-box; }
-  input, select, textarea {
-    color-scheme: dark;
-  }
-  input::placeholder { color: #484f58 !important; }
-  textarea::placeholder { color: #484f58 !important; }
-  ::-webkit-scrollbar { width: 6px; height: 6px; }
-  ::-webkit-scrollbar-track { background: #0d1117; }
-  ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
-  ::-webkit-scrollbar-thumb:hover { background: #484f58; }
-  @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-`;
-
 // ==================== MAIN COMPONENT ====================
-// ==================== MANAGERS TAB COMPONENT ====================
-const ManagersTab: React.FC<{ departments: any[], supabase: any, logAction: any, currentUser: any }> = ({ departments, supabase, logAction, currentUser }) => {
-  const [managers, setManagers] = React.useState<any[]>([]);
-  const [loading, setLoading] = React.useState(true);
-  const [showAddForm, setShowAddForm] = React.useState(false);
-  const [newMgr, setNewMgr] = React.useState({ name: "", email: "", password: "", department_id: "" });
-  const [saving, setSaving] = React.useState(false);
-
-  const fetchManagers = React.useCallback(async () => {
-    setLoading(true);
-    const { data } = await supabase.from("department_managers").select("*, departments(name)");
-    setManagers(data || []);
-    setLoading(false);
-  }, [supabase]);
-
-  React.useEffect(() => { fetchManagers(); }, [fetchManagers]);
-
-  const handleAdd = async () => {
-    if (!newMgr.name.trim()) return alert("اكتب اسم المدير");
-    if (!newMgr.email.trim()) return alert("اكتب البريد الإلكتروني");
-    if (!newMgr.password.trim()) return alert("اكتب كلمة المرور");
-    if (!newMgr.department_id) return alert("اختر القسم");
-    setSaving(true);
-    const { error } = await supabase.from("department_managers").insert([{
-      name: newMgr.name.trim(),
-      email: newMgr.email.trim(),
-      password: newMgr.password.trim(),
-      department_id: newMgr.department_id,
-    }]);
-    if (error) { alert("خطأ: " + error.message); setSaving(false); return; }
-    await logAction("add_manager", "department_managers", null, null, { name: newMgr.name });
-    setNewMgr({ name: "", email: "", password: "", department_id: "" });
-    setShowAddForm(false);
-    setSaving(false);
-    await fetchManagers();
-    alert("✅ تم إضافة مدير القسم بنجاح");
-  };
-
-  const handleDelete = async (mgr: any) => {
-    if (!window.confirm("هل تريد حذف " + mgr.name + "؟")) return;
-    const { error } = await supabase.from("department_managers").delete().eq("id", mgr.id);
-    if (error) { alert("خطأ: " + error.message); return; }
-    await logAction("delete_manager", "department_managers", mgr.id, mgr, null);
-    await fetchManagers();
-    alert("✅ تم حذف مدير القسم");
-  };
-
-  const inputStyle: React.CSSProperties = {
-    width: "100%", padding: "11px 14px", background: "#0d1117",
-    border: "1px solid #30363d", borderRadius: "10px", color: "#e6edf3",
-    outline: "none", boxSizing: "border-box", fontSize: "13px",
-  };
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-      {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div>
-          <h2 style={{ fontSize: "22px", fontWeight: "900", color: "#e6edf3", margin: 0 }}>مديرو الأقسام</h2>
-          <p style={{ fontSize: "13px", color: "#8b949e", margin: "4px 0 0" }}>{managers.length} مدير مسجل</p>
-        </div>
-        <button onClick={() => setShowAddForm(!showAddForm)}
-          style={{ padding: "10px 18px", background: "linear-gradient(135deg,#4f46e5,#7c3aed)", color: "white", border: "none", borderRadius: "12px", fontWeight: "700", cursor: "pointer", fontSize: "13px", display: "flex", alignItems: "center", gap: "6px" }}>
-          <UserPlus size={16} /> إضافة مدير
-        </button>
-      </div>
-
-      {/* Add Form */}
-      {showAddForm && (
-        <div style={{ background: "#161b22", borderRadius: "16px", padding: "20px", border: "1px solid #30363d" }}>
-          <h3 style={{ margin: "0 0 16px", fontWeight: "900", color: "#e6edf3", fontSize: "15px" }}>➕ إضافة مدير قسم جديد</h3>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
-            <div>
-              <label style={{ fontSize: "11px", color: "#8b949e", fontWeight: "700", display: "block", marginBottom: "5px" }}>الاسم *</label>
-              <input style={inputStyle} placeholder="اسم المدير" value={newMgr.name} onChange={e => setNewMgr({ ...newMgr, name: e.target.value })} />
-            </div>
-            <div>
-              <label style={{ fontSize: "11px", color: "#8b949e", fontWeight: "700", display: "block", marginBottom: "5px" }}>البريد الإلكتروني *</label>
-              <input type="email" style={inputStyle} placeholder="email@example.com" value={newMgr.email} onChange={e => setNewMgr({ ...newMgr, email: e.target.value })} />
-            </div>
-            <div>
-              <label style={{ fontSize: "11px", color: "#8b949e", fontWeight: "700", display: "block", marginBottom: "5px" }}>كلمة المرور *</label>
-              <input type="password" style={inputStyle} placeholder="كلمة المرور" value={newMgr.password} onChange={e => setNewMgr({ ...newMgr, password: e.target.value })} />
-            </div>
-            <div>
-              <label style={{ fontSize: "11px", color: "#8b949e", fontWeight: "700", display: "block", marginBottom: "5px" }}>القسم *</label>
-              <select style={inputStyle} value={newMgr.department_id} onChange={e => setNewMgr({ ...newMgr, department_id: e.target.value })}>
-                <option value="">اختر القسم</option>
-                {departments.map((d: any) => <option key={d.id} value={d.id}>{d.name}</option>)}
-              </select>
-            </div>
-          </div>
-          <div style={{ display: "flex", gap: "10px", marginTop: "16px" }}>
-            <button onClick={handleAdd} disabled={saving}
-              style={{ padding: "11px 24px", background: "linear-gradient(135deg,#059669,#10b981)", color: "white", border: "none", borderRadius: "10px", fontWeight: "700", cursor: saving ? "not-allowed" : "pointer", fontSize: "13px" }}>
-              {saving ? "جاري الحفظ..." : "✅ حفظ"}
-            </button>
-            <button onClick={() => setShowAddForm(false)}
-              style={{ padding: "11px 20px", background: "#21262d", color: "#8b949e", border: "1px solid #30363d", borderRadius: "10px", fontWeight: "700", cursor: "pointer", fontSize: "13px" }}>
-              إلغاء
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Managers List */}
-      {loading ? (
-        <div style={{ textAlign: "center", padding: "40px", color: "#8b949e" }}>جاري التحميل...</div>
-      ) : managers.length === 0 ? (
-        <div style={{ textAlign: "center", padding: "60px", background: "#161b22", borderRadius: "16px", border: "1px solid #30363d" }}>
-          <ShieldCheck size={48} style={{ color: "#484f58", marginBottom: "12px" }} />
-          <p style={{ color: "#6e7681", fontWeight: "700", margin: 0 }}>لم يتم إضافة أي مديرين بعد</p>
-          <p style={{ color: "#484f58", fontSize: "12px", marginTop: "6px" }}>اضغط "إضافة مدير" لإضافة أول مدير قسم</p>
-        </div>
-      ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "14px" }}>
-          {managers.map((mgr: any) => (
-            <div key={mgr.id} style={{ background: "#161b22", borderRadius: "16px", padding: "18px", border: "1px solid #30363d" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "12px" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                  <div style={{ width: "44px", height: "44px", borderRadius: "50%", background: "linear-gradient(135deg,#059669,#10b981)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "900", fontSize: "18px", color: "white", flexShrink: 0 }}>
-                    {mgr.name?.charAt(0)}
-                  </div>
-                  <div>
-                    <div style={{ fontWeight: "800", fontSize: "14px", color: "#e6edf3" }}>{mgr.name}</div>
-                    <div style={{ fontSize: "11px", color: "#10b981", fontWeight: "700", marginTop: "2px" }}>🏢 {mgr.departments?.name || "—"}</div>
-                  </div>
-                </div>
-                <button onClick={() => handleDelete(mgr)}
-                  style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)", borderRadius: "8px", padding: "6px 8px", cursor: "pointer", color: "#ef4444" }}>
-                  <Trash2 size={14} />
-                </button>
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
-                <div style={{ fontSize: "12px", color: "#8b949e", display: "flex", alignItems: "center", gap: "6px" }}>
-                  <Mail size={11} /> {mgr.email}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-};
-
 const VacationManagementSystem = () => {
   // ========== STATES ==========
   const [employees, setEmployees] = useState<any[]>([]);
@@ -346,16 +185,16 @@ const VacationManagementSystem = () => {
   const [selectedCalendarDay, setSelectedCalendarDay] = useState<string | null>(null);
   const [showEmpDropdown, setShowEmpDropdown] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [expandedRequestId, setExpandedRequestId] = useState<string | null>(null);
   // ===== States للميزات الجديدة =====
-  const [showEditDaysModal, setShowEditDaysModal] = useState(false);
-  const [editDaysForm, setEditDaysForm] = useState({ days: 0, reason: "", requestId: "", oldDays: 0, empName: "" });
+  const [showEditRequestModal, setShowEditRequestModal] = useState(false);
+  const [empEditReq, setEmpEditReq] = useState<any>(null);
+  const [showManagerEditModal, setShowManagerEditModal] = useState(false);
+  const [mgrEditForm, setMgrEditForm] = useState({ id:"", empName:"", days:1, start_date:"", reason:"", oldDays:1 });
   const [showPrintModal, setShowPrintModal] = useState(false);
-  const [printDateFrom, setPrintDateFrom] = useState("");
-  const [printDateTo, setPrintDateTo] = useState("");
-  const [selectedPrintRequests, setSelectedPrintRequests] = useState<string[]>([]);
-  const [showEmpEditModal, setShowEmpEditModal] = useState(false);
-  const [empEditRequest, setEmpEditRequest] = useState<any>(null);
+  const [printFrom, setPrintFrom] = useState("");
+  const [printTo, setPrintTo] = useState("");
+  const [printSelected, setPrintSelected] = useState<string[]>([]);
+  const [expandedDeptGroups, setExpandedDeptGroups] = useState<Record<string,boolean>>({});
   const [showAIChat, setShowAIChat] = useState(false);
   const [backupLoading, setBackupLoading] = useState(false);
   // ===== NEW FEATURES STATES =====
@@ -1108,96 +947,57 @@ ${JSON.stringify(summaryData)}
     const { id, action, employee_id, days } = currentRequest;
     const oldData = requests.find(r => r.id === id);
     const emp = employees.find(e => e.id === employee_id);
+    const approvedBy = currentUser?.name || "المدير";
 
-    // ===== مدير القسم: موافقة مبدئية فقط → تنتقل للـ Owner =====
-    const isDeptMgrNow = currentUser?.role === "dept_manager";
-    if (isDeptMgrNow && action === "approved") {
-      const { error: deptErr } = await supabase.from("vacation_requests").update({
-        status: "dept_approved",
-        dept_manager_notes: adminNotes || null,
-        dept_approved_by: currentUser?.name,
-        dept_approved_at: new Date().toISOString(),
-      }).eq("id", id);
-      if (deptErr) {
-        alert("❌ حصل خطأ: " + deptErr.message);
-        return;
-      }
-      setShowApprovalModal(false); setCurrentRequest(null); setAdminNotes("");
-      await fetchData();
-      alert("✅ تمت الموافقة المبدئية — الطلب منتظر موافقة المالك");
-      await logAction("dept_approved", "vacation_requests", id, oldData, { status: "dept_approved" });
-      return;
-    }
-
-    // مدير القسم يرفض نهائياً
-    if (isDeptMgrNow && action === "rejected") {
-      if (emp?.email) sendEmail(EMAILJS_TEMPLATES.rejected, emp.email, {
-        employee_name: emp.name,
-        start_date: formatDate(currentRequest.start_date),
-        admin_notes: adminNotes || "تم رفض الطلب من مدير القسم",
-        request_id: id,
-      });
-      const { error: rejectErr } = await supabase.from("vacation_requests").update({
-        status: "rejected",
-        admin_notes: adminNotes || null,
-        dept_approved_by: currentUser?.name,
-      }).eq("id", id);
-      if (rejectErr) {
-        alert("❌ حصل خطأ: " + rejectErr.message);
-        return;
-      }
-      setShowApprovalModal(false); setCurrentRequest(null); setAdminNotes("");
-      await fetchData();
-      await logAction("rejected", "vacation_requests", id, oldData);
-      return;
-    }
-
-    // ===== Owner: موافقة نهائية =====
     if (action === "approved") {
-      if (emp.balance < days) { alert("رصيد غير كافٍ!"); setShowApprovalModal(false); return; }
-      await supabase.from("employees").update({ balance: emp.balance - days, status: "إجازة", return_date: null }).eq("id", emp.id);
+      if (!emp) return;
+      if (Number(emp.balance) < Number(days)) {
+        alert("رصيد الموظف غير كاف (" + emp.balance + " يوم متاح)");
+        setShowApprovalModal(false); return;
+      }
+      await supabase.from("employees").update({
+        balance: Number(emp.balance) - Number(days),
+        status: "اجازة", return_date: null,
+      }).eq("id", emp.id);
       if (emp.email) {
         const { back } = getCalculatedDates(currentRequest.start_date, days);
         sendEmail(EMAILJS_TEMPLATES.approved, emp.email, {
-          employee_name: emp.name,
-          start_date: formatDate(currentRequest.start_date),
-          days,
-          back_date: formatDate(back),
-          admin_notes: adminNotes || "لا توجد ملاحظات",
-          request_id: id,
+          employee_name: emp.name, start_date: formatDate(currentRequest.start_date),
+          days, back_date: formatDate(back),
+          admin_notes: adminNotes || "لا توجد ملاحظات", request_id: id,
         });
       }
-    }
-
-    if (action === "rejected" && emp?.email) {
-      sendEmail(EMAILJS_TEMPLATES.rejected, emp.email, {
-        employee_name: emp.name,
-        start_date: formatDate(currentRequest.start_date),
-        admin_notes: adminNotes || "لا توجد ملاحظات",
-        request_id: id,
-      });
-    }
-
-    const { error: ownerErr } = await supabase.from("vacation_requests").update({
-      status: action,
-      admin_notes: adminNotes || null,
-      owner_approved_by: currentUser?.name,
-      owner_approved_at: new Date().toISOString(),
-    }).eq("id", id);
-    if (ownerErr) {
-      alert("❌ حصل خطأ في الموافقة النهائية: " + ownerErr.message);
+      const { error } = await supabase.from("vacation_requests").update({
+        status: "approved", admin_notes: adminNotes || null,
+        owner_approved_by: approvedBy, owner_approved_at: new Date().toISOString(),
+      }).eq("id", id);
+      if (error) { alert("خطا: " + error.message); return; }
+      sendLocalNotification("تمت الموافقة على اجازة", emp.name + " - " + days + " يوم");
+      setShowApprovalModal(false); setCurrentRequest(null); setAdminNotes("");
+      fetchData();
+      await logAction("approved", "vacation_requests", id, oldData, { status: "approved", approved_by: approvedBy });
       return;
     }
 
-    sendLocalNotification(
-      action === "approved" ? "✅ تمت الموافقة النهائية" : "❌ تم رفض طلب إجازة",
-      `${emp?.name} - ${currentRequest.days} يوم`
-    );
+    if (action === "rejected") {
+      if (emp?.email) sendEmail(EMAILJS_TEMPLATES.rejected, emp.email, {
+        employee_name: emp?.name, start_date: formatDate(currentRequest.start_date),
+        admin_notes: adminNotes || "تم رفض الطلب", request_id: id,
+      });
+      const { error } = await supabase.from("vacation_requests").update({
+        status: "rejected", admin_notes: adminNotes || null,
+        owner_approved_by: approvedBy, owner_approved_at: new Date().toISOString(),
+      }).eq("id", id);
+      if (error) { alert("خطا: " + error.message); return; }
+      sendLocalNotification("تم رفض طلب اجازة", (emp?.name || "") + " - " + currentRequest.days + " يوم");
+      setShowApprovalModal(false); setCurrentRequest(null); setAdminNotes("");
+      fetchData();
+      await logAction("rejected", "vacation_requests", id, oldData, { status: "rejected", rejected_by: approvedBy });
+      return;
+    }
+  };;
 
-    setShowApprovalModal(false); setCurrentRequest(null); setAdminNotes("");
-    fetchData();
-    await logAction(action, "vacation_requests", id, oldData, { status: action, admin_notes: adminNotes });
-  };
+
 
   const handleDeleteVacation = async (id: string) => {
     if (!window.confirm("حذف طلب الإجازة؟")) return;
@@ -1256,30 +1056,46 @@ ${JSON.stringify(summaryData)}
     if (!newRequest.start_date) return alert("حدد تاريخ البداية");
     if (!newRequest.vacation_type_id) return alert("اختر نوع الإجازة");
 
-    // ===== منع الطلب الثاني (لو فيه طلب معلق) =====
-    const hasPending = requests.some(r =>
+    // ===== منع الطلب المكرر =====
+    const pendingReq = requests.find(r =>
       r.employee_id === currentUser.id && (r.status === "pending" || r.status === "dept_approved")
     );
-    if (hasPending) {
-      return alert("لديك طلب اجازة قيد المراجعة. يمكنك تعديله فقط خلال 3 ايام من تقديمه ولا يمكن تقديم طلب جديد.");
+    if (pendingReq) {
+      const submittedAt = new Date(pendingReq.created_at || Date.now());
+      const daysSince = Math.floor((Date.now() - submittedAt.getTime()) / 86400000);
+      if (daysSince <= 3) {
+        const edit = window.confirm(
+          "لديك طلب قيد المراجعة بتاريخ " + formatDate(pendingReq.start_date) + "\n" +
+          "لا يمكن تقديم طلب جديد.\n\n" +
+          "هل تريد تعديل طلبك الحالي؟ (متبقي " + (3 - daysSince) + " يوم للتعديل)"
+        );
+        if (edit) {
+          setEmpEditReq({ ...pendingReq });
+          setShowEditRequestModal(true);
+        }
+      } else {
+        alert("لديك طلب إجازة قيد المراجعة. لا يمكن تقديم طلب جديد حتى يتم البت في طلبك.");
+      }
+      return;
     }
 
     // ===== التحقق من الرصيد مع مراعاة الرصيد الشهري =====
-    const days = Number(newRequest.days);
-    const balance = Number(currentUser.balance);
-    const monthly = Number(currentUser.monthly_balance || 0);
-    if (balance < days) {
-      if (balance + monthly >= days) {
+    const reqDays = Number(newRequest.days);
+    const currentBalance = Number(currentUser.balance || 0);
+    const monthlyBalance = Number(currentUser.monthly_balance || 0);
+    if (currentBalance < reqDays) {
+      const projected = currentBalance + monthlyBalance;
+      if (projected >= reqDays) {
         const ok = window.confirm(
-          "رصيدك الحالي (" + balance + " يوم) غير كافٍ." +
-          "\nبعد اضافة رصيدك الشهري (" + monthly + " يوم) سيصبح " + (balance + monthly) + " يوم وهو كافٍ." +
-          "\n\nهل تريد المتابعة؟"
+          "رصيدك الحالي (" + currentBalance + " يوم) أقل من المطلوب (" + reqDays + " يوم).\n" +
+          "بعد إضافة رصيدك الشهري (" + monthlyBalance + " يوم) سيصبح " + projected + " يوم وهو كافٍ.\n\n" +
+          "هل تريد المتابعة؟"
         );
         if (!ok) return;
       } else {
         return alert(
-          "رصيدك " + balance + " يوم غير كافٍ لـ " + days + " يوم.\n" +
-          "حتى بعد اضافة رصيدك الشهري (" + monthly + " يوم) = " + (balance + monthly) + " يوم لن يكفي."
+          "رصيدك الحالي " + currentBalance + " يوم غير كافٍ للطلب (" + reqDays + " يوم).\n" +
+          "حتى بعد إضافة الرصيد الشهري (" + monthlyBalance + " يوم) لن يكفي."
         );
       }
     }
@@ -1317,47 +1133,48 @@ ${JSON.stringify(summaryData)}
     setIsSubmitting(false);
   };
 
-  // ========== تعديل الموظف لطلبه (خلال 3 أيام) ==========
+  // ===== Handler: الموظف يعدّل طلبه (خلال 3 أيام) =====
   const handleEmpEditRequest = async () => {
-    if (!empEditRequest) return;
-    if (!empEditRequest.start_date) return alert("حدد تاريخ البداية");
-    if (!empEditRequest.days || empEditRequest.days < 0.5) return alert("عدد الايام يجب ان يكون 0.5 على الاقل");
+    if (!empEditReq) return;
+    if (!empEditReq.start_date) return alert("حدد تاريخ البداية");
+    if (!empEditReq.days || Number(empEditReq.days) < 0.5) return alert("عدد الأيام يجب أن يكون 0.5 على الأقل");
     const { error } = await supabase.from("vacation_requests").update({
-      start_date: empEditRequest.start_date,
-      days: empEditRequest.days,
-      notes: empEditRequest.notes,
-      vacation_type_id: empEditRequest.vacation_type_id,
-      departure_time: empEditRequest.departure_time,
-    }).eq("id", empEditRequest.id);
-    if (error) return alert("خطا: " + error.message);
-    setShowEmpEditModal(false);
-    setEmpEditRequest(null);
+      start_date: empEditReq.start_date,
+      days: empEditReq.days,
+      notes: empEditReq.notes,
+      vacation_type_id: empEditReq.vacation_type_id,
+      departure_time: empEditReq.departure_time,
+    }).eq("id", empEditReq.id);
+    if (error) return alert("خطأ: " + error.message);
+    setShowEditRequestModal(false);
+    setEmpEditReq(null);
     await fetchData();
-    alert("تم تعديل الطلب بنجاح");
+    alert("✅ تم تعديل الطلب بنجاح");
   };
 
-  // ========== تعديل عدد أيام الإجازة بواسطة المدير ==========
-  const handleEditDays = async () => {
-    if (!editDaysForm.reason.trim()) return alert("اكتب سبب التعديل");
-    if (editDaysForm.days < 0.5) return alert("عدد الايام يجب ان يكون 0.5 على الاقل");
-    const req = requests.find(r => r.id === editDaysForm.requestId);
+  // ===== Handler: المدير يعدّل الإجازة (أيام + تاريخ + سبب) =====
+  const handleManagerEditRequest = async () => {
+    if (!mgrEditForm.reason.trim()) return alert("يرجى كتابة سبب التعديل");
+    if (Number(mgrEditForm.days) < 0.5) return alert("عدد الأيام يجب أن يكون 0.5 على الأقل");
+    const req = requests.find(r => r.id === mgrEditForm.id);
     if (!req) return;
     const emp = employees.find(e => e.id === req.employee_id);
     if (!emp) return;
-    const daysDiff = editDaysForm.days - editDaysForm.oldDays;
+    const daysDiff = Number(mgrEditForm.days) - Number(mgrEditForm.oldDays);
     const { error } = await supabase.from("vacation_requests").update({
-      days: editDaysForm.days,
-      admin_notes: "تم تعديل المدة من " + editDaysForm.oldDays + " الى " + editDaysForm.days + " يوم - السبب: " + editDaysForm.reason + " (بواسطة: " + currentUser?.name + ")",
-    }).eq("id", editDaysForm.requestId);
+      days: mgrEditForm.days,
+      start_date: mgrEditForm.start_date,
+      admin_notes: "تعديل بواسطة " + currentUser?.name + ": من " + mgrEditForm.oldDays + " إلى " + mgrEditForm.days + " يوم" + (mgrEditForm.reason ? " - السبب: " + mgrEditForm.reason : ""),
+    }).eq("id", mgrEditForm.id);
     if (error) return alert(error.message);
     if (req.status === "approved" && daysDiff !== 0) {
-      await supabase.from("employees").update({ balance: Math.max(0, emp.balance - daysDiff) }).eq("id", emp.id);
+      await supabase.from("employees").update({ balance: Math.max(0, Number(emp.balance) - daysDiff) }).eq("id", emp.id);
     }
-    await logAction("edit_days", "vacation_requests", editDaysForm.requestId, req, { newDays: editDaysForm.days, reason: editDaysForm.reason });
-    setShowEditDaysModal(false);
-    setEditDaysForm({ days: 0, reason: "", requestId: "", oldDays: 0, empName: "" });
+    await logAction("manager_edit", "vacation_requests", mgrEditForm.id, req, { newDays: mgrEditForm.days, reason: mgrEditForm.reason });
+    setShowManagerEditModal(false);
+    setMgrEditForm({ id:"", empName:"", days:1, start_date:"", reason:"", oldDays:1 });
     await fetchData();
-    alert("تم تعديل عدد الايام بنجاح");
+    alert("✅ تم تعديل الإجازة بنجاح");
   };
 
   // ========== DIRECT VACATION (إجازة مباشرة) ==========
@@ -1480,7 +1297,7 @@ ${JSON.stringify(summaryData)}
       );
     }
     return (
-      <div style={{ width:"100%", boxSizing:"border-box", background:"#161b22", padding:"24px", borderRadius:"1.5rem", border:"1px solid #30363d" }}>
+      <div style={{ width:"100%", boxSizing:"border-box" }} className="bg-white p-6 rounded-[2rem] shadow-sm border">
         <div className="flex items-center justify-between mb-4">
           <button onClick={() => setCurrentMonth(new Date(year, month-1))} className="p-2 hover:bg-slate-100 rounded-xl">❯</button>
           <h3 className="text-lg font-black">{currentMonth.toLocaleDateString('ar-EG', { month: 'long', year: 'numeric' })}</h3>
@@ -1793,17 +1610,6 @@ ${JSON.stringify(systemData)}
   };
 
   // ==================== LOGIN VIEW ====================
-  // inject dark mode styles once
-  React.useEffect(() => {
-    const style = document.createElement("style");
-    style.innerHTML = darkModeStyle;
-    style.id = "vms-dark-mode";
-    if (!document.getElementById("vms-dark-mode")) document.head.appendChild(style);
-    document.body.style.background = "#0d1117";
-    document.body.style.margin = "0";
-    return () => {};
-  }, []);
-
   if (currentView === "login") {
     return (
       <div dir="rtl" style={{
@@ -1909,7 +1715,7 @@ ${JSON.stringify(systemData)}
   // ==================== ADMIN VIEW ====================
   if (currentView === "admin") {
     return (
-      <div style={{ minHeight:"100vh", background:"#0d1117", display:"flex" }} dir="rtl">
+      <div className="min-h-screen bg-slate-50 flex" dir="rtl">
 
         {/* Overlay للموبايل */}
         {sidebarOpen && (
@@ -2021,24 +1827,24 @@ ${JSON.stringify(systemData)}
           {/* PWA Guide Modal */}
           {showPWAGuide && (
             <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", zIndex:999, display:"flex", alignItems:"center", justifyContent:"center", padding:"20px" }} onClick={() => setShowPWAGuide(false)}>
-              <div style={{ background:"#161b22", borderRadius:"24px", padding:"32px", maxWidth:"440px", width:"100%", direction:"rtl" }} onClick={e => e.stopPropagation()}>
+              <div style={{ background:"white", borderRadius:"24px", padding:"32px", maxWidth:"440px", width:"100%", direction:"rtl" }} onClick={e => e.stopPropagation()}>
                 <div style={{ textAlign:"center", marginBottom:"24px" }}>
                   <div style={{ fontSize:"48px", marginBottom:"12px" }}>📱</div>
-                  <h2 style={{ margin:0, fontWeight:"900", fontSize:"22px", color:"#e6edf3" }}>تثبيت التطبيق</h2>
-                  <p style={{ color:"#8b949e", fontSize:"14px", marginTop:"8px" }}>وصول سريع من شاشتك الرئيسية</p>
+                  <h2 style={{ margin:0, fontWeight:"900", fontSize:"22px", color:"#1e293b" }}>تثبيت التطبيق</h2>
+                  <p style={{ color:"#64748b", fontSize:"14px", marginTop:"8px" }}>وصول سريع من شاشتك الرئيسية</p>
                 </div>
                 <div style={{ display:"flex", flexDirection:"column", gap:"16px" }}>
-                  <div style={{ background:"#0d1117", borderRadius:"16px", padding:"16px" }}>
-                    <p style={{ fontWeight:"800", fontSize:"14px", color:"#e6edf3", marginBottom:"8px" }}>🤖 Android (Chrome):</p>
-                    <ol style={{ margin:0, padding:"0 20px", fontSize:"13px", color:"#8b949e", lineHeight:"2" }}>
+                  <div style={{ background:"#f8fafc", borderRadius:"16px", padding:"16px" }}>
+                    <p style={{ fontWeight:"800", fontSize:"14px", color:"#1e293b", marginBottom:"8px" }}>🤖 Android (Chrome):</p>
+                    <ol style={{ margin:0, padding:"0 20px", fontSize:"13px", color:"#475569", lineHeight:"2" }}>
                       <li>اضغط على ⋮ (القائمة) في Chrome</li>
                       <li>اختر "إضافة إلى الشاشة الرئيسية"</li>
                       <li>اضغط "إضافة"</li>
                     </ol>
                   </div>
-                  <div style={{ background:"#0d1117", borderRadius:"16px", padding:"16px" }}>
-                    <p style={{ fontWeight:"800", fontSize:"14px", color:"#e6edf3", marginBottom:"8px" }}>🍎 iPhone (Safari):</p>
-                    <ol style={{ margin:0, padding:"0 20px", fontSize:"13px", color:"#8b949e", lineHeight:"2" }}>
+                  <div style={{ background:"#f8fafc", borderRadius:"16px", padding:"16px" }}>
+                    <p style={{ fontWeight:"800", fontSize:"14px", color:"#1e293b", marginBottom:"8px" }}>🍎 iPhone (Safari):</p>
+                    <ol style={{ margin:0, padding:"0 20px", fontSize:"13px", color:"#475569", lineHeight:"2" }}>
                       <li>اضغط على زر المشاركة ⬆️</li>
                       <li>اختر "إضافة إلى الشاشة الرئيسية"</li>
                       <li>اضغط "إضافة"</li>
@@ -2063,7 +1869,10 @@ ${JSON.stringify(systemData)}
           marginRight: sidebarOpen ? "220px" : "0", 
           width: sidebarOpen ? "calc(100% - 220px)" : "100%",
           transition:"all 0.3s ease", 
-          padding:"16px 24px", minHeight:"100vh", paddingTop:"60px", boxSizing:"border-box", background:"#0d1117",
+          padding:"16px 24px", 
+          minHeight:"100vh", 
+          paddingTop:"60px",
+          boxSizing:"border-box",
         }}>
           {loading && <div className="flex items-center justify-center h-screen"><Loader2 className="animate-spin text-indigo-600" size={48} /></div>}
 
@@ -2164,7 +1973,7 @@ ${JSON.stringify(systemData)}
                         </div>
 
                         {/* ===== Pie Chart + شريط نسبة الحضور ===== */}
-                        <div style={{ background:"#161b22", borderRadius:"20px", border:"1px solid #30363d", padding:"20px", boxShadow:"0 2px 8px rgba(0,0,0,0.06)" }}>
+                        <div style={{ background:"white", borderRadius:"20px", border:"1px solid #e2e8f0", padding:"20px", boxShadow:"0 2px 8px rgba(0,0,0,0.06)" }}>
                           <div style={{ fontWeight:"900", fontSize:"15px", marginBottom:"16px", display:"flex", alignItems:"center", gap:"8px" }}>
                             <PieChart size={18} style={{color:"#4f46e5"}}/> حالة موظفي القسم
                           </div>
@@ -2186,8 +1995,8 @@ ${JSON.stringify(systemData)}
                                   <path d={`M60,60 L${x1},${y1} A50,50 0 ${1-large},1 60,10 Z`} fill="#10b981"/>
                                 </>;
                               })()}
-                              <circle cx="60" cy="60" r="32" fill="#161b22"/>
-                              <text x="60" y="57" textAnchor="middle" fontSize="13" fontWeight="bold" fill="#e6edf3">{workPct}%</text>
+                              <circle cx="60" cy="60" r="32" fill="white"/>
+                              <text x="60" y="57" textAnchor="middle" fontSize="13" fontWeight="bold" fill="#1e293b">{workPct}%</text>
                               <text x="60" y="70" textAnchor="middle" fontSize="8" fill="#94a3b8">حضور</text>
                             </svg>
                             <div style={{ flex:1, display:"flex", flexDirection:"column", gap:"10px" }}>
@@ -2195,11 +2004,11 @@ ${JSON.stringify(systemData)}
                                 <div style={{ display:"flex", justifyContent:"space-between", marginBottom:"4px" }}>
                                   <div style={{ display:"flex", alignItems:"center", gap:"6px" }}>
                                     <div style={{ width:"10px", height:"10px", borderRadius:"2px", background:"#10b981" }}/>
-                                    <span style={{ fontSize:"12px", fontWeight:"700", color:"#c9d1d9" }}>في عمل</span>
+                                    <span style={{ fontSize:"12px", fontWeight:"700", color:"#374151" }}>في عمل</span>
                                   </div>
                                   <span style={{ fontSize:"12px", fontWeight:"900", color:"#10b981" }}>{atWork} موظف</span>
                                 </div>
-                                <div style={{ height:"6px", background:"#161b22", borderRadius:"3px" }}>
+                                <div style={{ height:"6px", background:"#f1f5f9", borderRadius:"3px" }}>
                                   <div style={{ height:"100%", width:`${workPct}%`, background:"linear-gradient(90deg,#10b981,#34d399)", borderRadius:"3px" }}/>
                                 </div>
                               </div>
@@ -2207,11 +2016,11 @@ ${JSON.stringify(systemData)}
                                 <div style={{ display:"flex", justifyContent:"space-between", marginBottom:"4px" }}>
                                   <div style={{ display:"flex", alignItems:"center", gap:"6px" }}>
                                     <div style={{ width:"10px", height:"10px", borderRadius:"2px", background:"#ef4444" }}/>
-                                    <span style={{ fontSize:"12px", fontWeight:"700", color:"#c9d1d9" }}>في إجازة</span>
+                                    <span style={{ fontSize:"12px", fontWeight:"700", color:"#374151" }}>في إجازة</span>
                                   </div>
                                   <span style={{ fontSize:"12px", fontWeight:"900", color:"#ef4444" }}>{onVacNow.length} موظف</span>
                                 </div>
-                                <div style={{ height:"6px", background:"#161b22", borderRadius:"3px" }}>
+                                <div style={{ height:"6px", background:"#f1f5f9", borderRadius:"3px" }}>
                                   <div style={{ height:"100%", width:`${vacPct}%`, background:"linear-gradient(90deg,#ef4444,#f87171)", borderRadius:"3px" }}/>
                                 </div>
                               </div>
@@ -2219,46 +2028,57 @@ ${JSON.stringify(systemData)}
                           </div>
                         </div>
 
-                        {/* ===== هيكل القسم ===== */}
-                        <div style={{ background:"#161b22", borderRadius:"20px", border:"1px solid #30363d", overflow:"hidden", boxShadow:"0 2px 8px rgba(0,0,0,0.06)" }}>
-                          <div style={{ padding:"16px 20px", borderBottom:"1px solid #30363d", fontWeight:"900", fontSize:"15px", display:"flex", alignItems:"center", gap:"8px" }}>
+                        {/* ===== هيكل القسم - قائمة منسدلة ===== */}
+                        <div style={{ background:"white", borderRadius:"20px", border:"1px solid #e2e8f0", overflow:"hidden", boxShadow:"0 2px 8px rgba(0,0,0,0.06)" }}>
+                          <div style={{ padding:"16px 20px", borderBottom:"1px solid #e2e8f0", fontWeight:"900", fontSize:"15px", display:"flex", alignItems:"center", gap:"8px" }}>
                             <Briefcase size={17} style={{color:"#7c3aed"}}/> هيكل القسم
                           </div>
-                          <div style={{ padding:"12px", display:"flex", flexDirection:"column", gap:"12px" }}>
-                            {grouped.map(group => (
-                              <div key={group.rank}>
-                                {/* عنوان الفئة */}
-                                <div style={{ display:"inline-flex", alignItems:"center", gap:"6px", background:group.bg, borderRadius:"20px", padding:"5px 14px", marginBottom:"8px" }}>
-                                  <span style={{ fontSize:"14px" }}>{group.icon}</span>
-                                  <span style={{ fontSize:"12px", fontWeight:"900", color:group.color }}>{group.label} ({group.emps.length})</span>
+                          <div style={{ padding:"12px", display:"flex", flexDirection:"column", gap:"8px" }}>
+                            {grouped.map(group => {
+                              const groupKey = (myDeptId || "dept") + "_" + group.rank;
+                              const isOpen = expandedDeptGroups[groupKey] !== false;
+                              return (
+                              <div key={group.rank} style={{ border:"1px solid #f1f5f9", borderRadius:"14px", overflow:"hidden" }}>
+                                {/* رأس الفئة - قابل للطي */}
+                                <div
+                                  onClick={() => setExpandedDeptGroups(prev => ({ ...prev, [groupKey]: !isOpen }))}
+                                  style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 14px", cursor:"pointer", background: isOpen ? group.bg : "white", transition:"background 0.2s" }}>
+                                  <div style={{ display:"flex", alignItems:"center", gap:"8px" }}>
+                                    <span style={{ fontSize:"16px" }}>{group.icon}</span>
+                                    <span style={{ fontSize:"13px", fontWeight:"900", color:group.color }}>{group.label}</span>
+                                    <span style={{ background:group.color+"20", color:group.color, fontSize:"11px", fontWeight:"700", padding:"2px 8px", borderRadius:"20px" }}>{group.emps.length}</span>
+                                  </div>
+                                  <span style={{ fontSize:"12px", color:group.color, transition:"transform 0.2s", display:"inline-block", transform: isOpen ? "rotate(180deg)" : "rotate(0deg)" }}>▼</span>
                                 </div>
-                                {/* الموظفون */}
-                                <div style={{ display:"flex", flexDirection:"column", gap:"4px", paddingRight:"12px", borderRight:`3px solid ${group.color}20` }}>
-                                  {group.emps.map(emp => {
-                                    const isVac = onVacNow.some(e => e.id === emp.id);
-                                    return (
-                                      <div key={emp.id} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"8px 12px", borderRadius:"10px", background: isVac ? "#fff1f2" : "#f8fafc", border:`1px solid ${isVac ? "#fecdd3" : "#f1f5f9"}` }}>
-                                        <div style={{ display:"flex", alignItems:"center", gap:"8px" }}>
-                                          <div style={{ width:"32px", height:"32px", borderRadius:"50%", background:`linear-gradient(135deg,${group.color}30,${group.color}15)`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:"13px", fontWeight:"900", color:group.color, flexShrink:0 }}>
-                                            {emp.name.charAt(0)}
+                                {/* محتوى الفئة */}
+                                {isOpen && (
+                                  <div style={{ display:"flex", flexDirection:"column", gap:"4px", padding:"8px", borderTop:"1px solid #f1f5f9" }}>
+                                    {group.emps.map(emp => {
+                                      const isVac = onVacNow.some(e => e.id === emp.id);
+                                      return (
+                                        <div key={emp.id} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"8px 12px", borderRadius:"10px", background: isVac ? "#fff1f2" : "#f8fafc", border:`1px solid ${isVac ? "#fecdd3" : "#f1f5f9"}` }}>
+                                          <div style={{ display:"flex", alignItems:"center", gap:"8px" }}>
+                                            <div style={{ width:"32px", height:"32px", borderRadius:"50%", background:`linear-gradient(135deg,${group.color}30,${group.color}15)`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:"13px", fontWeight:"900", color:group.color, flexShrink:0 }}>
+                                              {emp.name.charAt(0)}
+                                            </div>
+                                            <div>
+                                              <div style={{ fontWeight:"700", fontSize:"13px", color:"#1e293b" }}>{emp.name}</div>
+                                              <div style={{ fontSize:"10px", color:"#94a3b8" }}>{emp.position}</div>
+                                            </div>
                                           </div>
-                                          <div>
-                                            <div style={{ fontWeight:"700", fontSize:"13px", color:"#e6edf3" }}>{emp.name}</div>
-                                            <div style={{ fontSize:"10px", color:"#6e7681" }}>{emp.position}</div>
+                                          <div style={{ display:"flex", alignItems:"center", gap:"6px" }}>
+                                            <span style={{ fontSize:"10px", fontWeight:"700", color:"#64748b" }}>{emp.balance} يوم</span>
+                                            <span style={{ padding:"2px 8px", borderRadius:"20px", fontSize:"10px", fontWeight:"700", background: isVac ? "#fee2e2" : "#dcfce7", color: isVac ? "#dc2626" : "#16a34a" }}>
+                                              {isVac ? "إجازة" : "عمل"}
+                                            </span>
                                           </div>
                                         </div>
-                                        <div style={{ display:"flex", alignItems:"center", gap:"6px" }}>
-                                          <span style={{ fontSize:"10px", fontWeight:"700", color:"#8b949e" }}>{emp.balance} يوم</span>
-                                          <span style={{ padding:"2px 8px", borderRadius:"20px", fontSize:"10px", fontWeight:"700", background: isVac ? "#fee2e2" : "#dcfce7", color: isVac ? "#dc2626" : "#16a34a" }}>
-                                            {isVac ? "إجازة" : "عمل"}
-                                          </span>
-                                        </div>
-                                      </div>
-                                    );
-                                  })}
-                                </div>
+                                      );
+                                    })}
+                                  </div>
+                                )}
                               </div>
-                            ))}
+                            )})}
                           </div>
                         </div>
 
@@ -2266,8 +2086,8 @@ ${JSON.stringify(systemData)}
                         <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))", gap:"16px" }}>
 
                           {/* أعلى رصيد */}
-                          <div style={{ background:"#161b22", borderRadius:"20px", border:"1px solid #30363d", overflow:"hidden", boxShadow:"0 2px 8px rgba(0,0,0,0.06)" }}>
-                            <div style={{ padding:"14px 16px", background:"linear-gradient(135deg,#eef2ff,#e0e7ff)", borderBottom:"1px solid #30363d", fontWeight:"900", fontSize:"13px", color:"#4f46e5", display:"flex", alignItems:"center", gap:"6px" }}>
+                          <div style={{ background:"white", borderRadius:"20px", border:"1px solid #e2e8f0", overflow:"hidden", boxShadow:"0 2px 8px rgba(0,0,0,0.06)" }}>
+                            <div style={{ padding:"14px 16px", background:"linear-gradient(135deg,#eef2ff,#e0e7ff)", borderBottom:"1px solid #e2e8f0", fontWeight:"900", fontSize:"13px", color:"#4f46e5", display:"flex", alignItems:"center", gap:"6px" }}>
                               🏆 أعلى رصيد في القسم
                             </div>
                             {[...deptEmps].sort((a,b) => b.balance - a.balance).slice(0,5).map((emp,i) => (
@@ -2276,17 +2096,17 @@ ${JSON.stringify(systemData)}
                                   <span style={{ fontWeight:"900", color: i === 0 ? "#f59e0b" : "#cbd5e1", fontSize:"14px" }}>{i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `#${i+1}`}</span>
                                   <div>
                                     <div style={{ fontWeight:"700", fontSize:"12px" }}>{emp.name}</div>
-                                    <div style={{ fontSize:"10px", color:"#6e7681" }}>{emp.position || "-"}</div>
+                                    <div style={{ fontSize:"10px", color:"#94a3b8" }}>{emp.position || "-"}</div>
                                   </div>
                                 </div>
-                                <span style={{ background:"rgba(99,102,241,0.1)", color:"#4f46e5", borderRadius:"20px", padding:"3px 10px", fontSize:"11px", fontWeight:"700" }}>{emp.balance} يوم</span>
+                                <span style={{ background:"#eef2ff", color:"#4f46e5", borderRadius:"20px", padding:"3px 10px", fontSize:"11px", fontWeight:"700" }}>{emp.balance} يوم</span>
                               </div>
                             ))}
                           </div>
 
                           {/* أكتر أيام عمل */}
-                          <div style={{ background:"#161b22", borderRadius:"20px", border:"1px solid #30363d", overflow:"hidden", boxShadow:"0 2px 8px rgba(0,0,0,0.06)" }}>
-                            <div style={{ padding:"14px 16px", background:"linear-gradient(135deg,#f0fdf4,#dcfce7)", borderBottom:"1px solid #30363d", fontWeight:"900", fontSize:"13px", color:"#16a34a", display:"flex", alignItems:"center", gap:"6px" }}>
+                          <div style={{ background:"white", borderRadius:"20px", border:"1px solid #e2e8f0", overflow:"hidden", boxShadow:"0 2px 8px rgba(0,0,0,0.06)" }}>
+                            <div style={{ padding:"14px 16px", background:"linear-gradient(135deg,#f0fdf4,#dcfce7)", borderBottom:"1px solid #e2e8f0", fontWeight:"900", fontSize:"13px", color:"#16a34a", display:"flex", alignItems:"center", gap:"6px" }}>
                               💪 أكثر أيام عمل بعد العودة
                             </div>
                             {(() => {
@@ -2298,32 +2118,32 @@ ${JSON.stringify(systemData)}
                               return ranked.length > 0 ? ranked.map((emp,i) => (
                                 <div key={emp.id} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 14px", borderBottom:"1px solid #f8fafc" }}>
                                   <div style={{ display:"flex", alignItems:"center", gap:"8px" }}>
-                                    <span style={{ fontWeight:"900", color:"#6e7681", fontSize:"11px" }}>#{i+1}</span>
+                                    <span style={{ fontWeight:"900", color:"#94a3b8", fontSize:"11px" }}>#{i+1}</span>
                                     <div>
                                       <div style={{ fontWeight:"700", fontSize:"12px" }}>{emp.name}</div>
-                                      <div style={{ fontSize:"10px", color:"#6e7681" }}>{emp.position || "-"}</div>
+                                      <div style={{ fontSize:"10px", color:"#94a3b8" }}>{emp.position || "-"}</div>
                                     </div>
                                   </div>
-                                  <span style={{ background:"rgba(16,185,129,0.15)", color:"#16a34a", borderRadius:"20px", padding:"3px 10px", fontSize:"11px", fontWeight:"700" }}>{emp.workedDays} يوم</span>
+                                  <span style={{ background:"#dcfce7", color:"#16a34a", borderRadius:"20px", padding:"3px 10px", fontSize:"11px", fontWeight:"700" }}>{emp.workedDays} يوم</span>
                                 </div>
-                              )) : <div style={{ padding:"20px", textAlign:"center", color:"#6e7681", fontSize:"12px" }}>لا توجد بيانات</div>;
+                              )) : <div style={{ padding:"20px", textAlign:"center", color:"#94a3b8", fontSize:"12px" }}>لا توجد بيانات</div>;
                             })()}
                           </div>
 
                           {/* أقرب عودة */}
-                          <div style={{ background:"#161b22", borderRadius:"20px", border:"1px solid #30363d", overflow:"hidden", boxShadow:"0 2px 8px rgba(0,0,0,0.06)" }}>
-                            <div style={{ padding:"14px 16px", background:"linear-gradient(135deg,#fff7ed,#fef3c7)", borderBottom:"1px solid #30363d", fontWeight:"900", fontSize:"13px", color:"#ea580c", display:"flex", alignItems:"center", gap:"6px" }}>
+                          <div style={{ background:"white", borderRadius:"20px", border:"1px solid #e2e8f0", overflow:"hidden", boxShadow:"0 2px 8px rgba(0,0,0,0.06)" }}>
+                            <div style={{ padding:"14px 16px", background:"linear-gradient(135deg,#fff7ed,#fef3c7)", borderBottom:"1px solid #e2e8f0", fontWeight:"900", fontSize:"13px", color:"#ea580c", display:"flex", alignItems:"center", gap:"6px" }}>
                               📅 أقرب مواعيد العودة
                             </div>
                             {upcoming.length > 0 ? upcoming.map((r,i) => (
                               <div key={r.id} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 14px", borderBottom:"1px solid #f8fafc" }}>
                                 <div style={{ display:"flex", alignItems:"center", gap:"8px" }}>
-                                  <span style={{ fontWeight:"900", color:"#6e7681", fontSize:"11px" }}>#{i+1}</span>
+                                  <span style={{ fontWeight:"900", color:"#94a3b8", fontSize:"11px" }}>#{i+1}</span>
                                   <div style={{ fontWeight:"700", fontSize:"12px" }}>{r.employee_name}</div>
                                 </div>
-                                <span style={{ background:"rgba(245,158,11,0.1)", color:"#ea580c", borderRadius:"20px", padding:"3px 10px", fontSize:"11px", fontWeight:"700" }}>{formatDate(r.backDate)}</span>
+                                <span style={{ background:"#fff7ed", color:"#ea580c", borderRadius:"20px", padding:"3px 10px", fontSize:"11px", fontWeight:"700" }}>{formatDate(r.backDate)}</span>
                               </div>
-                            )) : <div style={{ padding:"20px", textAlign:"center", color:"#6e7681", fontSize:"12px" }}>لا يوجد موظفون في إجازة</div>}
+                            )) : <div style={{ padding:"20px", textAlign:"center", color:"#94a3b8", fontSize:"12px" }}>لا يوجد موظفون في إجازة</div>}
                           </div>
 
                         </div>
@@ -2395,7 +2215,7 @@ ${JSON.stringify(systemData)}
                   {/* شريط الأدوات العلوي */}
                   <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:"12px", flexWrap:"wrap" }}>
                     {/* حالة الاتصال */}
-                    <div style={{ display:"flex", alignItems:"center", gap:"8px", padding:"8px 16px", borderRadius:"20px", background: isOnline ? "rgba(16,185,129,0.15)" : "rgba(239,68,68,0.15)", color: isOnline ? "#10b981" : "#ef4444", fontSize:"13px", fontWeight:"700" }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:"8px", padding:"8px 16px", borderRadius:"20px", background: isOnline ? "#dcfce7" : "#fee2e2", color: isOnline ? "#16a34a" : "#dc2626", fontSize:"13px", fontWeight:"700" }}>
                       {isOnline ? <Wifi size={16}/> : <WifiOff size={16}/>}
                       {isOnline ? "متصل" : "غير متصل"}
                     </div>
@@ -2433,7 +2253,7 @@ ${JSON.stringify(systemData)}
                       </button>
 
                       {/* زر النسخ الاحتياطي */}
-                      {lastBackup && <span style={{ color:"#8b949e", fontSize:"12px", alignSelf:"center" }}>آخر نسخة: {lastBackup}</span>}
+                      {lastBackup && <span style={{ color:"#64748b", fontSize:"12px", alignSelf:"center" }}>آخر نسخة: {lastBackup}</span>}
                       <button onClick={handleBackup} disabled={backupLoading} style={{
                         display:"flex", alignItems:"center", gap:"8px",
                         background: backupLoading ? "#94a3b8" : "linear-gradient(135deg, #10b981, #059669)",
@@ -2448,12 +2268,12 @@ ${JSON.stringify(systemData)}
 
                   {/* AI Insights Modal */}
                   {showInsights && (
-                    <div style={{ background:"#161b22", borderRadius:"20px", border:"1px solid #30363d", padding:"24px", boxShadow:"0 4px 20px rgba(0,0,0,0.08)" }}>
+                    <div style={{ background:"white", borderRadius:"20px", border:"1px solid #e2e8f0", padding:"24px", boxShadow:"0 4px 20px rgba(0,0,0,0.08)" }}>
                       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"16px" }}>
                         <h3 style={{ margin:0, fontWeight:"900", fontSize:"18px", display:"flex", alignItems:"center", gap:"8px" }}>
                           <Activity size={20} style={{color:"#7c3aed"}}/> التقرير التحليلي الذكي
                         </h3>
-                        <button onClick={() => setShowInsights(false)} style={{ background:"#161b22", border:"none", borderRadius:"8px", padding:"6px 12px", cursor:"pointer", fontWeight:"700", color:"#8b949e" }}>✕ إغلاق</button>
+                        <button onClick={() => setShowInsights(false)} style={{ background:"#f1f5f9", border:"none", borderRadius:"8px", padding:"6px 12px", cursor:"pointer", fontWeight:"700", color:"#64748b" }}>✕ إغلاق</button>
                       </div>
                       {insightsLoading ? (
                         <div style={{ textAlign:"center", padding:"40px", color:"#7c3aed" }}>
@@ -2461,7 +2281,7 @@ ${JSON.stringify(systemData)}
                           <p style={{ fontWeight:"700" }}>جاري تحليل البيانات بالذكاء الاصطناعي...</p>
                         </div>
                       ) : (
-                        <div style={{ whiteSpace:"pre-wrap", lineHeight:"1.8", fontSize:"14px", color:"#c9d1d9", background:"#0d1117", padding:"20px", borderRadius:"12px" }}>
+                        <div style={{ whiteSpace:"pre-wrap", lineHeight:"1.8", fontSize:"14px", color:"#374151", background:"#f8fafc", padding:"20px", borderRadius:"12px" }}>
                           {aiInsights}
                         </div>
                       )}
@@ -2469,22 +2289,22 @@ ${JSON.stringify(systemData)}
                   )}
 
                   <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(150px, 1fr))", gap:"14px" }}>
-                    {[
-                      { label:"إجمالي الموظفين", value: stats.totalEmployees, icon: <Users size={26}/>, grad:"linear-gradient(135deg,#667eea,#764ba2)", color:"#a5b4fc" },
-                      { label:"طلبات معلقة",     value: stats.pendingRequests, icon: <Clock size={26}/>,  grad:"linear-gradient(135deg,#f6d365,#fda085)", color:"#fde68a" },
-                      { label:"في إجازة الآن",  value: stats.onVacationNow, icon: <CheckCircle size={26}/>, grad:"linear-gradient(135deg,#43e97b,#38f9d7)", color:"#6ee7b7" },
-                      { label:"متوسط الرصيد",   value: stats.avgBalance,     icon: <TrendingUp size={26}/>, grad:"linear-gradient(135deg,#a18cd1,#fbc2eb)", color:"#e9d5ff" },
-                    ].map(s => (
-                      <div key={s.label} style={{ background:"#161b22", border:"1px solid #30363d", borderRadius:"20px", padding:"20px", boxShadow:"0 8px 24px rgba(0,0,0,0.4)", display:"flex", flexDirection:"column", gap:"12px" }}>
-                        <div style={{ width:"48px", height:"48px", borderRadius:"14px", background:s.grad, display:"flex", alignItems:"center", justifyContent:"center", color:"white", boxShadow:`0 4px 12px rgba(0,0,0,0.3)` }}>
-                          {s.icon}
-                        </div>
-                        <div>
-                          <div style={{ fontSize:"11px", color:"#6e7681", fontWeight:"700", marginBottom:"4px" }}>{s.label}</div>
-                          <div style={{ fontSize:"32px", fontWeight:"900", color:s.color, lineHeight:"1" }}>{s.value}</div>
-                        </div>
-                      </div>
-                    ))}
+                    <div className="bg-white p-6 rounded-[2rem] shadow-sm border flex items-center gap-4">
+                      <div className="p-4 bg-blue-50 text-blue-600 rounded-xl"><Users size={28} /></div>
+                      <div><p className="text-slate-500 font-bold text-sm">إجمالي الموظفين</p><h3 className="text-3xl font-black">{stats.totalEmployees}</h3></div>
+                    </div>
+                    <div className="bg-white p-6 rounded-[2rem] shadow-sm border flex items-center gap-4">
+                      <div className="p-4 bg-amber-50 text-amber-600 rounded-xl"><Clock size={28} /></div>
+                      <div><p className="text-slate-500 font-bold text-sm">طلبات معلقة</p><h3 className="text-3xl font-black text-amber-600">{stats.pendingRequests}</h3></div>
+                    </div>
+                    <div className="bg-white p-6 rounded-[2rem] shadow-sm border flex items-center gap-4">
+                      <div className="p-4 bg-emerald-50 text-emerald-600 rounded-xl"><CheckCircle size={28} /></div>
+                      <div><p className="text-slate-500 font-bold text-sm">في إجازة الآن</p><h3 className="text-3xl font-black text-emerald-600">{stats.onVacationNow}</h3></div>
+                    </div>
+                    <div className="bg-white p-6 rounded-[2rem] shadow-sm border flex items-center gap-4">
+                      <div className="p-4 bg-purple-50 text-purple-600 rounded-xl"><TrendingUp size={28} /></div>
+                      <div><p className="text-slate-500 font-bold text-sm">متوسط الرصيد</p><h3 className="text-3xl font-black text-purple-600">{stats.avgBalance}</h3></div>
+                    </div>
                   </div>
                   {/* ===== Advanced Analytics Strip ===== */}
                   <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(140px, 1fr))", gap:"12px" }}>
@@ -2492,10 +2312,10 @@ ${JSON.stringify(systemData)}
                     {(() => {
                       const attendRate = stats.totalEmployees > 0 ? Math.round((stats.atWorkNow / stats.totalEmployees) * 100) : 0;
                       return (
-                        <div style={{ background:"#161b22", borderRadius:"16px", padding:"20px", border:"1px solid #30363d", boxShadow:"0 4px 16px rgba(0,0,0,0.3)" }}>
+                        <div style={{ background:"white", borderRadius:"16px", padding:"20px", border:"1px solid #e2e8f0", boxShadow:"0 1px 4px rgba(0,0,0,0.05)" }}>
                           <div style={{ display:"flex", alignItems:"center", gap:"8px", marginBottom:"12px" }}>
                             <Target size={16} style={{color:"#4f46e5"}}/>
-                            <span style={{ fontSize:"12px", color:"#6e7681", fontWeight:"700" }}>نسبة الحضور</span>
+                            <span style={{ fontSize:"12px", color:"#64748b", fontWeight:"700" }}>نسبة الحضور</span>
                           </div>
                           <div style={{ fontSize:"28px", fontWeight:"900", color:"#4f46e5" }}>{attendRate}%</div>
                           <div style={{ marginTop:"8px", height:"6px", background:"#e2e8f0", borderRadius:"3px" }}>
@@ -2505,13 +2325,13 @@ ${JSON.stringify(systemData)}
                       );
                     })()}
                     {/* إجمالي أيام الإجازات */}
-                    <div style={{ background:"#161b22", borderRadius:"16px", padding:"20px", border:"1px solid #30363d", boxShadow:"0 4px 16px rgba(0,0,0,0.3)" }}>
+                    <div style={{ background:"white", borderRadius:"16px", padding:"20px", border:"1px solid #e2e8f0", boxShadow:"0 1px 4px rgba(0,0,0,0.05)" }}>
                       <div style={{ display:"flex", alignItems:"center", gap:"8px", marginBottom:"12px" }}>
                         <Award size={16} style={{color:"#f59e0b"}}/>
-                        <span style={{ fontSize:"12px", color:"#6e7681", fontWeight:"700" }}>إجمالي أيام الإجازات</span>
+                        <span style={{ fontSize:"12px", color:"#64748b", fontWeight:"700" }}>إجمالي أيام الإجازات</span>
                       </div>
                       <div style={{ fontSize:"28px", fontWeight:"900", color:"#f59e0b" }}>{stats.totalVacationDays}</div>
-                      <div style={{ fontSize:"11px", color:"#6e7681", marginTop:"4px" }}>يوم مجموع مُوافق عليه</div>
+                      <div style={{ fontSize:"11px", color:"#94a3b8", marginTop:"4px" }}>يوم مجموع مُوافق عليه</div>
                     </div>
                     {/* موظفين رصيدهم منخفض */}
                     {(() => {
@@ -2520,10 +2340,10 @@ ${JSON.stringify(systemData)}
                         <div style={{ background: lowCount > 0 ? "#fff7ed" : "white", borderRadius:"16px", padding:"20px", border:`1px solid ${lowCount > 0 ? "#fed7aa" : "#e2e8f0"}`, boxShadow:"0 1px 4px rgba(0,0,0,0.05)" }}>
                           <div style={{ display:"flex", alignItems:"center", gap:"8px", marginBottom:"12px" }}>
                             <Flame size={16} style={{color: lowCount > 0 ? "#ea580c" : "#64748b"}}/>
-                            <span style={{ fontSize:"12px", color:"#6e7681", fontWeight:"700" }}>رصيد منخفض</span>
+                            <span style={{ fontSize:"12px", color:"#64748b", fontWeight:"700" }}>رصيد منخفض</span>
                           </div>
                           <div style={{ fontSize:"28px", fontWeight:"900", color: lowCount > 0 ? "#ea580c" : "#10b981" }}>{lowCount}</div>
-                          <div style={{ fontSize:"11px", color:"#6e7681", marginTop:"4px" }}>موظف أقل من 5 أيام</div>
+                          <div style={{ fontSize:"11px", color:"#94a3b8", marginTop:"4px" }}>موظف أقل من 5 أيام</div>
                         </div>
                       );
                     })()}
@@ -2533,61 +2353,61 @@ ${JSON.stringify(systemData)}
                       const approved = requests.filter(r => r.status === "approved").length;
                       const rate = total > 0 ? Math.round((approved / total) * 100) : 0;
                       return (
-                        <div style={{ background:"#161b22", borderRadius:"16px", padding:"20px", border:"1px solid #30363d", boxShadow:"0 4px 16px rgba(0,0,0,0.3)" }}>
+                        <div style={{ background:"white", borderRadius:"16px", padding:"20px", border:"1px solid #e2e8f0", boxShadow:"0 1px 4px rgba(0,0,0,0.05)" }}>
                           <div style={{ display:"flex", alignItems:"center", gap:"8px", marginBottom:"12px" }}>
                             <Eye size={16} style={{color:"#10b981"}}/>
-                            <span style={{ fontSize:"12px", color:"#6e7681", fontWeight:"700" }}>معدل الموافقة</span>
+                            <span style={{ fontSize:"12px", color:"#64748b", fontWeight:"700" }}>معدل الموافقة</span>
                           </div>
                           <div style={{ fontSize:"28px", fontWeight:"900", color:"#10b981" }}>{rate}%</div>
-                          <div style={{ fontSize:"11px", color:"#6e7681", marginTop:"4px" }}>{approved} من {total} طلب</div>
+                          <div style={{ fontSize:"11px", color:"#94a3b8", marginTop:"4px" }}>{approved} من {total} طلب</div>
                         </div>
                       );
                     })()}
                   </div>
 
                   <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(280px, 1fr))", gap:"16px" }}>
-                    <div style={{ background:"#161b22", borderRadius:"1.5rem", border:"1px solid #30363d", boxShadow:"0 4px 20px rgba(0,0,0,0.3)" }}>
-                      <div style={{ padding:"20px 24px", borderBottom:"1px solid #30363d", background:"#1c2333" }}><h4 style={{ fontWeight:"900", color:"#e6edf3", display:"flex", alignItems:"center", gap:"8px" }}><ArrowUpRight className="text-indigo-600" size={20} /> الأعلى رصيداً</h4></div>
-                      <div style={{ padding:"14px 16px", color:"#8b949e", fontWeight:"700", textAlign:"center" }}>
+                    <div className="bg-white rounded-[2rem] shadow-sm border">
+                      <div className="p-6 border-b bg-slate-50/50"><h4 className="font-black text-slate-800 flex items-center gap-2"><ArrowUpRight className="text-indigo-600" size={20} /> الأعلى رصيداً</h4></div>
+                      <div className="p-4">
                         {topBalances.map((emp, idx) => (
-                          <div key={emp.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 12px", borderRadius:"12px", cursor:"default" }}>
-                            <div style={{ display:"flex", alignItems:"center", gap:"12px" }}><span style={{ fontSize:"16px", fontWeight:"700", color:"#484f58" }}>#{idx+1}</span><span style={{ fontWeight:"700", color:"#e6edf3" }}>{emp.name}</span></div>
-                            <span style={{ background:"rgba(99,102,241,0.2)", color:"#818cf8", padding:"3px 12px", borderRadius:"20px", fontWeight:"700", fontSize:"13px" }}>{emp.balance} يوم</span>
+                          <div key={emp.id} className="flex justify-between items-center p-3 hover:bg-slate-50 rounded-xl">
+                            <div className="flex items-center gap-3"><span className="text-lg font-bold text-slate-400">#{idx+1}</span><span className="font-bold text-slate-800">{emp.name}</span></div>
+                            <span className="bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full font-bold text-sm">{emp.balance} يوم</span>
                           </div>
                         ))}
                       </div>
                     </div>
-                    <div style={{ background:"#161b22", borderRadius:"1.5rem", border:"1px solid #30363d", boxShadow:"0 4px 20px rgba(0,0,0,0.3)" }}>
-                      <div style={{ padding:"20px 24px", borderBottom:"1px solid #30363d", background:"#1c2333" }}><h4 style={{ fontWeight:"900", color:"#e6edf3", display:"flex", alignItems:"center", gap:"8px" }}><Calendar className="text-emerald-600" size={20} /> أقرب مواعيد العودة</h4></div>
+                    <div className="bg-white rounded-[2rem] shadow-sm border">
+                      <div className="p-6 border-b bg-slate-50/50"><h4 className="font-black text-slate-800 flex items-center gap-2"><Calendar className="text-emerald-600" size={20} /> أقرب مواعيد العودة</h4></div>
                       <div className="p-4 space-y-2">
                         {comingBackSoon.map(req => (
-                          <div key={req.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 12px", borderRadius:"12px", cursor:"default" }}>
-                            <span style={{ fontWeight:"700", color:"#e6edf3" }}>{req.employee_name}</span>
-                            <span style={{ color:"#10b981", fontWeight:"700", fontSize:"13px" }}>{formatDate(req.backDate)}</span>
+                          <div key={req.id} className="flex justify-between items-center p-3 hover:bg-slate-50 rounded-xl">
+                            <span className="font-bold text-slate-800">{req.employee_name}</span>
+                            <span className="text-emerald-600 font-bold text-sm">{formatDate(req.backDate)}</span>
                           </div>
                         ))}
                       </div>
                     </div>
                   </div>
                   <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(250px, 1fr))", gap:"16px" }}>
-                    <div style={{ background:"#161b22", padding:"24px", borderRadius:"1.5rem", border:"1px solid #30363d", gridColumn:"span 2" }}>
-                      <h4 style={{ fontWeight:"900", marginBottom:"16px", display:"flex", alignItems:"center", gap:"8px", color:"#e6edf3" }}><BarChart2 size={20} className="text-indigo-600" /> الإجازات الشهرية</h4>
+                    <div className="bg-white p-6 rounded-[2rem] shadow-sm border col-span-2">
+                      <h4 className="font-black mb-4 flex items-center gap-2"><BarChart2 size={20} className="text-indigo-600" /> الإجازات الشهرية</h4>
                       <div className="h-48 flex items-end justify-between gap-2">
                         {vacationByMonth.map((item, idx) => {
                           const maxCount = Math.max(...vacationByMonth.map(v => v.count));
                           const height = maxCount > 0 ? (item.count / maxCount) * 100 : 0;
                           return (
                             <div key={idx} className="flex-1 flex flex-col items-center">
-                              <div style={{ width:"100%", background:"linear-gradient(180deg,#6366f1,#4f46e5)", borderRadius:"4px 4px 0 0", transition:"all 0.2s", height: `${height}%` }} title={`${item.month}: ${item.count}`}></div>
-                              <span style={{ fontSize:"11px", marginTop:"6px", color:"#8b949e" }}>{item.month.slice(0,3)}</span>
+                              <div className="w-full bg-indigo-500 rounded-t-lg transition-all hover:bg-indigo-600" style={{ height: `${height}%` }} title={`${item.month}: ${item.count}`}></div>
+                              <span className="text-xs mt-2 text-slate-600">{item.month.slice(0,3)}</span>
                             </div>
                           );
                         })}
                       </div>
                     </div>
-                    <div style={{ background:"#161b22", padding:"24px", borderRadius:"1.5rem", border:"1px solid #30363d" }}>
-                      <h4 style={{ fontWeight:"900", marginBottom:"16px", display:"flex", alignItems:"center", gap:"8px", color:"#e6edf3" }}><PieChart size={20} className="text-purple-600" /> أنواع الإجازات</h4>
-                      <div style={{ display:"flex", flexDirection:"column", gap:"10px" }}>
+                    <div className="bg-white p-6 rounded-[2rem] shadow-sm border">
+                      <h4 className="font-black mb-4 flex items-center gap-2"><PieChart size={20} className="text-purple-600" /> أنواع الإجازات</h4>
+                      <div className="space-y-3">
                         {vacationByType.map(item => (
                           <div key={item.name} className="flex justify-between items-center">
                             <div className="flex items-center gap-2"><div className="w-3 h-3 rounded" style={{ backgroundColor: item.color }}></div><span className="text-sm">{item.name}</span></div>
@@ -2605,12 +2425,12 @@ ${JSON.stringify(systemData)}
               {activeTab === "employees" && (
                 <div className="space-y-5">
                   {/* شريط الأدوات */}
-                  <div style={{ background:"#161b22", borderRadius:"20px", padding:"16px 20px", border:"1px solid #30363d", display:"flex", alignItems:"center", gap:"12px", flexWrap:"wrap", boxShadow:"0 4px 16px rgba(0,0,0,0.3)" }}>
+                  <div style={{ background:"white", borderRadius:"20px", padding:"16px 20px", border:"1px solid #e2e8f0", display:"flex", alignItems:"center", gap:"12px", flexWrap:"wrap", boxShadow:"0 1px 4px rgba(0,0,0,0.05)" }}>
                     {/* بحث */}
                     <div style={{ position:"relative", flex:"1", minWidth:"200px" }}>
-                      <Search style={{ position:"absolute", right:"14px", top:"50%", transform:"translateY(-50%)", color:"#6e7681" }} size={16} />
+                      <Search style={{ position:"absolute", right:"14px", top:"50%", transform:"translateY(-50%)", color:"#94a3b8" }} size={16} />
                       <input
-                        style={{ width:"100%", paddingRight:"40px", paddingLeft:"14px", paddingTop:"10px", paddingBottom:"10px", background:"#0d1117", border:"1px solid #30363d", borderRadius:"12px", color:"#e6edf3", fontSize:"13px", outline:"none", boxSizing:"border-box" }}
+                        style={{ width:"100%", paddingRight:"40px", paddingLeft:"14px", paddingTop:"10px", paddingBottom:"10px", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:"12px", fontSize:"13px", outline:"none", boxSizing:"border-box" }}
                         placeholder="ابحث بالاسم أو الكود..."
                         value={empSearch}
                         onChange={(e) => setEmpSearch(e.target.value)}
@@ -2618,12 +2438,12 @@ ${JSON.stringify(systemData)}
                     </div>
                     {/* فلاتر */}
                     {departments.length > 0 && (
-                      <select style={{ padding:"10px 14px", background:"#0d1117", border:"1px solid #30363d", borderRadius:"12px", color:"#8b949e", fontSize:"13px", outline:"none" }} value={departmentFilter} onChange={(e) => setDepartmentFilter(e.target.value)}>
+                      <select style={{ padding:"10px 14px", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:"12px", fontSize:"13px", outline:"none", color:"#475569" }} value={departmentFilter} onChange={(e) => setDepartmentFilter(e.target.value)}>
                         <option value="all">كل الأقسام</option>
                         {departments.map(dept => <option key={dept.id} value={dept.id}>{dept.name}</option>)}
                       </select>
                     )}
-                    <select style={{ padding:"10px 14px", background:"#0d1117", border:"1px solid #30363d", borderRadius:"12px", color:"#8b949e", fontSize:"13px", outline:"none" }} value={empStatusFilter} onChange={(e) => setEmpStatusFilter(e.target.value)}>
+                    <select style={{ padding:"10px 14px", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:"12px", fontSize:"13px", outline:"none", color:"#475569" }} value={empStatusFilter} onChange={(e) => setEmpStatusFilter(e.target.value)}>
                       <option value="all">كل الحالات</option>
                       <option value="عمل">🟢 في العمل</option>
                       <option value="إجازة">🟡 في إجازة</option>
@@ -2647,7 +2467,7 @@ ${JSON.stringify(systemData)}
 
                   {/* عداد النتائج */}
                   <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 4px" }}>
-                    <span style={{ fontSize:"13px", color:"#8b949e", fontWeight:"600" }}>
+                    <span style={{ fontSize:"13px", color:"#64748b", fontWeight:"600" }}>
                       إجمالي: <span style={{ color:"#4f46e5", fontWeight:"900" }}>{filteredEmployees.length}</span> موظف
                       {filteredEmployees.filter(e => getEmployeeStatus(e) === "إجازة").length > 0 && (
                         <span style={{ marginRight:"12px", color:"#d97706" }}>
@@ -2658,20 +2478,20 @@ ${JSON.stringify(systemData)}
                   </div>
 
                   {/* الجدول مع scroll أفقي */}
-                  <div style={{ background:"#161b22", borderRadius:"20px", border:"1px solid #30363d", boxShadow:"0 1px 4px rgba(0,0,0,0.05)", overflow:"hidden" }}>
+                  <div style={{ background:"white", borderRadius:"20px", border:"1px solid #e2e8f0", boxShadow:"0 1px 4px rgba(0,0,0,0.05)", overflow:"hidden" }}>
                     <div style={{ overflowX:"auto", overflowY:"auto", maxHeight:"calc(100vh - 280px)" }}>
                       <table style={{ width:"100%", borderCollapse:"collapse", minWidth:"900px", fontSize:"13px" }}>
                         <thead>
-                          <tr style={{ background:"#0d1117", borderBottom:"2px solid #e2e8f0", position:"sticky", top:0, zIndex:5 }}>
-                            <th style={{ padding:"14px 16px", textAlign:"right", fontWeight:"800", color:"#c9d1d9", whiteSpace:"nowrap", minWidth:"180px" }}>الاسم</th>
-                            <th style={{ padding:"14px 12px", textAlign:"center", fontWeight:"800", color:"#c9d1d9", whiteSpace:"nowrap" }}>الكود</th>
-                            <th style={{ padding:"14px 12px", textAlign:"right", fontWeight:"800", color:"#c9d1d9", whiteSpace:"nowrap", minWidth:"140px" }}>المنصب</th>
-                            <th style={{ padding:"14px 12px", textAlign:"center", fontWeight:"800", color:"#c9d1d9", whiteSpace:"nowrap" }}>القسم</th>
-                            <th style={{ padding:"14px 12px", textAlign:"center", fontWeight:"800", color:"#c9d1d9", whiteSpace:"nowrap" }}>الرصيد</th>
-                            <th style={{ padding:"14px 12px", textAlign:"center", fontWeight:"800", color:"#c9d1d9", whiteSpace:"nowrap" }}>شهري</th>
-                            <th style={{ padding:"14px 12px", textAlign:"center", fontWeight:"800", color:"#c9d1d9", whiteSpace:"nowrap" }}>أيام العمل</th>
-                            <th style={{ padding:"14px 12px", textAlign:"center", fontWeight:"800", color:"#c9d1d9", whiteSpace:"nowrap" }}>الحالة</th>
-                            <th style={{ padding:"14px 12px", textAlign:"center", fontWeight:"800", color:"#c9d1d9", whiteSpace:"nowrap" }}>إجراءات</th>
+                          <tr style={{ background:"#f8fafc", borderBottom:"2px solid #e2e8f0", position:"sticky", top:0, zIndex:5 }}>
+                            <th style={{ padding:"14px 16px", textAlign:"right", fontWeight:"800", color:"#374151", whiteSpace:"nowrap", minWidth:"180px" }}>الاسم</th>
+                            <th style={{ padding:"14px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>الكود</th>
+                            <th style={{ padding:"14px 12px", textAlign:"right", fontWeight:"800", color:"#374151", whiteSpace:"nowrap", minWidth:"140px" }}>المنصب</th>
+                            <th style={{ padding:"14px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>القسم</th>
+                            <th style={{ padding:"14px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>الرصيد</th>
+                            <th style={{ padding:"14px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>شهري</th>
+                            <th style={{ padding:"14px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>أيام العمل</th>
+                            <th style={{ padding:"14px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>الحالة</th>
+                            <th style={{ padding:"14px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>إجراءات</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -2686,15 +2506,15 @@ ${JSON.stringify(systemData)}
                                 onMouseLeave={e => (e.currentTarget.style.background = isOnLeave ? "#fffbeb" : (idx % 2 === 0 ? "white" : "#fafafa"))}>
                                 {/* الاسم */}
                                 <td style={{ padding:"12px 16px" }}>
-                                  <div style={{ fontWeight:"700", color:"#e6edf3", fontSize:"13px" }}>{emp.name}</div>
+                                  <div style={{ fontWeight:"700", color:"#1e293b", fontSize:"13px" }}>{emp.name}</div>
                                   {emp.email && <a href={`mailto:${emp.email}`} style={{ color:"#6366f1", fontSize:"11px", textDecoration:"none" }}>{emp.email}</a>}
                                 </td>
                                 {/* الكود */}
                                 <td style={{ padding:"12px", textAlign:"center" }}>
-                                  <span style={{ fontFamily:"monospace", background:"#161b22", padding:"3px 8px", borderRadius:"6px", fontSize:"12px", color:"#8b949e", fontWeight:"600" }}>{emp.code}</span>
+                                  <span style={{ fontFamily:"monospace", background:"#f1f5f9", padding:"3px 8px", borderRadius:"6px", fontSize:"12px", color:"#475569", fontWeight:"600" }}>{emp.code}</span>
                                 </td>
                                 {/* المنصب */}
-                                <td style={{ padding:"12px", color:"#8b949e", fontSize:"12px" }}>{emp.position || "-"}</td>
+                                <td style={{ padding:"12px", color:"#64748b", fontSize:"12px" }}>{emp.position || "-"}</td>
                                 {/* القسم */}
                                 <td style={{ padding:"12px", textAlign:"center" }}>
                                   {dept ? <span style={{ background:"#ede9fe", color:"#7c3aed", padding:"3px 10px", borderRadius:"20px", fontSize:"11px", fontWeight:"700" }}>{dept.name}</span> : <span style={{ color:"#cbd5e1" }}>-</span>}
@@ -2702,12 +2522,12 @@ ${JSON.stringify(systemData)}
                                 {/* الرصيد */}
                                 <td style={{ padding:"12px", textAlign:"center" }}>
                                   <span style={{ fontWeight:"900", fontSize:"16px", color: emp.balance < 5 ? "#dc2626" : emp.balance < 10 ? "#d97706" : "#4f46e5" }}>{emp.balance}</span>
-                                  <div style={{ fontSize:"10px", color:"#6e7681" }}>يوم</div>
+                                  <div style={{ fontSize:"10px", color:"#94a3b8" }}>يوم</div>
                                 </td>
                                 {/* شهري */}
                                 <td style={{ padding:"12px", textAlign:"center" }}>
                                   {emp.monthly_balance > 0
-                                    ? <span style={{ background:"rgba(16,185,129,0.15)", color:"#16a34a", padding:"3px 8px", borderRadius:"20px", fontSize:"11px", fontWeight:"700" }}>+{emp.monthly_balance}</span>
+                                    ? <span style={{ background:"#dcfce7", color:"#16a34a", padding:"3px 8px", borderRadius:"20px", fontSize:"11px", fontWeight:"700" }}>+{emp.monthly_balance}</span>
                                     : <span style={{ color:"#cbd5e1", fontSize:"12px" }}>-</span>}
                                 </td>
                                 {/* أيام العمل */}
@@ -2721,7 +2541,7 @@ ${JSON.stringify(systemData)}
                                 {/* إجراءات */}
                                 <td style={{ padding:"12px", textAlign:"center" }}>
                                   <div style={{ display:"flex", justifyContent:"center", gap:"6px" }}>
-                                    <button onClick={() => setEditingEmp(emp)} style={{ padding:"6px", background:"rgba(59,130,246,0.1)", border:"none", borderRadius:"8px", cursor:"pointer", color:"#3b82f6", display:"flex", alignItems:"center" }} title="تعديل"><Edit3 size={14} /></button>
+                                    <button onClick={() => setEditingEmp(emp)} style={{ padding:"6px", background:"#eff6ff", border:"none", borderRadius:"8px", cursor:"pointer", color:"#3b82f6", display:"flex", alignItems:"center" }} title="تعديل"><Edit3 size={14} /></button>
                                     <button onClick={() => handleDeleteEmployee(emp.id)} style={{ padding:"6px", background:"#fff1f2", border:"none", borderRadius:"8px", cursor:"pointer", color:"#ef4444", display:"flex", alignItems:"center" }} title="حذف"><Trash2 size={14} /></button>
                                   </div>
                                 </td>
@@ -2731,7 +2551,7 @@ ${JSON.stringify(systemData)}
                         </tbody>
                       </table>
                       {filteredEmployees.length === 0 && (
-                        <div style={{ padding:"60px", textAlign:"center", color:"#6e7681" }}>
+                        <div style={{ padding:"60px", textAlign:"center", color:"#94a3b8" }}>
                           <Users size={48} style={{ margin:"0 auto 16px", opacity:0.3 }} />
                           <p style={{ fontWeight:"700", fontSize:"16px" }}>لا يوجد موظفون مطابقون للبحث</p>
                         </div>
@@ -2746,19 +2566,19 @@ ${JSON.stringify(systemData)}
                 <div style={{ width:"100%", boxSizing:"border-box" }} className="space-y-6">
                   <div className="flex justify-between items-center">
                     <div>
-                      <h2 style={{ fontSize:"22px", fontWeight:"900", color:"#e6edf3" }}>طلبات الإجازات</h2>
+                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                    <h2 className="text-2xl font-black">طلبات الإجازات</h2>
+                    <button onClick={() => { setPrintSelected([]); setPrintFrom(""); setPrintTo(""); setShowPrintModal(true); }}
+                      style={{ padding:"10px 16px", background:"linear-gradient(135deg,#1d4ed8,#3b82f6)", color:"white", border:"none", borderRadius:"12px", fontWeight:"700", cursor:"pointer", fontSize:"13px", display:"flex", alignItems:"center", gap:"6px", whiteSpace:"nowrap" }}>
+                      🖨️ طباعة / مشاركة
+                    </button>
+                  </div>
                       {isDeptMgr && <p className="text-sm text-emerald-600 font-bold mt-1">🏢 تعرض طلبات قسم: {currentUser?.dept_name}</p>}
                     </div>
-                    <div style={{ display:"flex", gap:"8px", alignItems:"center" }}>
-                      <select style={{ padding:"10px 14px", background:"#0d1117", border:"1px solid #30363d", borderRadius:"12px", color:"#e6edf3", outline:"none" }} value={vacationTypeFilter} onChange={(e) => setVacationTypeFilter(e.target.value)}>
-                        <option value="all">كل الأنواع</option>
-                        {vacationTypes.map(vt => <option key={vt.id} value={vt.id}>{vt.name}</option>)}
-                      </select>
-                      <button onClick={() => { setSelectedPrintRequests([]); setPrintDateFrom(""); setPrintDateTo(""); setShowPrintModal(true); }}
-                        style={{ padding:"10px 16px", background:"linear-gradient(135deg,#1d4ed8,#3b82f6)", color:"white", border:"none", borderRadius:"12px", fontWeight:"700", cursor:"pointer", fontSize:"13px", display:"flex", alignItems:"center", gap:"6px", whiteSpace:"nowrap" }}>
-                        🖨️ طباعة / مشاركة
-                      </button>
-                    </div>
+                    <select className="px-4 py-3 bg-white border rounded-xl" value={vacationTypeFilter} onChange={(e) => setVacationTypeFilter(e.target.value)}>
+                      <option value="all">كل الأنواع</option>
+                      {vacationTypes.map(vt => <option key={vt.id} value={vt.id}>{vt.name}</option>)}
+                    </select>
                   </div>
 
                   {/* طلبات بانتظار مدير القسم (للدور: مدير قسم) */}
@@ -2769,78 +2589,30 @@ ${JSON.stringify(systemData)}
                         {filteredRequests.filter(r => r.status === "pending").map(req => {
                           const vacType = vacationTypes.find(vt => vt.id === req.vacation_type_id);
                           return (
-                            <div key={req.id} style={{ background:"#161b22", padding:"24px", borderRadius:"1.5rem", border:"2px solid rgba(245,158,11,0.3)" }}>
-                              <div className="flex justify-between items-start mb-6" style={{ cursor:"pointer" }} onClick={() => setExpandedRequestId(expandedRequestId === req.id ? null : req.id)}>
+                            <div key={req.id} className="bg-white p-8 rounded-[2.5rem] border-2 border-amber-200 shadow-sm">
+                              <div className="flex justify-between items-start mb-6">
                                 <div>
                                   <h4 className="font-black text-xl text-slate-800">{req.employee_name}</h4>
-                                  <p className="text-slate-400 text-sm mt-1">بانتظار موافقتك — <span style={{color:"#818cf8", fontSize:"11px"}}>اضغط لعرض بيانات الموظف</span></p>
+                                  <p className="text-slate-400 text-sm mt-1">بانتظار موافقتك</p>
                                 </div>
                                 <div className="flex gap-2 items-center">
                                   {vacType && <span className="px-3 py-1 rounded-full text-xs font-bold" style={{ backgroundColor: vacType.color+'20', color: vacType.color }}>{vacType.name}</span>}
-                                  <span style={{ color:"#6e7681", fontSize:"18px" }}>{expandedRequestId === req.id ? "▲" : "▼"}</span>
                                 </div>
                               </div>
-                              {/* بيانات الموظف عند الضغط */}
-                              {expandedRequestId === req.id && (() => {
-                                const empInfo = employees.find(e => e.id === req.employee_id);
-                                if (!empInfo) return null;
-                                const workedDaysEmp = calculateWorkedDays(empInfo.return_date);
-                                const totalVacDays = requests.filter(r => r.employee_id === empInfo.id && r.status === "approved").reduce((s,r) => s + Number(r.days), 0);
-                                const isBalanceSufficient = Number(empInfo.balance) >= Number(req.days);
-                                return (
-                                  <div style={{ background:"linear-gradient(135deg,#1c2333,#21262d)", borderRadius:"16px", padding:"16px", marginBottom:"16px", border:"1px solid #30363d" }}>
-                                    <div style={{ display:"flex", alignItems:"center", gap:"12px", marginBottom:"14px" }}>
-                                      <div style={{ width:"46px", height:"46px", borderRadius:"50%", background:"linear-gradient(135deg,#4f46e5,#7c3aed)", display:"flex", alignItems:"center", justifyContent:"center", fontWeight:"900", fontSize:"18px", color:"white", flexShrink:0 }}>
-                                        {empInfo.name?.charAt(0)}
-                                      </div>
-                                      <div>
-                                        <div style={{ fontWeight:"900", fontSize:"15px", color:"#e6edf3" }}>{empInfo.name}</div>
-                                        <div style={{ fontSize:"11px", color:"#6e7681" }}>{empInfo.position || "-"} | كود: {empInfo.code || "-"}</div>
-                                        {empInfo.hire_date && <div style={{ fontSize:"10px", color:"#484f58" }}>تاريخ التعيين: {formatDate(empInfo.hire_date)}</div>}
-                                      </div>
-                                    </div>
-                                    <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:"8px" }}>
-                                      <div style={{ background: isBalanceSufficient ? "rgba(16,185,129,0.1)" : "rgba(239,68,68,0.15)", borderRadius:"12px", padding:"10px", textAlign:"center", border: isBalanceSufficient ? "1px solid rgba(16,185,129,0.2)" : "1px solid rgba(239,68,68,0.3)" }}>
-                                        <div style={{ fontSize:"20px", fontWeight:"900", color: isBalanceSufficient ? "#10b981" : "#ef4444" }}>{empInfo.balance}</div>
-                                        <div style={{ fontSize:"10px", color:"#6e7681", marginTop:"2px" }}>رصيد الإجازة</div>
-                                        {!isBalanceSufficient && <div style={{ fontSize:"9px", color:"#ef4444", marginTop:"2px" }}>⚠️ رصيد غير كافٍ!</div>}
-                                      </div>
-                                      <div style={{ background:"rgba(245,158,11,0.1)", borderRadius:"12px", padding:"10px", textAlign:"center", border:"1px solid rgba(245,158,11,0.2)" }}>
-                                        <div style={{ fontSize:"20px", fontWeight:"900", color:"#f59e0b" }}>{workedDaysEmp}</div>
-                                        <div style={{ fontSize:"10px", color:"#6e7681", marginTop:"2px" }}>أيام العمل</div>
-                                      </div>
-                                      <div style={{ background:"rgba(129,140,248,0.1)", borderRadius:"12px", padding:"10px", textAlign:"center", border:"1px solid rgba(129,140,248,0.2)" }}>
-                                        <div style={{ fontSize:"20px", fontWeight:"900", color:"#818cf8" }}>{totalVacDays}</div>
-                                        <div style={{ fontSize:"10px", color:"#6e7681", marginTop:"2px" }}>إجمالي إجازاته</div>
-                                      </div>
-                                    </div>
-                                    <div style={{ marginTop:"10px", display:"flex", justifyContent:"space-between", fontSize:"11px", color:"#6e7681" }}>
-                                      <span>الرصيد الشهري: <b style={{color:"#6ee7b7"}}>{empInfo.monthly_balance || 0} يوم/شهر</b></span>
-                                      {empInfo.email ? <span style={{color:"#818cf8"}}>📧 {empInfo.email}</span> : <span style={{color:"#f59e0b"}}>⚠️ لا يوجد بريد</span>}
-                                    </div>
-                                    {/* هل يستاهل الإجازة؟ */}
-                                    <div style={{ marginTop:"12px", padding:"10px 14px", borderRadius:"12px", background: isBalanceSufficient && workedDaysEmp >= 30 ? "rgba(16,185,129,0.15)" : "rgba(239,68,68,0.1)", border: isBalanceSufficient && workedDaysEmp >= 30 ? "1px solid rgba(16,185,129,0.3)" : "1px solid rgba(239,68,68,0.2)", textAlign:"center" }}>
-                                      <div style={{ fontWeight:"900", fontSize:"14px", color: isBalanceSufficient && workedDaysEmp >= 30 ? "#10b981" : "#ef4444" }}>
-                                        {isBalanceSufficient && workedDaysEmp >= 30 ? "✅ الموظف يستحق الإجازة" : !isBalanceSufficient ? "❌ الرصيد غير كافٍ" : "⚠️ أيام العمل أقل من 30 يوم"}
-                                      </div>
-                                    </div>
-                                  </div>
-                                );
-                              })()}
-                              <div style={{ background:"#1c2333", padding:"20px", borderRadius:"16px", marginBottom:"20px" }}>
-                                <div className="flex justify-between text-sm font-bold"><span style={{ color:"#6e7681" }}>تاريخ البداية</span><span>{formatDate(req.start_date)}</span></div>
-                                <div className="flex justify-between text-sm font-bold"><span style={{ color:"#6e7681" }}>المدة</span><span>{req.days} يوم</span></div>
+                              <div className="bg-slate-50 p-6 rounded-2xl space-y-3 mb-6">
+                                <div className="flex justify-between text-sm font-bold"><span className="text-slate-400">تاريخ البداية</span><span>{formatDate(req.start_date)}</span></div>
+                                <div className="flex justify-between text-sm font-bold"><span className="text-slate-400">المدة</span><span>{req.days} يوم</span></div>
                                 <div className="flex justify-between text-sm font-bold pt-3 border-t"><span className="text-indigo-600">تاريخ العودة</span><span className="text-indigo-600 font-black">{formatDate(getCalculatedDates(req.start_date, req.days).back)}</span></div>
                               </div>
                               {req.notes && <p className="text-sm text-slate-500 italic mb-6">"{req.notes}"</p>}
                               <div className="flex gap-3">
-                                <button onClick={() => openApprovalModal(req, "approved")} className="flex-1 bg-amber-500 hover:bg-amber-600 text-white py-4 rounded-2xl font-black">موافقة مبدئية ✓</button>
+                                <button onClick={() => openApprovalModal(req, "approved")} className="flex-1 bg-amber-500 hover:bg-amber-600 text-white py-4 rounded-2xl font-black">موافقة</button>
                                 <button onClick={() => openApprovalModal(req, "rejected")} className="flex-1 bg-red-50 text-red-600 hover:bg-red-100 py-4 rounded-2xl font-black">رفض</button>
-                              </div>
-                                <button onClick={() => { setEditDaysForm({ days: req.days, oldDays: req.days, reason: "", requestId: req.id, empName: req.employee_name }); setShowEditDaysModal(true); }}
-                                  style={{ width:"100%", marginTop:"6px", padding:"10px", background:"rgba(99,102,241,0.15)", border:"1px solid rgba(99,102,241,0.3)", borderRadius:"14px", color:"#818cf8", cursor:"pointer", fontWeight:"700", fontSize:"13px" }}>
-                                  ✏️ تعديل عدد الأيام
+                                <button onClick={() => { setMgrEditForm({ id:req.id, empName:req.employee_name, days:req.days, start_date:req.start_date, reason:"", oldDays:req.days }); setShowManagerEditModal(true); }}
+                                  style={{ width:"100%", marginTop:"6px", padding:"10px", background:"#f5f3ff", border:"1px solid #ddd6fe", borderRadius:"14px", color:"#7c3aed", cursor:"pointer", fontWeight:"700", fontSize:"12px" }}>
+                                  ✏️ تعديل الإجازة
                                 </button>
+                              </div>
                             </div>
                           );
                         })}
@@ -2853,154 +2625,50 @@ ${JSON.stringify(systemData)}
                     </>
                   )}
 
-                  {/* Owner: طلبات بانتظار موافقة مدير القسم */}
-                  {isOwner && filteredRequests.filter(r => r.status === "pending").length > 0 && (
+                  {/* Owner: جميع الطلبات المعلقة - موافقة مباشرة بدون مرحلتين */}
+                  {isOwner && filteredRequests.filter(r => r.status === "pending" || r.status === "dept_approved").length > 0 && (
                     <>
-                      <h3 className="font-black text-lg text-amber-600">⏳ جديدة — بانتظار مدير القسم ({filteredRequests.filter(r => r.status === "pending").length})</h3>
-                      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(300px, 1fr))", gap:"16px" }}>
-                        {filteredRequests.filter(r => r.status === "pending").map(req => {
-                          const vacType = vacationTypes.find(vt => vt.id === req.vacation_type_id);
-                          const dept = departments.find(d => d.id === employees.find(e => e.id === req.employee_id)?.department_id);
-                          return (
-                            <div key={req.id} style={{ background:"#161b22", padding:"20px", borderRadius:"1.5rem", border:"1px solid #30363d" }}>
-                              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"14px", cursor:"pointer" }} onClick={() => setExpandedRequestId(expandedRequestId === req.id ? null : req.id)}>
-                                <div>
-                                  <h4 className="font-black text-xl text-slate-800">{req.employee_name}</h4>
-                                  <p className="text-xs text-amber-600 font-bold mt-1">🏢 {dept?.name || "—"} — بانتظار مدير القسم — <span style={{color:"#818cf8", fontSize:"11px"}}>اضغط لعرض بيانات الموظف</span></p>
-                                </div>
-                                <div className="flex gap-2">
-                                  {vacType && <span className="px-3 py-1 rounded-full text-xs font-bold" style={{ backgroundColor: vacType.color+'20', color: vacType.color }}>{vacType.name}</span>}
-                                  <span style={{ color:"#6e7681", fontSize:"18px" }}>{expandedRequestId === req.id ? "▲" : "▼"}</span>
-                                  <button onClick={(e) => { e.stopPropagation(); handleDeleteVacation(req.id); }} className="p-2 text-red-400 hover:bg-red-50 rounded-xl"><Trash2 size={16} /></button>
-                                </div>
-                              </div>
-                              {/* بيانات الموظف عند الضغط */}
-                              {expandedRequestId === req.id && (() => {
-                                const empInfo = employees.find(e => e.id === req.employee_id);
-                                if (!empInfo) return null;
-                                const workedDaysEmp = calculateWorkedDays(empInfo.return_date);
-                                const totalVacDays = requests.filter(r => r.employee_id === empInfo.id && r.status === "approved").reduce((s,r) => s + Number(r.days), 0);
-                                const isBalanceSufficient = Number(empInfo.balance) >= Number(req.days);
-                                return (
-                                  <div style={{ background:"linear-gradient(135deg,#1c2333,#21262d)", borderRadius:"16px", padding:"16px", marginBottom:"16px", border:"1px solid #30363d" }}>
-                                    <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:"8px" }}>
-                                      <div style={{ background: isBalanceSufficient ? "rgba(16,185,129,0.1)" : "rgba(239,68,68,0.15)", borderRadius:"12px", padding:"10px", textAlign:"center", border: isBalanceSufficient ? "1px solid rgba(16,185,129,0.2)" : "1px solid rgba(239,68,68,0.3)" }}>
-                                        <div style={{ fontSize:"20px", fontWeight:"900", color: isBalanceSufficient ? "#10b981" : "#ef4444" }}>{empInfo.balance}</div>
-                                        <div style={{ fontSize:"10px", color:"#6e7681", marginTop:"2px" }}>رصيد الإجازة</div>
-                                        {!isBalanceSufficient && <div style={{ fontSize:"9px", color:"#ef4444", marginTop:"2px" }}>⚠️ غير كافٍ</div>}
-                                      </div>
-                                      <div style={{ background:"rgba(245,158,11,0.1)", borderRadius:"12px", padding:"10px", textAlign:"center", border:"1px solid rgba(245,158,11,0.2)" }}>
-                                        <div style={{ fontSize:"20px", fontWeight:"900", color:"#f59e0b" }}>{workedDaysEmp}</div>
-                                        <div style={{ fontSize:"10px", color:"#6e7681", marginTop:"2px" }}>أيام العمل</div>
-                                      </div>
-                                      <div style={{ background:"rgba(129,140,248,0.1)", borderRadius:"12px", padding:"10px", textAlign:"center", border:"1px solid rgba(129,140,248,0.2)" }}>
-                                        <div style={{ fontSize:"20px", fontWeight:"900", color:"#818cf8" }}>{totalVacDays}</div>
-                                        <div style={{ fontSize:"10px", color:"#6e7681", marginTop:"2px" }}>إجمالي إجازاته</div>
-                                      </div>
-                                    </div>
-                                    <div style={{ marginTop:"12px", padding:"10px 14px", borderRadius:"12px", background: isBalanceSufficient && workedDaysEmp >= 30 ? "rgba(16,185,129,0.15)" : "rgba(239,68,68,0.1)", border: isBalanceSufficient && workedDaysEmp >= 30 ? "1px solid rgba(16,185,129,0.3)" : "1px solid rgba(239,68,68,0.2)", textAlign:"center" }}>
-                                      <div style={{ fontWeight:"900", fontSize:"14px", color: isBalanceSufficient && workedDaysEmp >= 30 ? "#10b981" : "#ef4444" }}>
-                                        {isBalanceSufficient && workedDaysEmp >= 30 ? "✅ الموظف يستحق الإجازة" : !isBalanceSufficient ? "❌ الرصيد غير كافٍ" : "⚠️ أيام العمل أقل من 30 يوم"}
-                                      </div>
-                                    </div>
-                                  </div>
-                                );
-                              })()}
-                              <div style={{ background:"#1c2333", padding:"14px", borderRadius:"14px", fontSize:"13px" }}>
-                                <div className="flex justify-between font-bold"><span style={{ color:"#6e7681" }}>البداية</span><span>{formatDate(req.start_date)}</span></div>
-                                <div className="flex justify-between font-bold"><span style={{ color:"#6e7681" }}>المدة</span><span>{req.days} يوم</span></div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </>
-                  )}
-
-                  {/* Owner: طلبات وافق عليها مدير القسم — تنتظر الموافقة النهائية */}
-                  {isOwner && (
-                    <>
-                      <h3 className="font-black text-lg text-indigo-600">
-                        🔔 وافق عليها مدير القسم — بانتظار موافقتك النهائية ({filteredRequests.filter(r => r.status === "dept_approved").length})
+                      <h3 className="font-black text-lg text-emerald-600">
+                        طلبات تحتاج موافقتك ({filteredRequests.filter(r => r.status === "pending" || r.status === "dept_approved").length})
                       </h3>
-                      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(280px, 1fr))", gap:"14px" }}>
-                        {filteredRequests.filter(r => r.status === "dept_approved").map(req => {
+                      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(300px, 1fr))", gap:"16px" }}>
+                        {filteredRequests.filter(r => r.status === "pending" || r.status === "dept_approved").map(req => {
                           const vacType = vacationTypes.find(vt => vt.id === req.vacation_type_id);
                           const emp = employees.find(e => e.id === req.employee_id);
                           const dept = departments.find(d => d.id === emp?.department_id);
                           return (
-                            <div key={req.id} style={{ background:"#161b22", padding:"20px", borderRadius:"1.5rem", border:"1px solid #30363d" }}>
-                              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"14px", cursor:"pointer" }} onClick={() => setExpandedRequestId(expandedRequestId === req.id ? null : req.id)}>
+                            <div key={req.id} className="bg-white p-8 rounded-[2.5rem] border-2 border-emerald-200 shadow-sm">
+                              <div className="flex justify-between items-start mb-4">
                                 <div>
                                   <h4 className="font-black text-xl text-slate-800">{req.employee_name}</h4>
-                                  <p className="text-xs text-indigo-600 font-bold mt-1">✅ وافق عليها: {req.dept_approved_by || dept?.name} — <span style={{color:"#818cf8", fontSize:"11px"}}>اضغط لعرض بيانات الموظف</span></p>
+                                  <p className="text-xs text-slate-400 font-bold mt-1">{dept?.name || ""}</p>
+                                  {req.status === "dept_approved" && (
+                                    <p className="text-xs text-indigo-600 font-bold mt-1">وافق عليها مدير القسم: {req.dept_approved_by}</p>
+                                  )}
                                 </div>
                                 <div className="flex gap-2 items-center">
                                   {vacType && <span className="px-3 py-1 rounded-full text-xs font-bold" style={{ backgroundColor: vacType.color+'20', color: vacType.color }}>{vacType.name}</span>}
-                                  <span style={{ color:"#6e7681", fontSize:"18px" }}>{expandedRequestId === req.id ? "▲" : "▼"}</span>
-                                  <button onClick={(e) => { e.stopPropagation(); handleDeleteVacation(req.id); }} className="p-2 text-red-400 hover:bg-red-50 rounded-xl"><Trash2 size={16} /></button>
+                                  <button onClick={() => handleDeleteVacation(req.id)} className="p-2 text-red-400 hover:bg-red-50 rounded-xl"><Trash2 size={16} /></button>
                                 </div>
                               </div>
-                              {/* بيانات الموظف عند الضغط */}
-                              {expandedRequestId === req.id && (() => {
-                                const empInfo = employees.find(e => e.id === req.employee_id);
-                                if (!empInfo) return null;
-                                const workedDaysEmp = calculateWorkedDays(empInfo.return_date);
-                                const totalVacDays = requests.filter(r => r.employee_id === empInfo.id && r.status === "approved").reduce((s,r) => s + Number(r.days), 0);
-                                const isBalanceSufficient = Number(empInfo.balance) >= Number(req.days);
-                                return (
-                                  <div style={{ background:"linear-gradient(135deg,#1c2333,#21262d)", borderRadius:"16px", padding:"16px", marginBottom:"16px", border:"1px solid #30363d" }}>
-                                    <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:"8px" }}>
-                                      <div style={{ background: isBalanceSufficient ? "rgba(16,185,129,0.1)" : "rgba(239,68,68,0.15)", borderRadius:"12px", padding:"10px", textAlign:"center", border: isBalanceSufficient ? "1px solid rgba(16,185,129,0.2)" : "1px solid rgba(239,68,68,0.3)" }}>
-                                        <div style={{ fontSize:"20px", fontWeight:"900", color: isBalanceSufficient ? "#10b981" : "#ef4444" }}>{empInfo.balance}</div>
-                                        <div style={{ fontSize:"10px", color:"#6e7681", marginTop:"2px" }}>رصيد الإجازة</div>
-                                        {!isBalanceSufficient && <div style={{ fontSize:"9px", color:"#ef4444", marginTop:"2px" }}>⚠️ غير كافٍ</div>}
-                                      </div>
-                                      <div style={{ background:"rgba(245,158,11,0.1)", borderRadius:"12px", padding:"10px", textAlign:"center", border:"1px solid rgba(245,158,11,0.2)" }}>
-                                        <div style={{ fontSize:"20px", fontWeight:"900", color:"#f59e0b" }}>{workedDaysEmp}</div>
-                                        <div style={{ fontSize:"10px", color:"#6e7681", marginTop:"2px" }}>أيام العمل</div>
-                                      </div>
-                                      <div style={{ background:"rgba(129,140,248,0.1)", borderRadius:"12px", padding:"10px", textAlign:"center", border:"1px solid rgba(129,140,248,0.2)" }}>
-                                        <div style={{ fontSize:"20px", fontWeight:"900", color:"#818cf8" }}>{totalVacDays}</div>
-                                        <div style={{ fontSize:"10px", color:"#6e7681", marginTop:"2px" }}>إجمالي إجازاته</div>
-                                      </div>
-                                    </div>
-                                    <div style={{ marginTop:"10px", display:"flex", justifyContent:"space-between", fontSize:"11px", color:"#6e7681" }}>
-                                      <span>الرصيد الشهري: <b style={{color:"#6ee7b7"}}>{empInfo.monthly_balance || 0} يوم/شهر</b></span>
-                                      {empInfo.email ? <span style={{color:"#818cf8"}}>📧 {empInfo.email}</span> : <span style={{color:"#f59e0b"}}>⚠️ لا يوجد بريد</span>}
-                                    </div>
-                                    <div style={{ marginTop:"12px", padding:"10px 14px", borderRadius:"12px", background: isBalanceSufficient && workedDaysEmp >= 30 ? "rgba(16,185,129,0.15)" : "rgba(239,68,68,0.1)", border: isBalanceSufficient && workedDaysEmp >= 30 ? "1px solid rgba(16,185,129,0.3)" : "1px solid rgba(239,68,68,0.2)", textAlign:"center" }}>
-                                      <div style={{ fontWeight:"900", fontSize:"14px", color: isBalanceSufficient && workedDaysEmp >= 30 ? "#10b981" : "#ef4444" }}>
-                                        {isBalanceSufficient && workedDaysEmp >= 30 ? "✅ الموظف يستحق الإجازة" : !isBalanceSufficient ? "❌ الرصيد غير كافٍ" : "⚠️ أيام العمل أقل من 30 يوم"}
-                                      </div>
-                                    </div>
-                                  </div>
-                                );
-                              })()}
-                              <div className="bg-indigo-50 p-6 rounded-2xl space-y-3 mb-6">
-                                <div className="flex justify-between text-sm font-bold"><span style={{ color:"#6e7681" }}>تاريخ البداية</span><span>{formatDate(req.start_date)}</span></div>
-                                <div className="flex justify-between text-sm font-bold"><span style={{ color:"#6e7681" }}>المدة</span><span>{req.days} يوم</span></div>
-                                <div className="flex justify-between text-sm font-bold pt-3 border-t"><span className="text-indigo-600">تاريخ العودة</span><span className="text-indigo-600 font-black">{formatDate(getCalculatedDates(req.start_date, req.days).back)}</span></div>
+                              <div className="bg-slate-50 p-4 rounded-2xl text-sm space-y-2 mb-4">
+                                <div className="flex justify-between font-bold"><span className="text-slate-400">البداية</span><span>{formatDate(req.start_date)}</span></div>
+                                <div className="flex justify-between font-bold"><span className="text-slate-400">المدة</span><span>{req.days} يوم</span></div>
+                                <div className="flex justify-between font-bold pt-2 border-t"><span className="text-indigo-600">العودة</span><span className="text-indigo-600 font-black">{formatDate(getCalculatedDates(req.start_date, req.days).back)}</span></div>
                               </div>
-                              {req.dept_manager_notes && <p className="text-sm text-indigo-500 italic mb-4">💬 مدير القسم: "{req.dept_manager_notes}"</p>}
                               {req.notes && <p className="text-sm text-slate-500 italic mb-4">"{req.notes}"</p>}
-                              {emp?.email && <p className="text-xs text-indigo-400 mb-4 flex items-center gap-1"><Mail size={12} /> إشعار لـ {emp.email}</p>}
-                              <div className="flex gap-3">
-                                <button onClick={() => openApprovalModal(req, "approved")} className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-4 rounded-2xl font-black">✅ موافقة نهائية</button>
-                                <button onClick={() => openApprovalModal(req, "rejected")} className="flex-1 bg-red-50 text-red-600 hover:bg-red-100 py-4 rounded-2xl font-black">❌ رفض</button>
+                              {emp?.email && <p className="text-xs text-slate-400 mb-4 flex items-center gap-1"><Mail size={12}/> {emp.email}</p>}
+                              <div className="flex gap-3 mb-2">
+                                <button onClick={() => openApprovalModal(req, "approved")} className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-4 rounded-2xl font-black">موافقة</button>
+                                <button onClick={() => openApprovalModal(req, "rejected")} className="flex-1 bg-red-50 text-red-600 hover:bg-red-100 py-4 rounded-2xl font-black">رفض</button>
                               </div>
-                                <button onClick={() => { setEditDaysForm({ days: req.days, oldDays: req.days, reason: "", requestId: req.id, empName: req.employee_name }); setShowEditDaysModal(true); }}
-                                  style={{ width:"100%", marginTop:"6px", padding:"10px", background:"rgba(99,102,241,0.15)", border:"1px solid rgba(99,102,241,0.3)", borderRadius:"14px", color:"#818cf8", cursor:"pointer", fontWeight:"700", fontSize:"13px" }}>
-                                  ✏️ تعديل عدد الأيام
-                                </button>
+                              <button onClick={() => { setMgrEditForm({ id:req.id, empName:req.employee_name, days:req.days, start_date:req.start_date, reason:"", oldDays:req.days }); setShowManagerEditModal(true); }}
+                                style={{ width:"100%", padding:"10px", background:"#f5f3ff", border:"1px solid #ddd6fe", borderRadius:"14px", color:"#7c3aed", cursor:"pointer", fontWeight:"700", fontSize:"12px" }}>
+                                تعديل الاجازة
+                              </button>
                             </div>
                           );
                         })}
-                        {filteredRequests.filter(r => r.status === "dept_approved").length === 0 && (
-                          <div className="col-span-2 py-16 text-center bg-indigo-50 rounded-[3rem] border border-dashed border-indigo-200">
-                            <p className="text-indigo-300 font-bold">لا توجد طلبات بانتظار موافقتك النهائية ✅</p>
-                          </div>
-                        )}
                       </div>
                     </>
                   )}
@@ -3010,7 +2678,7 @@ ${JSON.stringify(systemData)}
               {/* ===== CALENDAR ===== */}
               {activeTab === "calendar" && (
                 <div style={{ width:"100%", boxSizing:"border-box" }} className="space-y-6">
-                  <h2 style={{ fontSize:"22px", fontWeight:"900", color:"#e6edf3" }}>التقويم الشهري</h2>
+                  <h2 className="text-2xl font-black">التقويم الشهري</h2>
                   {renderCalendar()}
                 </div>
               )}
@@ -3019,28 +2687,28 @@ ${JSON.stringify(systemData)}
               {activeTab === "reports" && (
                 <div style={{ width:"100%", boxSizing:"border-box" }} className="space-y-6">
                   <div className="flex justify-between items-center">
-                    <h2 style={{ fontSize:"22px", fontWeight:"900", color:"#e6edf3" }}>التقارير والإحصائيات</h2>
+                    <h2 className="text-2xl font-black">التقارير والإحصائيات</h2>
                     <button onClick={exportDetailedReport} className="bg-emerald-600 text-white px-6 py-3 rounded-2xl flex items-center gap-2 font-bold shadow-lg"><Download size={20} /> تصدير التقرير الشامل</button>
                   </div>
                   {vacationByDepartment.length > 0 && (
-                    <div style={{ background:"#161b22", padding:"24px", borderRadius:"1.5rem", border:"1px solid #30363d" }}>
-                      <h4 style={{ fontWeight:"900", marginBottom:"16px", display:"flex", alignItems:"center", gap:"8px", color:"#e6edf3" }}><Building2 size={20} className="text-indigo-600" /> إحصائيات الأقسام</h4>
+                    <div className="bg-white p-6 rounded-[2rem] shadow-sm border">
+                      <h4 className="font-black mb-4 flex items-center gap-2"><Building2 size={20} className="text-indigo-600" /> إحصائيات الأقسام</h4>
                       <div className="grid grid-cols-3 gap-4">
                         {vacationByDepartment.map(dept => (
-                          <div key={dept.name} style={{ padding:"14px", background:"#1c2333", borderRadius:"12px" }}>
+                          <div key={dept.name} className="p-4 bg-slate-50 rounded-xl">
                             <h5 className="font-bold text-slate-800 mb-2">{dept.name}</h5>
                             <div className="space-y-1 text-sm">
-                              <div className="flex justify-between"><span style={{ color:"#8b949e" }}>عدد الموظفين:</span><span className="font-bold">{dept.employees}</span></div>
-                              <div className="flex justify-between"><span style={{ color:"#8b949e" }}>عدد الإجازات:</span><span className="font-bold">{dept.count}</span></div>
-                              <div className="flex justify-between"><span style={{ color:"#8b949e" }}>إجمالي الأيام:</span><span className="font-bold text-indigo-600">{dept.days}</span></div>
+                              <div className="flex justify-between"><span className="text-slate-500">عدد الموظفين:</span><span className="font-bold">{dept.employees}</span></div>
+                              <div className="flex justify-between"><span className="text-slate-500">عدد الإجازات:</span><span className="font-bold">{dept.count}</span></div>
+                              <div className="flex justify-between"><span className="text-slate-500">إجمالي الأيام:</span><span className="font-bold text-indigo-600">{dept.days}</span></div>
                             </div>
                           </div>
                         ))}
                       </div>
                     </div>
                   )}
-                  <div style={{ background:"#161b22", padding:"24px", borderRadius:"1.5rem", border:"1px solid #30363d" }}>
-                    <h4 style={{ fontWeight:"900", marginBottom:"16px", display:"flex", alignItems:"center", gap:"8px", color:"#e6edf3" }}><AlertCircle size={20} className="text-amber-600" /> تحذير: رصيد منخفض</h4>
+                  <div className="bg-white p-6 rounded-[2rem] shadow-sm border">
+                    <h4 className="font-black mb-4 flex items-center gap-2"><AlertCircle size={20} className="text-amber-600" /> تحذير: رصيد منخفض</h4>
                     <div className="grid grid-cols-5 gap-3">
                       {lowBalances.map(emp => (
                         <div key={emp.id} className="p-3 bg-amber-50 rounded-xl text-center border border-amber-100">
@@ -3058,17 +2726,17 @@ ${JSON.stringify(systemData)}
               {activeTab === "departments" && (
                 <div style={{ width:"100%", boxSizing:"border-box" }} className="space-y-6">
                   <div className="flex justify-between items-center">
-                    <h2 style={{ fontSize:"22px", fontWeight:"900", color:"#e6edf3" }}>إدارة الأقسام</h2>
+                    <h2 className="text-2xl font-black">إدارة الأقسام</h2>
                     <button onClick={() => setShowAddDept(true)} className="bg-indigo-600 text-white px-6 py-3 rounded-2xl flex items-center gap-2 font-bold"><Plus size={20} /> إضافة قسم</button>
                   </div>
                   <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(250px, 1fr))", gap:"16px" }}>
                     {departments.map(dept => {
                       const deptEmps = employees.filter(e => e.department_id === dept.id);
                       return (
-                        <div key={dept.id} style={{ background:"#161b22", padding:"24px", borderRadius:"1.5rem", border:"1px solid #30363d" }}>
-                          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"14px" }}>
+                        <div key={dept.id} className="bg-white p-6 rounded-[2rem] shadow-sm border">
+                          <div className="flex justify-between items-start mb-4">
                             <div>
-                              <h4 style={{ fontWeight:"900", fontSize:"18px", color:"#e6edf3" }}>{dept.name}</h4>
+                              <h4 className="font-black text-lg">{dept.name}</h4>
                               <p className="text-sm text-slate-500">{dept.description || "لا يوجد وصف"}</p>
                             </div>
                             <button onClick={() => deleteDepartment(dept.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-xl"><Trash2 size={16} /></button>
@@ -3085,14 +2753,14 @@ ${JSON.stringify(systemData)}
               {activeTab === "holidays" && (
                 <div style={{ width:"100%", boxSizing:"border-box" }} className="space-y-6">
                   <div className="flex justify-between items-center">
-                    <h2 style={{ fontSize:"22px", fontWeight:"900", color:"#e6edf3" }}>العطلات الرسمية</h2>
+                    <h2 className="text-2xl font-black">العطلات الرسمية</h2>
                     <button onClick={() => setShowAddHoliday(true)} className="bg-indigo-600 text-white px-6 py-3 rounded-2xl flex items-center gap-2 font-bold"><Plus size={20} /> إضافة عطلة</button>
                   </div>
-                  <div style={{ background:"#161b22", borderRadius:"1.5rem", border:"1px solid #30363d", overflow:"hidden" }}>
+                  <div className="bg-white rounded-[2rem] shadow-sm border overflow-hidden">
                     <table className="w-full">
-                      <thead style={{ background:"#1c2333", borderBottom:"1px solid #30363d" }}>
+                      <thead className="bg-slate-50 border-b">
                         <tr>
-                          <th style={{ padding:"14px 16px", textAlign:"right", color:"#8b949e", fontWeight:"700" }}>اسم العطلة</th>
+                          <th className="p-4 text-right">اسم العطلة</th>
                           <th className="p-4 text-center">التاريخ</th>
                           <th className="p-4 text-center">متكررة سنوياً</th>
                           <th className="p-4 text-center">إجراءات</th>
@@ -3100,8 +2768,8 @@ ${JSON.stringify(systemData)}
                       </thead>
                       <tbody>
                         {publicHolidays.map(holiday => (
-                          <tr key={holiday.id} style={{ borderBottom:"1px solid #21262d" }}>
-                            <td style={{ padding:"14px 16px", fontWeight:"700", color:"#e6edf3" }}>{holiday.name}</td>
+                          <tr key={holiday.id} className="border-b hover:bg-slate-50">
+                            <td className="p-4 font-bold">{holiday.name}</td>
                             <td className="p-4 text-center">{formatDate(holiday.date)}</td>
                             <td className="p-4 text-center">{holiday.is_recurring ? <CheckCircle size={18} className="text-green-600 mx-auto" /> : <X size={18} className="text-slate-300 mx-auto" />}</td>
                             <td className="p-4 text-center"><button onClick={() => deleteHoliday(holiday.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-xl"><Trash2 size={16} /></button></td>
@@ -3140,7 +2808,7 @@ ${JSON.stringify(systemData)}
                     <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:"12px" }}>
                       <div>
                         <h2 style={{ margin:0, fontSize:"22px", fontWeight:"900" }}>🏖️ الإجازات الفعلية</h2>
-                        <p style={{ margin:"4px 0 0", color:"#8b949e", fontSize:"13px" }}>الموظفون في إجازة الآن — يُشالون تلقائياً عند العودة</p>
+                        <p style={{ margin:"4px 0 0", color:"#64748b", fontSize:"13px" }}>الموظفون في إجازة الآن — يُشالون تلقائياً عند العودة</p>
                       </div>
                       {!isDeptMgr && (
                         <button onClick={() => setShowDirectVacModal(true)} style={{ display:"flex", alignItems:"center", gap:"8px", background:"#4f46e5", color:"white", border:"none", borderRadius:"12px", padding:"10px 20px", fontWeight:"700", cursor:"pointer", fontSize:"14px", fontFamily:"inherit" }}>
@@ -3155,11 +2823,11 @@ ${JSON.stringify(systemData)}
                     </div>
 
                     {/* بحث وفلترة */}
-                    <div style={{ background:"#161b22", borderRadius:"16px", padding:"14px 18px", border:"1px solid #30363d", display:"flex", gap:"12px", flexWrap:"wrap", alignItems:"center" }}>
+                    <div style={{ background:"white", borderRadius:"16px", padding:"14px 18px", border:"1px solid #e2e8f0", display:"flex", gap:"12px", flexWrap:"wrap", alignItems:"center" }}>
                       <div style={{ position:"relative", flex:1, minWidth:"200px" }}>
-                        <Search style={{ position:"absolute", right:"12px", top:"50%", transform:"translateY(-50%)", color:"#6e7681" }} size={15}/>
+                        <Search style={{ position:"absolute", right:"12px", top:"50%", transform:"translateY(-50%)", color:"#94a3b8" }} size={15}/>
                         <input
-                          style={{ width:"100%", paddingRight:"36px", paddingLeft:"12px", padding:"10px 36px 10px 12px", background:"#0d1117", border:"1px solid #30363d", borderRadius:"10px", fontSize:"13px", outline:"none", boxSizing:"border-box" }}
+                          style={{ width:"100%", paddingRight:"36px", paddingLeft:"12px", padding:"10px 36px 10px 12px", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:"10px", fontSize:"13px", outline:"none", boxSizing:"border-box" }}
                           placeholder="ابحث باسم الموظف..."
                           value={vacSearch2}
                           onChange={e => setVacSearch2(e.target.value)}
@@ -3167,7 +2835,7 @@ ${JSON.stringify(systemData)}
                       </div>
                       {!isDeptMgr && (
                         <select
-                          style={{ padding:"10px 14px", background:"#0d1117", border:"1px solid #30363d", borderRadius:"10px", fontSize:"13px", outline:"none" }}
+                          style={{ padding:"10px 14px", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:"10px", fontSize:"13px", outline:"none" }}
                           value={vacDeptFilter2}
                           onChange={e => setVacDeptFilter2(e.target.value)}
                         >
@@ -3175,25 +2843,25 @@ ${JSON.stringify(systemData)}
                           {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
                         </select>
                       )}
-                      <div style={{ background:"rgba(99,102,241,0.1)", color:"#4f46e5", borderRadius:"10px", padding:"10px 16px", fontWeight:"700", fontSize:"13px" }}>
+                      <div style={{ background:"#eef2ff", color:"#4f46e5", borderRadius:"10px", padding:"10px 16px", fontWeight:"700", fontSize:"13px" }}>
                         {filtered.length} موظف في إجازة
                       </div>
                     </div>
 
                     {/* الجدول */}
-                    <div style={{ background:"#1c2333", borderRadius:"16px", border:"1px solid #30363d", overflow:"hidden" }}>
+                    <div style={{ background:"white", borderRadius:"16px", border:"1px solid #e2e8f0", overflow:"hidden" }}>
                       {filtered.length === 0 ? (
-                        <div style={{ padding:"60px", textAlign:"center", color:"#6e7681" }}>
+                        <div style={{ padding:"60px", textAlign:"center", color:"#94a3b8" }}>
                           <CheckCircle size={48} style={{ margin:"0 auto 12px", opacity:0.3 }}/>
                           <p style={{ fontWeight:"700", fontSize:"16px" }}>لا يوجد موظفون في إجازة الآن ✅</p>
                         </div>
                       ) : (
                         <div style={{ overflowX:"auto" }}>
                           <table style={{ width:"100%", borderCollapse:"collapse", fontSize:"13px" }}>
-                            <thead style={{ background:"#0d1117", borderBottom:"2px solid #e2e8f0" }}>
+                            <thead style={{ background:"#f8fafc", borderBottom:"2px solid #e2e8f0" }}>
                               <tr>
                                 {["الموظف", "القسم", "نوع الإجازة", "تاريخ البداية", "المدة", "تاريخ العودة", "الرصيد المتبقي", "إجراءات"].map(h => (
-                                  <th key={h} style={{ padding:"12px 14px", textAlign:"right", fontWeight:"800", color:"#8b949e", whiteSpace:"nowrap" }}>{h}</th>
+                                  <th key={h} style={{ padding:"12px 14px", textAlign:"right", fontWeight:"800", color:"#475569", whiteSpace:"nowrap" }}>{h}</th>
                                 ))}
                               </tr>
                             </thead>
@@ -3208,9 +2876,9 @@ ${JSON.stringify(systemData)}
                                   <tr key={req.id} style={{ borderBottom:"1px solid #f1f5f9" }}>
                                     <td style={{ padding:"12px 14px" }}>
                                       <div style={{ fontWeight:"700" }}>{req.employee_name}</div>
-                                      <div style={{ fontSize:"11px", color:"#6e7681" }}>{emp?.code}</div>
+                                      <div style={{ fontSize:"11px", color:"#94a3b8" }}>{emp?.code}</div>
                                     </td>
-                                    <td style={{ padding:"12px 14px", color:"#8b949e" }}>{dept?.name || "-"}</td>
+                                    <td style={{ padding:"12px 14px", color:"#64748b" }}>{dept?.name || "-"}</td>
                                     <td style={{ padding:"12px 14px" }}>
                                       {vacType && <span style={{ padding:"3px 10px", borderRadius:"20px", fontSize:"11px", fontWeight:"700", backgroundColor: vacType.color+"20", color: vacType.color }}>{vacType.name}</span>}
                                     </td>
@@ -3227,8 +2895,8 @@ ${JSON.stringify(systemData)}
                                     </td>
                                     <td style={{ padding:"12px 14px", textAlign:"center" }}>
                                       <div style={{ display:"flex", gap:"6px", justifyContent:"center" }}>
-                                        <button onClick={() => openReturnModal(req)} style={{ background:"rgba(16,185,129,0.15)", color:"#16a34a", border:"none", borderRadius:"8px", padding:"6px 12px", fontSize:"12px", fontWeight:"700", cursor:"pointer" }}>تسجيل عودة</button>
-                                        <button onClick={() => handleDeleteVacation(req.id)} style={{ background:"rgba(239,68,68,0.15)", color:"#dc2626", border:"none", borderRadius:"8px", padding:"6px 10px", fontSize:"12px", cursor:"pointer" }}><Trash2 size={13}/></button>
+                                        <button onClick={() => openReturnModal(req)} style={{ background:"#dcfce7", color:"#16a34a", border:"none", borderRadius:"8px", padding:"6px 12px", fontSize:"12px", fontWeight:"700", cursor:"pointer" }}>تسجيل عودة</button>
+                                        <button onClick={() => handleDeleteVacation(req.id)} style={{ background:"#fee2e2", color:"#dc2626", border:"none", borderRadius:"8px", padding:"6px 10px", fontSize:"12px", cursor:"pointer" }}><Trash2 size={13}/></button>
                                       </div>
                                     </td>
                                   </tr>
@@ -3246,18 +2914,18 @@ ${JSON.stringify(systemData)}
               {/* Modal إضافة إجازة مباشرة */}
               {showDirectVacModal && (
                 <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", backdropFilter:"blur(4px)", display:"flex", alignItems:"center", justifyContent:"center", padding:"20px", zIndex:200 }} onClick={() => { setShowDirectVacModal(false); setEmpSearchDirect(""); setShowEmpDropdown(false); }}>
-                  <div style={{ background:"#161b22", borderRadius:"24px", width:"100%", maxWidth:"480px", padding:"28px", boxShadow:"0 20px 60px rgba(0,0,0,0.2)" }} dir="rtl" onClick={e => e.stopPropagation()}>
+                  <div style={{ background:"white", borderRadius:"24px", width:"100%", maxWidth:"480px", padding:"28px", boxShadow:"0 20px 60px rgba(0,0,0,0.2)" }} dir="rtl" onClick={e => e.stopPropagation()}>
                     <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"20px" }}>
                       <h3 style={{ margin:0, fontWeight:"900", fontSize:"18px" }}>➕ إضافة إجازة مباشرة</h3>
-                      <button onClick={() => { setShowDirectVacModal(false); setEmpSearchDirect(""); setShowEmpDropdown(false); }} style={{ background:"#161b22", border:"none", borderRadius:"8px", padding:"6px 10px", cursor:"pointer" }}><X size={18}/></button>
+                      <button onClick={() => { setShowDirectVacModal(false); setEmpSearchDirect(""); setShowEmpDropdown(false); }} style={{ background:"#f1f5f9", border:"none", borderRadius:"8px", padding:"6px 10px", cursor:"pointer" }}><X size={18}/></button>
                     </div>
                     <div style={{ display:"flex", flexDirection:"column", gap:"14px" }}>
                       <div style={{ position:"relative" }}>
-                        <label style={{ fontSize:"13px", fontWeight:"700", color:"#8b949e", display:"block", marginBottom:"6px" }}>الموظف *</label>
+                        <label style={{ fontSize:"13px", fontWeight:"700", color:"#64748b", display:"block", marginBottom:"6px" }}>الموظف *</label>
                         <div style={{ position:"relative" }}>
-                          <Search style={{ position:"absolute", right:"12px", top:"50%", transform:"translateY(-50%)", color:"#6e7681" }} size={15}/>
+                          <Search style={{ position:"absolute", right:"12px", top:"50%", transform:"translateY(-50%)", color:"#94a3b8" }} size={15}/>
                           <input
-                            style={{ width:"100%", padding:"12px 36px 12px 12px", border:"1px solid #30363d", borderRadius:"12px", fontSize:"14px", outline:"none", background:"#0d1117", boxSizing:"border-box" }}
+                            style={{ width:"100%", padding:"12px 36px 12px 12px", border:"1px solid #e2e8f0", borderRadius:"12px", fontSize:"14px", outline:"none", background:"#f8fafc", boxSizing:"border-box" }}
                             placeholder="ابحث بالاسم أو الكود..."
                             value={empSearchDirect}
                             onChange={e => { setEmpSearchDirect(e.target.value); setShowEmpDropdown(true); if(!e.target.value) { setDirectVacForm({...directVacForm, employee_id:""}); } }}
@@ -3269,7 +2937,7 @@ ${JSON.stringify(systemData)}
                             .filter(e => e.name.includes(empSearchDirect) || e.code.includes(empSearchDirect))
                             .slice(0, 6);
                           return filtered.length > 0 ? (
-                            <div style={{ position:"absolute", top:"100%", right:0, left:0, background:"#1c2333", border:"1px solid #30363d", borderRadius:"12px", boxShadow:"0 8px 24px rgba(0,0,0,0.12)", zIndex:300, maxHeight:"200px", overflowY:"auto", marginTop:"4px" }}>
+                            <div style={{ position:"absolute", top:"100%", right:0, left:0, background:"white", border:"1px solid #e2e8f0", borderRadius:"12px", boxShadow:"0 8px 24px rgba(0,0,0,0.12)", zIndex:300, maxHeight:"200px", overflowY:"auto", marginTop:"4px" }}>
                               {filtered.map(e => (
                                 <div key={e.id}
                                   onClick={() => { setDirectVacForm({...directVacForm, employee_id: e.id}); setEmpSearchDirect(e.name + " (" + e.code + ")"); setShowEmpDropdown(false); }}
@@ -3279,14 +2947,14 @@ ${JSON.stringify(systemData)}
                                 >
                                   <div>
                                     <div style={{ fontWeight:"700", fontSize:"13px" }}>{e.name}</div>
-                                    <div style={{ fontSize:"11px", color:"#6e7681" }}>كود: {e.code}</div>
+                                    <div style={{ fontSize:"11px", color:"#94a3b8" }}>كود: {e.code}</div>
                                   </div>
                                   <span style={{ fontSize:"12px", fontWeight:"700", color:"#4f46e5" }}>رصيد: {e.balance} يوم</span>
                                 </div>
                               ))}
                             </div>
                           ) : (
-                            <div style={{ position:"absolute", top:"100%", right:0, left:0, background:"#1c2333", border:"1px solid #30363d", borderRadius:"12px", padding:"12px", textAlign:"center", color:"#6e7681", fontSize:"13px", zIndex:300, marginTop:"4px" }}>
+                            <div style={{ position:"absolute", top:"100%", right:0, left:0, background:"white", border:"1px solid #e2e8f0", borderRadius:"12px", padding:"12px", textAlign:"center", color:"#94a3b8", fontSize:"13px", zIndex:300, marginTop:"4px" }}>
                               لا توجد نتائج
                             </div>
                           );
@@ -3294,16 +2962,16 @@ ${JSON.stringify(systemData)}
                         {directVacForm.employee_id && (() => {
                           const emp = employees.find(e => e.id === directVacForm.employee_id);
                           return emp ? (
-                            <div style={{ marginTop:"6px", background:"rgba(99,102,241,0.1)", borderRadius:"8px", padding:"8px 12px", fontSize:"12px", color:"#4f46e5", fontWeight:"700" }}>
+                            <div style={{ marginTop:"6px", background:"#eef2ff", borderRadius:"8px", padding:"8px 12px", fontSize:"12px", color:"#4f46e5", fontWeight:"700" }}>
                               ✅ {emp.name} | رصيد: {emp.balance} يوم
                             </div>
                           ) : null;
                         })()}
                       </div>
                       <div>
-                        <label style={{ fontSize:"13px", fontWeight:"700", color:"#8b949e", display:"block", marginBottom:"6px" }}>نوع الإجازة *</label>
+                        <label style={{ fontSize:"13px", fontWeight:"700", color:"#64748b", display:"block", marginBottom:"6px" }}>نوع الإجازة *</label>
                         <select
-                          style={{ width:"100%", padding:"12px", border:"1px solid #30363d", borderRadius:"12px", fontSize:"14px", outline:"none", background:"#0d1117", boxSizing:"border-box" }}
+                          style={{ width:"100%", padding:"12px", border:"1px solid #e2e8f0", borderRadius:"12px", fontSize:"14px", outline:"none", background:"#f8fafc", boxSizing:"border-box" }}
                           value={directVacForm.vacation_type_id}
                           onChange={e => setDirectVacForm({...directVacForm, vacation_type_id: e.target.value})}
                         >
@@ -3313,22 +2981,22 @@ ${JSON.stringify(systemData)}
                       </div>
                       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"12px" }}>
                         <div>
-                          <label style={{ fontSize:"13px", fontWeight:"700", color:"#8b949e", display:"block", marginBottom:"6px" }}>تاريخ البداية *</label>
-                          <input type="date" style={{ width:"100%", padding:"12px", border:"1px solid #30363d", borderRadius:"12px", fontSize:"14px", outline:"none", background:"#0d1117", boxSizing:"border-box" }} value={directVacForm.start_date} onChange={e => setDirectVacForm({...directVacForm, start_date: e.target.value})}/>
+                          <label style={{ fontSize:"13px", fontWeight:"700", color:"#64748b", display:"block", marginBottom:"6px" }}>تاريخ البداية *</label>
+                          <input type="date" style={{ width:"100%", padding:"12px", border:"1px solid #e2e8f0", borderRadius:"12px", fontSize:"14px", outline:"none", background:"#f8fafc", boxSizing:"border-box" }} value={directVacForm.start_date} onChange={e => setDirectVacForm({...directVacForm, start_date: e.target.value})}/>
                         </div>
                         <div>
-                          <label style={{ fontSize:"13px", fontWeight:"700", color:"#8b949e", display:"block", marginBottom:"6px" }}>عدد الأيام *</label>
-                          <input type="number" min="1" style={{ width:"100%", padding:"12px", border:"1px solid #30363d", borderRadius:"12px", fontSize:"14px", outline:"none", background:"#0d1117", boxSizing:"border-box" }} value={directVacForm.days} onChange={e => setDirectVacForm({...directVacForm, days: Number(e.target.value)})}/>
+                          <label style={{ fontSize:"13px", fontWeight:"700", color:"#64748b", display:"block", marginBottom:"6px" }}>عدد الأيام *</label>
+                          <input type="number" min="1" style={{ width:"100%", padding:"12px", border:"1px solid #e2e8f0", borderRadius:"12px", fontSize:"14px", outline:"none", background:"#f8fafc", boxSizing:"border-box" }} value={directVacForm.days} onChange={e => setDirectVacForm({...directVacForm, days: Number(e.target.value)})}/>
                         </div>
                       </div>
                       {directVacForm.start_date && directVacForm.days > 0 && (
-                        <div style={{ background:"rgba(99,102,241,0.1)", borderRadius:"10px", padding:"10px 14px", fontSize:"13px", color:"#4f46e5", fontWeight:"700" }}>
+                        <div style={{ background:"#eef2ff", borderRadius:"10px", padding:"10px 14px", fontSize:"13px", color:"#4f46e5", fontWeight:"700" }}>
                           📅 تاريخ العودة: {formatDate(getCalculatedDates(directVacForm.start_date, directVacForm.days).back)}
                         </div>
                       )}
                       <div>
-                        <label style={{ fontSize:"13px", fontWeight:"700", color:"#8b949e", display:"block", marginBottom:"6px" }}>ملاحظات</label>
-                        <textarea style={{ width:"100%", padding:"12px", border:"1px solid #30363d", borderRadius:"12px", fontSize:"14px", outline:"none", background:"#0d1117", resize:"none", boxSizing:"border-box" }} rows={2} placeholder="ملاحظات اختيارية..." value={directVacForm.notes} onChange={e => setDirectVacForm({...directVacForm, notes: e.target.value})}/>
+                        <label style={{ fontSize:"13px", fontWeight:"700", color:"#64748b", display:"block", marginBottom:"6px" }}>ملاحظات</label>
+                        <textarea style={{ width:"100%", padding:"12px", border:"1px solid #e2e8f0", borderRadius:"12px", fontSize:"14px", outline:"none", background:"#f8fafc", resize:"none", boxSizing:"border-box" }} rows={2} placeholder="ملاحظات اختيارية..." value={directVacForm.notes} onChange={e => setDirectVacForm({...directVacForm, notes: e.target.value})}/>
                       </div>
                       <button onClick={handleDirectVacation} disabled={isSubmitting} style={{ width:"100%", padding:"14px", background:"#4f46e5", color:"white", border:"none", borderRadius:"12px", fontSize:"15px", fontWeight:"900", cursor:"pointer", opacity: isSubmitting ? 0.7 : 1 }}>
                         {isSubmitting ? "جاري الحفظ..." : "✅ تأكيد الإجازة"}
@@ -3347,13 +3015,13 @@ ${JSON.stringify(systemData)}
                 });
                 return (
                   <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", backdropFilter:"blur(4px)", display:"flex", alignItems:"center", justifyContent:"center", padding:"20px", zIndex:200 }} onClick={() => setSelectedCalendarDay(null)}>
-                    <div style={{ background:"#161b22", borderRadius:"24px", width:"100%", maxWidth:"480px", padding:"24px", boxShadow:"0 20px 60px rgba(0,0,0,0.2)", maxHeight:"80vh", overflow:"hidden", display:"flex", flexDirection:"column" }} onClick={e => e.stopPropagation()}>
+                    <div style={{ background:"white", borderRadius:"24px", width:"100%", maxWidth:"480px", padding:"24px", boxShadow:"0 20px 60px rgba(0,0,0,0.2)", maxHeight:"80vh", overflow:"hidden", display:"flex", flexDirection:"column" }} onClick={e => e.stopPropagation()}>
                       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"16px" }}>
                         <div>
                           <h3 style={{ margin:0, fontWeight:"900", fontSize:"17px" }}>📅 موظفو الإجازة</h3>
-                          <p style={{ margin:"2px 0 0", fontSize:"12px", color:"#8b949e" }}>{formatDate(selectedCalendarDay)} — {dayReqs.length} موظف</p>
+                          <p style={{ margin:"2px 0 0", fontSize:"12px", color:"#64748b" }}>{formatDate(selectedCalendarDay)} — {dayReqs.length} موظف</p>
                         </div>
-                        <button onClick={() => setSelectedCalendarDay(null)} style={{ background:"#161b22", border:"none", borderRadius:"8px", padding:"6px 10px", cursor:"pointer" }}><X size={16}/></button>
+                        <button onClick={() => setSelectedCalendarDay(null)} style={{ background:"#f1f5f9", border:"none", borderRadius:"8px", padding:"6px 10px", cursor:"pointer" }}><X size={16}/></button>
                       </div>
                       <div style={{ overflowY:"auto", display:"flex", flexDirection:"column", gap:"8px" }}>
                         {dayReqs.map(req => {
@@ -3362,19 +3030,19 @@ ${JSON.stringify(systemData)}
                           const vacType = vacationTypes.find(vt => vt.id === req.vacation_type_id);
                           const { back } = getCalculatedDates(req.start_date, req.days);
                           return (
-                            <div key={req.id} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"12px 14px", borderRadius:"12px", background:"#0d1117", border:"1px solid #30363d" }}>
+                            <div key={req.id} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"12px 14px", borderRadius:"12px", background:"#f8fafc", border:"1px solid #e2e8f0" }}>
                               <div style={{ display:"flex", alignItems:"center", gap:"10px" }}>
                                 <div style={{ width:"36px", height:"36px", borderRadius:"50%", background:"linear-gradient(135deg,#4f46e5,#7c3aed)", display:"flex", alignItems:"center", justifyContent:"center", color:"white", fontWeight:"900", fontSize:"14px", flexShrink:0 }}>
                                   {req.employee_name?.charAt(0)}
                                 </div>
                                 <div>
                                   <div style={{ fontWeight:"700", fontSize:"13px" }}>{req.employee_name}</div>
-                                  <div style={{ fontSize:"11px", color:"#6e7681" }}>{dept?.name || "-"} | {emp?.position || "-"}</div>
+                                  <div style={{ fontSize:"11px", color:"#94a3b8" }}>{dept?.name || "-"} | {emp?.position || "-"}</div>
                                 </div>
                               </div>
                               <div style={{ textAlign:"left" }}>
                                 {vacType && <div style={{ padding:"2px 8px", borderRadius:"20px", fontSize:"10px", fontWeight:"700", backgroundColor:vacType.color+"20", color:vacType.color, marginBottom:"3px" }}>{vacType.name}</div>}
-                                <div style={{ fontSize:"10px", color:"#6e7681" }}>عودة: {formatDate(back)}</div>
+                                <div style={{ fontSize:"10px", color:"#94a3b8" }}>عودة: {formatDate(back)}</div>
                               </div>
                             </div>
                           );
@@ -3393,24 +3061,26 @@ ${JSON.stringify(systemData)}
               {activeTab === "history" && (
                 <div className="space-y-6">
                   <div className="flex justify-between items-center">
-                    <h2 style={{ fontSize:"22px", fontWeight:"900", color:"#e6edf3" }}>سجل الإجازات</h2>
+                    <h2 className="text-2xl font-black">سجل الإجازات</h2>
                     <div className="flex gap-3">
-                      <input style={{ padding:"10px 14px", background:"#0d1117", border:"1px solid #30363d", borderRadius:"12px", color:"#e6edf3", outline:"none" }} placeholder="بحث بالاسم..." onChange={(e) => setVacSearch(e.target.value)} />
-                      <select style={{ padding:"10px 14px", background:"#0d1117", border:"1px solid #30363d", borderRadius:"12px", color:"#e6edf3", outline:"none" }} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+                      <input className="px-4 py-3 bg-white border rounded-xl" placeholder="بحث بالاسم..." onChange={(e) => setVacSearch(e.target.value)} />
+                      <select className="px-4 py-3 bg-white border rounded-xl" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
                         <option value="all">كل الحالات</option>
-                        <option value="approved">مقبول</option>
-                        <option value="rejected">مرفوض</option>
+                        <option value="approved">✓ مقبول</option>
+                        <option value="rejected">✗ مرفوض</option>
+                        <option value="dept_approved">◑ موافقة مبدئية</option>
+                        <option value="pending">⏳ معلق</option>
                       </select>
-                      <button onClick={() => setShowAuditLog(true)} style={{ background:"linear-gradient(135deg,#7c3aed,#6366f1)", color:"white", padding:"10px 18px", borderRadius:"12px", display:"flex", alignItems:"center", gap:"8px", fontWeight:"700", border:"none", cursor:"pointer", fontSize:"13px" }}><History size={20} /> سجل التعديلات</button>
-                      <button onClick={() => { setShowBalanceLog(true); fetchBalanceLogs(); }} style={{ background:"linear-gradient(135deg,#059669,#10b981)", color:"white", padding:"10px 18px", borderRadius:"12px", display:"flex", alignItems:"center", gap:"8px", fontWeight:"700", border:"none", cursor:"pointer", fontSize:"13px" }}>💰 سجل حركات الرصيد</button>
+                      <button onClick={() => setShowAuditLog(true)} className="bg-purple-600 text-white px-6 py-3 rounded-xl flex items-center gap-2 font-bold"><History size={20} /> سجل التعديلات</button>
+                      <button onClick={() => { setShowBalanceLog(true); fetchBalanceLogs(); }} className="bg-emerald-600 text-white px-6 py-3 rounded-xl flex items-center gap-2 font-bold">💰 سجل حركات الرصيد</button>
                     </div>
                   </div>
-                  <div style={{ background:"#161b22", borderRadius:"1.5rem", border:"1px solid #30363d", overflow:"hidden" }}>
+                  <div className="bg-white rounded-[2rem] shadow-sm border overflow-hidden">
                     <table className="w-full text-sm">
-                      <thead style={{ background:"#1c2333", borderBottom:"1px solid #30363d", fontSize:"12px" }}>
+                      <thead className="bg-slate-50 border-b text-xs">
                         <tr>
-                          <th style={{ padding:"14px 16px", textAlign:"right", color:"#8b949e", fontWeight:"700" }}>الموظف</th>
-                          <th style={{ padding:"14px 16px", color:"#8b949e", fontWeight:"700", textAlign:"center" }}>نوع الإجازة</th>
+                          <th className="p-4 text-right">الموظف</th>
+                          <th className="p-4">نوع الإجازة</th>
                           <th className="p-4 text-center">تاريخ البداية</th>
                           <th className="p-4 text-center">المدة</th>
                           <th className="p-4 text-center">تاريخ العودة المتوقع</th>
@@ -3421,15 +3091,15 @@ ${JSON.stringify(systemData)}
                         </tr>
                       </thead>
                       <tbody>
-                        {filteredRequests.filter(r => r.status !== "pending").map(req => {
+                        {filteredRequests.map(req => {
                           const { back } = getCalculatedDates(req.start_date, req.days);
                           const vacType = vacationTypes.find(vt => vt.id === req.vacation_type_id);
                           const today = new Date().toISOString().split("T")[0];
                           const isOnVacation = req.status === "approved" && req.start_date <= today && back > today;
                           return (
-                            <tr key={req.id} style={{ borderBottom:"1px solid #21262d" }}>
-                              <td style={{ padding:"14px 16px", fontWeight:"700", color:"#e6edf3" }}>{req.employee_name}</td>
-                              <td style={{ padding:"14px 16px", color:"#8b949e", fontWeight:"700", textAlign:"center" }}>{vacType && <span className="px-2 py-1 rounded-full text-xs font-bold" style={{ backgroundColor: vacType.color+'20', color: vacType.color }}>{vacType.name}</span>}</td>
+                            <tr key={req.id} className="border-b hover:bg-slate-50">
+                              <td className="p-4 font-bold">{req.employee_name}</td>
+                              <td className="p-4">{vacType && <span className="px-2 py-1 rounded-full text-xs font-bold" style={{ backgroundColor: vacType.color+'20', color: vacType.color }}>{vacType.name}</span>}</td>
                               <td className="p-4 text-center">{formatDate(req.start_date)}</td>
                               <td className="p-4 text-center font-bold">{req.days}</td>
                               <td className="p-4 text-center text-indigo-600 font-bold">{formatDate(back)}</td>
@@ -3441,8 +3111,16 @@ ${JSON.stringify(systemData)}
                                 ) : "-"}
                               </td>
                               <td className="p-4 text-center">
-                                <span className={`px-3 py-1 rounded-full text-xs font-bold ${req.status === "approved" ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}`}>
-                                  {req.status === "approved" ? "مقبول" : "مرفوض"}
+                                <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                                  req.status === "approved" ? "bg-emerald-100 text-emerald-700" :
+                                  req.status === "rejected" ? "bg-red-100 text-red-700" :
+                                  req.status === "dept_approved" ? "bg-indigo-100 text-indigo-700" :
+                                  "bg-amber-100 text-amber-700"
+                                }`}>
+                                  {req.status === "approved" ? "✓ مقبول" :
+                                   req.status === "rejected" ? "✗ مرفوض" :
+                                   req.status === "dept_approved" ? "◑ موافقة مبدئية" :
+                                   "⏳ معلق"}
                                 </span>
                               </td>
                               <td className="p-4 text-center">{req.admin_notes && <button className="text-blue-600" title={req.admin_notes}><MessageSquare size={16} /></button>}</td>
@@ -3469,7 +3147,7 @@ ${JSON.stringify(systemData)}
         {/* Import Excel Modal */}
         {showImportModal && (
           <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-6 z-[100]" onClick={() => setShowImportModal(false)}>
-            <div className="bg-transparent" dir="rtl" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-white p-10 rounded-[2.5rem] w-full max-w-2xl shadow-2xl" dir="rtl" onClick={(e) => e.stopPropagation()}>
               <div className="flex justify-between mb-8">
                 <h3 className="text-2xl font-black flex items-center gap-3"><Upload className="text-emerald-600" /> استيراد من Excel</h3>
                 <button onClick={() => setShowImportModal(false)} className="text-slate-400 hover:text-red-500"><X size={28} /></button>
@@ -3480,7 +3158,7 @@ ${JSON.stringify(systemData)}
                   <p className="text-blue-600 text-sm mb-3">العناوين: الاسم الكامل، الكود الوظيفي، المنصب، البريد الإلكتروني، الرصيد الحالي، الرصيد الشهري، تاريخ التعيين، تاريخ العودة، القسم</p>
                   <button onClick={downloadExcelTemplate} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2"><FileDown size={18} /> تحميل النموذج</button>
                 </div>
-                <div style={{ background:"#1c2333", padding:"20px", borderRadius:"16px" }}>
+                <div className="bg-slate-50 p-6 rounded-2xl">
                   <h4 className="font-black mb-3">الخطوة 2: رفع الملف</h4>
                   <input ref={fileInputRef} type="file" accept=".xlsx,.xls" onChange={handleFileUpload} className="hidden" />
                   <button onClick={() => fileInputRef.current?.click()} disabled={uploadingFile} className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 disabled:opacity-50">
@@ -3496,12 +3174,12 @@ ${JSON.stringify(systemData)}
         {/* Add Employee Modal */}
         {showAddEmp && (
           <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-6 z-[100]" onClick={() => setShowAddEmp(false)}>
-            <div style={{ background:"#161b22", padding:"32px", borderRadius:"2rem", width:"100%", maxWidth:"520px", boxShadow:"0 24px 64px rgba(0,0,0,0.5)", border:"1px solid #30363d" }} dir="rtl" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-white p-10 rounded-[2.5rem] w-full max-w-lg shadow-2xl" dir="rtl" onClick={(e) => e.stopPropagation()}>
               <div className="flex justify-between mb-8">
-                <h3 style={{ fontSize:"22px", fontWeight:"900", color:"#e6edf3" }}>إضافة موظف جديد</h3>
+                <h3 className="text-2xl font-black">إضافة موظف جديد</h3>
                 <button onClick={() => setShowAddEmp(false)}><X size={28} /></button>
               </div>
-              <div style={{ display:"flex", flexDirection:"column", gap:"12px" }}>
+              <div className="space-y-4">
                 <input className="w-full p-4 border rounded-2xl outline-none focus:border-indigo-500" placeholder="الاسم الكامل *" value={newEmp.name} onChange={(e) => setNewEmp({...newEmp, name: e.target.value})} />
                 <div className="grid grid-cols-2 gap-4">
                   <input className="p-4 border rounded-2xl outline-none" placeholder="الكود الوظيفي *" value={newEmp.code} onChange={(e) => setNewEmp({...newEmp, code: e.target.value})} />
@@ -3537,12 +3215,12 @@ ${JSON.stringify(systemData)}
         {/* Edit Employee Modal */}
         {editingEmp && (
           <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-6 z-[100]" onClick={() => setEditingEmp(null)}>
-            <div style={{ background:"#161b22", padding:"32px", borderRadius:"2rem", width:"100%", maxWidth:"520px", boxShadow:"0 24px 64px rgba(0,0,0,0.5)", border:"1px solid #30363d" }} dir="rtl" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-white p-10 rounded-[2.5rem] w-full max-w-lg shadow-2xl" dir="rtl" onClick={(e) => e.stopPropagation()}>
               <div className="flex justify-between mb-8">
-                <h3 style={{ fontSize:"22px", fontWeight:"900", color:"#e6edf3" }}>تعديل بيانات الموظف</h3>
+                <h3 className="text-2xl font-black">تعديل بيانات الموظف</h3>
                 <button onClick={() => setEditingEmp(null)}><X size={28} /></button>
               </div>
-              <div style={{ display:"flex", flexDirection:"column", gap:"12px" }}>
+              <div className="space-y-4">
                 <input className="w-full p-4 border rounded-2xl" placeholder="الاسم" value={editingEmp.name || ''} onChange={(e) => setEditingEmp({...editingEmp, name: e.target.value})} />
                 <div className="grid grid-cols-2 gap-4">
                   <input className="p-4 border rounded-2xl" placeholder="الكود" value={editingEmp.code || ''} onChange={(e) => setEditingEmp({...editingEmp, code: e.target.value})} />
@@ -3578,80 +3256,75 @@ ${JSON.stringify(systemData)}
         {/* Approval Modal - مع بيانات الموظف الكاملة */}
         {showApprovalModal && currentRequest && (() => {
           const empInfo = employees.find(e => e.id === currentRequest.employee_id);
-          const workedDaysEmp = calculateWorkedDays(empInfo?.return_date);
-          const totalVacDays = requests.filter(r => r.employee_id === empInfo?.id && r.status === "approved").reduce((s,r) => s + Number(r.days), 0);
-          const isBalanceSufficient = Number(empInfo?.balance || 0) >= Number(currentRequest.days);
+          const workedDays = calculateWorkedDays(empInfo?.return_date);
+          const totalApproved = requests.filter(r => r.employee_id === empInfo?.id && r.status === "approved").reduce((s,r) => s + Number(r.days), 0);
+          const balanceOk = Number(empInfo?.balance || 0) >= Number(currentRequest.days);
           return (
           <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 z-[100]" onClick={() => setShowApprovalModal(false)}>
-            <div style={{ background:"#161b22", borderRadius:"20px", width:"100%", maxWidth:"500px", padding:"22px", border:"1px solid #30363d", maxHeight:"92vh", overflowY:"auto" }} dir="rtl" onClick={e => e.stopPropagation()}>
-
-              {/* Header */}
+            <div style={{ background:"white", borderRadius:"24px", width:"100%", maxWidth:"480px", padding:"24px", boxShadow:"0 24px 60px rgba(0,0,0,0.18)", maxHeight:"90vh", overflowY:"auto" }} dir="rtl" onClick={e => e.stopPropagation()}>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"18px" }}>
-                <h3 style={{ margin:0, fontWeight:"900", fontSize:"18px", color:"#e6edf3" }}>
+                <h3 style={{ margin:0, fontWeight:"900", fontSize:"18px" }}>
                   {currentRequest.action === "approved" ? "✅ موافقة على الطلب" : "❌ رفض الطلب"}
                 </h3>
-                <button onClick={() => setShowApprovalModal(false)} style={{ background:"#21262d", border:"1px solid #30363d", borderRadius:"8px", padding:"6px 10px", cursor:"pointer", color:"#8b949e" }}><X size={16}/></button>
+                <button onClick={() => setShowApprovalModal(false)} style={{ border:"1px solid #e2e8f0", borderRadius:"10px", padding:"6px 10px", cursor:"pointer", background:"white" }}><X size={16}/></button>
               </div>
 
-              {/* بطاقة الموظف الكاملة */}
+              {/* بطاقة الموظف */}
               {empInfo && (
-                <div style={{ background:"linear-gradient(135deg,#1c2333,#21262d)", borderRadius:"16px", padding:"16px", marginBottom:"14px", border:"1px solid #30363d" }}>
+                <div style={{ background:"linear-gradient(135deg,#f8faff,#f0f4ff)", borderRadius:"18px", padding:"16px", marginBottom:"14px", border:"1px solid #e0e7ff" }}>
                   <div style={{ display:"flex", alignItems:"center", gap:"12px", marginBottom:"14px" }}>
-                    <div style={{ width:"46px", height:"46px", borderRadius:"50%", background:"linear-gradient(135deg,#4f46e5,#7c3aed)", display:"flex", alignItems:"center", justifyContent:"center", fontWeight:"900", fontSize:"18px", color:"white", flexShrink:0 }}>
+                    <div style={{ width:"50px", height:"50px", borderRadius:"50%", background:"linear-gradient(135deg,#4f46e5,#7c3aed)", display:"flex", alignItems:"center", justifyContent:"center", fontWeight:"900", fontSize:"20px", color:"white", flexShrink:0 }}>
                       {empInfo.name?.charAt(0)}
                     </div>
                     <div>
-                      <div style={{ fontWeight:"900", fontSize:"15px", color:"#e6edf3" }}>{empInfo.name}</div>
-                      <div style={{ fontSize:"11px", color:"#6e7681" }}>{empInfo.position || "-"} | كود: {empInfo.code || "-"}</div>
-                      {empInfo.hire_date && <div style={{ fontSize:"10px", color:"#484f58" }}>تاريخ التعيين: {formatDate(empInfo.hire_date)}</div>}
+                      <div style={{ fontWeight:"900", fontSize:"16px", color:"#1e293b" }}>{empInfo.name}</div>
+                      <div style={{ fontSize:"12px", color:"#64748b" }}>{empInfo.position || "-"} {empInfo.code ? "· كود: " + empInfo.code : ""}</div>
+                      {empInfo.hire_date && <div style={{ fontSize:"11px", color:"#94a3b8" }}>تاريخ التعيين: {formatDate(empInfo.hire_date)}</div>}
                     </div>
                   </div>
                   <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:"8px" }}>
-                    <div style={{ background: isBalanceSufficient ? "rgba(16,185,129,0.1)" : "rgba(239,68,68,0.15)", borderRadius:"12px", padding:"10px", textAlign:"center", border: isBalanceSufficient ? "1px solid rgba(16,185,129,0.2)" : "1px solid rgba(239,68,68,0.3)" }}>
-                      <div style={{ fontSize:"20px", fontWeight:"900", color: isBalanceSufficient ? "#10b981" : "#ef4444" }}>{empInfo.balance}</div>
-                      <div style={{ fontSize:"10px", color:"#6e7681", marginTop:"2px" }}>رصيد الإجازة</div>
-                      {!isBalanceSufficient && <div style={{ fontSize:"9px", color:"#ef4444", marginTop:"2px" }}>⚠️ غير كافٍ</div>}
+                    <div style={{ background: balanceOk ? "#f0fdf4" : "#fff1f2", borderRadius:"12px", padding:"10px", textAlign:"center", border: balanceOk ? "1px solid #bbf7d0" : "2px solid #fecdd3" }}>
+                      <div style={{ fontSize:"22px", fontWeight:"900", color: balanceOk ? "#16a34a" : "#dc2626" }}>{empInfo.balance}</div>
+                      <div style={{ fontSize:"10px", color:"#64748b", marginTop:"2px" }}>رصيد الإجازة</div>
+                      {!balanceOk && <div style={{ fontSize:"9px", color:"#dc2626", fontWeight:"700" }}>⚠️ غير كافٍ!</div>}
                     </div>
-                    <div style={{ background:"rgba(245,158,11,0.1)", borderRadius:"12px", padding:"10px", textAlign:"center", border:"1px solid rgba(245,158,11,0.2)" }}>
-                      <div style={{ fontSize:"20px", fontWeight:"900", color:"#f59e0b" }}>{workedDaysEmp}</div>
-                      <div style={{ fontSize:"10px", color:"#6e7681", marginTop:"2px" }}>أيام العمل</div>
+                    <div style={{ background:"#fffbeb", borderRadius:"12px", padding:"10px", textAlign:"center", border:"1px solid #fde68a" }}>
+                      <div style={{ fontSize:"22px", fontWeight:"900", color:"#d97706" }}>{workedDays}</div>
+                      <div style={{ fontSize:"10px", color:"#64748b", marginTop:"2px" }}>أيام العمل</div>
                     </div>
-                    <div style={{ background:"rgba(129,140,248,0.1)", borderRadius:"12px", padding:"10px", textAlign:"center", border:"1px solid rgba(129,140,248,0.2)" }}>
-                      <div style={{ fontSize:"20px", fontWeight:"900", color:"#818cf8" }}>{totalVacDays}</div>
-                      <div style={{ fontSize:"10px", color:"#6e7681", marginTop:"2px" }}>إجمالي إجازاته</div>
+                    <div style={{ background:"#f5f3ff", borderRadius:"12px", padding:"10px", textAlign:"center", border:"1px solid #ddd6fe" }}>
+                      <div style={{ fontSize:"22px", fontWeight:"900", color:"#7c3aed" }}>{totalApproved}</div>
+                      <div style={{ fontSize:"10px", color:"#64748b", marginTop:"2px" }}>إجمالي الإجازات</div>
                     </div>
                   </div>
-                  <div style={{ marginTop:"10px", display:"flex", justifyContent:"space-between", fontSize:"11px", color:"#6e7681" }}>
-                    <span>الرصيد الشهري: <b style={{color:"#6ee7b7"}}>{empInfo.monthly_balance || 0} يوم/شهر</b></span>
+                  <div style={{ marginTop:"10px", display:"flex", justifyContent:"space-between", fontSize:"11px", color:"#94a3b8" }}>
+                    <span>الرصيد الشهري: <b style={{color:"#059669"}}>{empInfo.monthly_balance || 0} يوم</b></span>
                     {empInfo.email
-                      ? <span style={{color:"#818cf8"}}><Mail size={11} style={{display:"inline"}}/> {empInfo.email}</span>
-                      : <span style={{color:"#f59e0b"}}>⚠️ لا يوجد بريد</span>
+                      ? <span style={{color:"#4f46e5", display:"flex", alignItems:"center", gap:"3px"}}><Mail size={11}/> {empInfo.email}</span>
+                      : <span style={{color:"#f59e0b"}}>⚠️ لا يوجد بريد إلكتروني</span>
                     }
                   </div>
                 </div>
               )}
 
               {/* تفاصيل الطلب */}
-              <div style={{ background:"#1c2333", borderRadius:"14px", padding:"14px", marginBottom:"14px", display:"grid", gridTemplateColumns:"1fr 1fr", gap:"12px" }}>
-                <div>
-                  <div style={{ fontSize:"11px", color:"#6e7681", marginBottom:"3px" }}>تاريخ البداية</div>
-                  <div style={{ fontWeight:"800", color:"#e6edf3" }}>{formatDate(currentRequest.start_date)}</div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"10px", marginBottom:"14px" }}>
+                <div style={{ background:"#f8fafc", borderRadius:"12px", padding:"12px" }}>
+                  <div style={{ fontSize:"11px", color:"#94a3b8", marginBottom:"3px" }}>تاريخ البداية</div>
+                  <div style={{ fontWeight:"800", fontSize:"14px" }}>{formatDate(currentRequest.start_date)}</div>
                 </div>
-                <div>
-                  <div style={{ fontSize:"11px", color:"#6e7681", marginBottom:"3px" }}>المدة المطلوبة</div>
-                  <div style={{ fontWeight:"900", color:"#fde68a", fontSize:"22px" }}>{currentRequest.days} يوم</div>
+                <div style={{ background:"#f8fafc", borderRadius:"12px", padding:"12px" }}>
+                  <div style={{ fontSize:"11px", color:"#94a3b8", marginBottom:"3px" }}>المدة المطلوبة</div>
+                  <div style={{ fontWeight:"900", fontSize:"22px", color:"#4f46e5" }}>{currentRequest.days} يوم</div>
                 </div>
               </div>
 
-              {/* ملاحظات */}
-              <textarea
-                style={{ width:"100%", padding:"12px", background:"#0d1117", border:"1px solid #30363d", borderRadius:"12px", color:"#e6edf3", outline:"none", resize:"none", boxSizing:"border-box", fontSize:"13px", marginBottom:"12px" }}
-                rows={3} placeholder="ملاحظات للموظف (اختياري)..." value={adminNotes} onChange={e => setAdminNotes(e.target.value)}
-              />
+              <textarea style={{ width:"100%", padding:"12px", border:"1px solid #e2e8f0", borderRadius:"12px", outline:"none", resize:"none", boxSizing:"border-box", fontSize:"13px", marginBottom:"12px" }}
+                rows={3} placeholder="ملاحظات للموظف (اختياري)..." value={adminNotes} onChange={e => setAdminNotes(e.target.value)}/>
 
-              {/* زر التأكيد */}
               <button onClick={handleActionWithNotes}
-                style={{ width:"100%", padding:"14px", borderRadius:"12px", fontWeight:"900", fontSize:"15px", border:"none", cursor:"pointer", color:"white", background: currentRequest.action === "approved" ? "linear-gradient(135deg,#059669,#10b981)" : "linear-gradient(135deg,#dc2626,#ef4444)" }}>
+                style={{ width:"100%", padding:"14px", borderRadius:"14px", fontWeight:"900", fontSize:"15px", border:"none", cursor:"pointer", color:"white",
+                  background: currentRequest.action === "approved" ? "linear-gradient(135deg,#059669,#10b981)" : "linear-gradient(135deg,#dc2626,#ef4444)" }}>
                 {currentRequest.action === "approved" ? "✅ تأكيد الموافقة وإرسال الإشعار" : "❌ تأكيد الرفض وإرسال الإشعار"}
               </button>
             </div>
@@ -3659,221 +3332,40 @@ ${JSON.stringify(systemData)}
           );
         })()}
 
-        {/* Modal تعديل عدد الأيام - للمدير */}
-        {showEditDaysModal && (
-          <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.65)", backdropFilter:"blur(6px)", display:"flex", alignItems:"center", justifyContent:"center", padding:"16px", zIndex:200 }} onClick={() => setShowEditDaysModal(false)}>
-            <div style={{ background:"#161b22", borderRadius:"20px", width:"100%", maxWidth:"400px", padding:"24px", border:"1px solid #30363d" }} dir="rtl" onClick={e => e.stopPropagation()}>
-              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"20px" }}>
-                <div>
-                  <h3 style={{ margin:0, fontWeight:"900", fontSize:"17px", color:"#e6edf3" }}>✏️ تعديل عدد الأيام</h3>
-                  <div style={{ fontSize:"12px", color:"#8b949e", marginTop:"3px" }}>{editDaysForm.empName}</div>
-                </div>
-                <button onClick={() => setShowEditDaysModal(false)} style={{ background:"#21262d", border:"1px solid #30363d", borderRadius:"8px", padding:"6px 10px", cursor:"pointer", color:"#8b949e" }}><X size={16}/></button>
-              </div>
-              <div style={{ display:"flex", flexDirection:"column", gap:"14px" }}>
-                <div>
-                  <label style={{ fontSize:"12px", color:"#8b949e", fontWeight:"700", display:"block", marginBottom:"6px" }}>عدد الأيام الجديد</label>
-                  <input type="number" step="0.5" min="0.5"
-                    style={{ width:"100%", padding:"14px", background:"#0d1117", border:"1px solid #30363d", borderRadius:"12px", color:"#e6edf3", outline:"none", boxSizing:"border-box", fontSize:"20px", fontWeight:"900", textAlign:"center" }}
-                    value={editDaysForm.days} onChange={e => setEditDaysForm({...editDaysForm, days: Number(e.target.value)})}/>
-                  <div style={{ display:"flex", justifyContent:"space-between", fontSize:"12px", color:"#6e7681", marginTop:"6px" }}>
-                    <span>كان: <b style={{color:"#8b949e"}}>{editDaysForm.oldDays} يوم</b></span>
-                    <span>سيصبح: <b style={{color: editDaysForm.days > editDaysForm.oldDays ? "#ef4444" : "#10b981"}}>{editDaysForm.days} يوم</b></span>
-                  </div>
-                </div>
-                <div>
-                  <label style={{ fontSize:"12px", color:"#8b949e", fontWeight:"700", display:"block", marginBottom:"6px" }}>سبب التعديل *</label>
-                  <textarea
-                    style={{ width:"100%", padding:"12px", background:"#0d1117", border:"1px solid #30363d", borderRadius:"12px", color:"#e6edf3", outline:"none", resize:"none", boxSizing:"border-box", fontSize:"13px" }}
-                    rows={3} placeholder="اكتب سبب تعديل عدد الأيام..."
-                    value={editDaysForm.reason} onChange={e => setEditDaysForm({...editDaysForm, reason: e.target.value})}/>
-                </div>
-                <button onClick={handleEditDays}
-                  style={{ width:"100%", padding:"14px", background:"linear-gradient(135deg,#4f46e5,#7c3aed)", color:"white", border:"none", borderRadius:"12px", fontSize:"14px", fontWeight:"900", cursor:"pointer" }}>
-                  💾 حفظ التعديل
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Modal طباعة ومشاركة */}
-        {showPrintModal && (() => {
-          const filteredReqs = requests.filter(r => {
-            if (r.status !== "approved") return false;
-            if (printDateFrom && r.start_date < printDateFrom) return false;
-            if (printDateTo && r.start_date > printDateTo) return false;
-            return true;
-          });
-          const allSelected = filteredReqs.length > 0 && selectedPrintRequests.length === filteredReqs.length;
+        {/* Modal: الموظف يعدّل طلبه */}
+        {showEditRequestModal && empEditReq && (() => {
+          const created = new Date(empEditReq.created_at || Date.now());
+          const daysOld = Math.floor((Date.now() - created.getTime()) / 86400000);
+          const canEdit = daysOld <= 3 && empEditReq.status === "pending";
+          const inp = { width:"100%", padding:"11px 14px", border:"1px solid #e2e8f0", borderRadius:"12px", outline:"none", boxSizing:"border-box" as const, fontSize:"13px" };
           return (
-          <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", backdropFilter:"blur(6px)", display:"flex", alignItems:"center", justifyContent:"center", padding:"16px", zIndex:200 }} onClick={() => setShowPrintModal(false)}>
-            <div style={{ background:"#161b22", borderRadius:"20px", width:"100%", maxWidth:"580px", padding:"24px", border:"1px solid #30363d", maxHeight:"90vh", display:"flex", flexDirection:"column" }} dir="rtl" onClick={e => e.stopPropagation()}>
+          <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", backdropFilter:"blur(4px)", display:"flex", alignItems:"center", justifyContent:"center", padding:"16px", zIndex:200 }} onClick={() => setShowEditRequestModal(false)}>
+            <div style={{ background:"white", borderRadius:"24px", width:"100%", maxWidth:"420px", padding:"24px" }} dir="rtl" onClick={e => e.stopPropagation()}>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"18px" }}>
-                <h3 style={{ margin:0, fontWeight:"900", fontSize:"17px", color:"#e6edf3" }}>🖨️ طباعة ومشاركة الطلبات</h3>
-                <button onClick={() => setShowPrintModal(false)} style={{ background:"#21262d", border:"1px solid #30363d", borderRadius:"8px", padding:"6px 10px", cursor:"pointer", color:"#8b949e" }}><X size={16}/></button>
-              </div>
-
-              {/* فلتر التاريخ */}
-              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"10px", marginBottom:"14px" }}>
-                {[
-                  { label:"من تاريخ", val:printDateFrom, set:setPrintDateFrom },
-                  { label:"إلى تاريخ", val:printDateTo, set:setPrintDateTo },
-                ].map(f => (
-                  <div key={f.label}>
-                    <label style={{ fontSize:"11px", color:"#8b949e", fontWeight:"700", display:"block", marginBottom:"5px" }}>{f.label}</label>
-                    <input type="date" style={{ width:"100%", padding:"10px", background:"#0d1117", border:"1px solid #30363d", borderRadius:"10px", color:"#e6edf3", outline:"none", boxSizing:"border-box" }}
-                      value={f.val} onChange={e => { f.set(e.target.value); setSelectedPrintRequests([]); }}/>
-                  </div>
-                ))}
-              </div>
-
-              {/* شريط التحديد */}
-              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"10px" }}>
-                <span style={{ fontSize:"12px", color:"#8b949e" }}>{filteredReqs.length} طلب • <b style={{color:"#818cf8"}}>{selectedPrintRequests.length} محدد</b></span>
-                <button onClick={() => setSelectedPrintRequests(allSelected ? [] : filteredReqs.map(r => r.id))}
-                  style={{ background:"#21262d", border:"1px solid #30363d", borderRadius:"8px", padding:"5px 12px", color:"#818cf8", cursor:"pointer", fontSize:"12px", fontWeight:"700" }}>
-                  {allSelected ? "إلغاء الكل" : "تحديد الكل"}
-                </button>
-              </div>
-
-              {/* قائمة الطلبات */}
-              <div style={{ flex:1, overflowY:"auto", display:"flex", flexDirection:"column", gap:"6px", marginBottom:"14px" }}>
-                {filteredReqs.length === 0
-                  ? <div style={{ padding:"30px", textAlign:"center", color:"#484f58" }}>لا توجد طلبات مقبولة في هذه الفترة</div>
-                  : filteredReqs.map(req => {
-                    const isSel = selectedPrintRequests.includes(req.id);
-                    const vt = vacationTypes.find(v => v.id === req.vacation_type_id);
-                    const { back } = getCalculatedDates(req.start_date, req.days);
-                    return (
-                      <div key={req.id} onClick={() => setSelectedPrintRequests(prev => isSel ? prev.filter(id => id !== req.id) : [...prev, req.id])}
-                        style={{ display:"flex", alignItems:"center", gap:"10px", padding:"10px 12px", borderRadius:"12px", border:`2px solid ${isSel ? "#4f46e5" : "#30363d"}`, background: isSel ? "rgba(79,70,229,0.1)" : "#1c2333", cursor:"pointer" }}>
-                        <div style={{ width:"18px", height:"18px", borderRadius:"5px", border:`2px solid ${isSel ? "#4f46e5" : "#484f58"}`, background: isSel ? "#4f46e5" : "transparent", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
-                          {isSel && <span style={{ color:"white", fontSize:"11px", lineHeight:1 }}>✓</span>}
-                        </div>
-                        <div style={{ flex:1 }}>
-                          <div style={{ fontWeight:"700", fontSize:"13px", color:"#e6edf3" }}>{req.employee_name}</div>
-                          <div style={{ fontSize:"11px", color:"#6e7681" }}>
-                            {formatDate(req.start_date)} ← {formatDate(back)} | {req.days} يوم
-                            {vt && <span style={{ marginRight:"6px", padding:"1px 7px", borderRadius:"10px", backgroundColor:vt.color+"25", color:vt.color }}>{vt.name}</span>}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })
-                }
-              </div>
-
-              {/* أزرار الطباعة والمشاركة */}
-              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"10px" }}>
-                <button disabled={!selectedPrintRequests.length}
-                  onClick={() => {
-                    const sel = requests.filter(r => selectedPrintRequests.includes(r.id));
-                    const w = window.open("", "_blank");
-                    if (!w) return alert("السماح بالنوافذ المنبثقة");
-                    const rows = sel.map((r,i) => {
-                      const vt = vacationTypes.find(v => v.id === r.vacation_type_id);
-                      const { back } = getCalculatedDates(r.start_date, r.days);
-                      return `<tr style="background:${i%2?"#f9fafb":"white"}">
-                        <td>${i+1}</td><td>${r.employee_name}</td>
-                        <td>${vt?.name||"-"}</td><td>${formatDate(r.start_date)}</td>
-                        <td>${r.days}</td><td>${formatDate(back)}</td>
-                        <td style="color:#059669;font-weight:bold">✓ مقبول</td>
-                      </tr>`;
-                    }).join("");
-                    w.document.write(`<html dir="rtl"><head><title>تقرير الإجازات</title>
-                    <style>*{font-family:Arial,sans-serif} body{padding:30px} h2{color:#1e1b4b;border-bottom:3px solid #4f46e5;padding-bottom:10px} table{width:100%;border-collapse:collapse;margin-top:20px} th{background:#4f46e5;color:white;padding:12px;text-align:right} td{padding:10px;border-bottom:1px solid #e5e7eb;text-align:right} .meta{color:#6b7280;font-size:13px;margin-bottom:20px}</style>
-                    </head><body>
-                    <h2>📋 تقرير الإجازات المقبولة</h2>
-                    <div class="meta">الفترة: ${printDateFrom||"الكل"} — ${printDateTo||"الكل"} | عدد الطلبات: ${sel.length} | تاريخ الطباعة: ${new Date().toLocaleDateString("ar-EG")}</div>
-                    <table><thead><tr><th>#</th><th>الموظف</th><th>نوع الإجازة</th><th>تاريخ البداية</th><th>المدة</th><th>تاريخ العودة</th><th>الحالة</th></tr></thead>
-                    <tbody>${rows}</tbody></table>
-                    <script>window.onload=()=>window.print()</script>
-                    </body></html>`);
-                    w.document.close();
-                  }}
-                  style={{ padding:"13px", background:!selectedPrintRequests.length?"#21262d":"linear-gradient(135deg,#1d4ed8,#3b82f6)", color:!selectedPrintRequests.length?"#484f58":"white", border:"none", borderRadius:"12px", fontWeight:"800", cursor:!selectedPrintRequests.length?"not-allowed":"pointer", fontSize:"14px" }}>
-                  🖨️ طباعة ({selectedPrintRequests.length})
-                </button>
-                <button disabled={!selectedPrintRequests.length}
-                  onClick={async () => {
-                    const sel = requests.filter(r => selectedPrintRequests.includes(r.id));
-                    const text = [
-                      "📋 تقرير الإجازات المقبولة",
-                      "الفترة: " + (printDateFrom||"الكل") + " - " + (printDateTo||"الكل"),
-                      "━━━━━━━━━━━━━━━━━━━━━━",
-                      ...sel.map((r,i) => {
-                        const vt = vacationTypes.find(v => v.id === r.vacation_type_id);
-                        const { back } = getCalculatedDates(r.start_date, r.days);
-                        return `${i+1}. ${r.employee_name}
-   ${vt?.name||"-"} | ${r.days} يوم
-   📅 ${formatDate(r.start_date)} ← ${formatDate(back)}`;
-                      })
-                    ].join("\n");
-                    try {
-                      if (navigator.share) {
-                        await navigator.share({ title:"تقرير الإجازات", text });
-                      } else {
-                        await navigator.clipboard.writeText(text);
-                        alert("تم نسخ التقرير - الصقه في واتساب او اي تطبيق");
-                      }
-                    } catch { alert("حدث خطا في المشاركة"); }
-                  }}
-                  style={{ padding:"13px", background:!selectedPrintRequests.length?"#21262d":"linear-gradient(135deg,#059669,#10b981)", color:!selectedPrintRequests.length?"#484f58":"white", border:"none", borderRadius:"12px", fontWeight:"800", cursor:!selectedPrintRequests.length?"not-allowed":"pointer", fontSize:"14px" }}>
-                  📤 مشاركة ({selectedPrintRequests.length})
-                </button>
-              </div>
-            </div>
-          </div>
-          );
-        })()}
-
-        {/* Modal تعديل الموظف لطلبه */}
-        {showEmpEditModal && empEditRequest && (() => {
-          const createdAt = new Date(empEditRequest.created_at || Date.now());
-          const daysSince = Math.floor((Date.now() - createdAt.getTime()) / 86400000);
-          const canEdit = daysSince <= 3 && empEditRequest.status === "pending";
-          return (
-          <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.65)", backdropFilter:"blur(6px)", display:"flex", alignItems:"center", justifyContent:"center", padding:"16px", zIndex:200 }} onClick={() => setShowEmpEditModal(false)}>
-            <div style={{ background:"#161b22", borderRadius:"20px", width:"100%", maxWidth:"420px", padding:"24px", border:"1px solid #30363d" }} dir="rtl" onClick={e => e.stopPropagation()}>
-              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"16px" }}>
-                <h3 style={{ margin:0, fontWeight:"900", fontSize:"17px", color:"#e6edf3" }}>✏️ تعديل طلبي</h3>
-                <button onClick={() => setShowEmpEditModal(false)} style={{ background:"#21262d", border:"1px solid #30363d", borderRadius:"8px", padding:"6px 10px", cursor:"pointer", color:"#8b949e" }}><X size={16}/></button>
+                <h3 style={{ margin:0, fontWeight:"900", fontSize:"17px" }}>✏️ تعديل طلبي</h3>
+                <button onClick={() => setShowEditRequestModal(false)} style={{ border:"1px solid #e2e8f0", borderRadius:"8px", padding:"5px 9px", cursor:"pointer" }}><X size={16}/></button>
               </div>
               {!canEdit ? (
-                <div style={{ padding:"20px", textAlign:"center", background:"rgba(239,68,68,0.1)", borderRadius:"12px", border:"1px solid rgba(239,68,68,0.2)", color:"#ef4444", fontWeight:"700" }}>
-                  {daysSince > 3 ? "⏰ انتهت مهلة التعديل (3 أيام من تاريخ التقديم)" : "❌ لا يمكن تعديل طلب تمت مراجعته"}
+                <div style={{ padding:"20px", textAlign:"center", background:"#fff1f2", borderRadius:"14px", color:"#dc2626", fontWeight:"700" }}>
+                  {daysOld > 3 ? "⏰ انتهت مهلة التعديل (3 أيام)" : "❌ لا يمكن تعديل طلب تمت مراجعته"}
                 </div>
               ) : (
                 <div style={{ display:"flex", flexDirection:"column", gap:"14px" }}>
-                  <div style={{ background:"rgba(245,158,11,0.1)", borderRadius:"10px", padding:"10px 14px", border:"1px solid rgba(245,158,11,0.2)", fontSize:"12px", color:"#f59e0b", fontWeight:"700" }}>
-                    ⏰ متبقي {Math.max(0, 3 - daysSince)} يوم للتعديل من تاريخ تقديم الطلب
+                  <div style={{ background:"#fffbeb", borderRadius:"12px", padding:"10px 14px", fontSize:"12px", color:"#d97706", fontWeight:"700", border:"1px solid #fde68a" }}>
+                    ⏰ متبقي {3 - daysOld} يوم للتعديل
                   </div>
-                  <div>
-                    <label style={{ fontSize:"12px", color:"#8b949e", fontWeight:"700", display:"block", marginBottom:"6px" }}>تاريخ البداية</label>
-                    <input type="date" style={{ width:"100%", padding:"12px", background:"#0d1117", border:"1px solid #30363d", borderRadius:"12px", color:"#e6edf3", outline:"none", boxSizing:"border-box" }}
-                      value={empEditRequest.start_date} onChange={e => setEmpEditRequest({...empEditRequest, start_date: e.target.value})}/>
-                  </div>
-                  <div>
-                    <label style={{ fontSize:"12px", color:"#8b949e", fontWeight:"700", display:"block", marginBottom:"6px" }}>عدد الأيام</label>
-                    <input type="number" step="0.5" min="0.5" style={{ width:"100%", padding:"12px", background:"#0d1117", border:"1px solid #30363d", borderRadius:"12px", color:"#e6edf3", outline:"none", boxSizing:"border-box" }}
-                      value={empEditRequest.days} onChange={e => setEmpEditRequest({...empEditRequest, days: Number(e.target.value)})}/>
-                  </div>
-                  <div>
-                    <label style={{ fontSize:"12px", color:"#8b949e", fontWeight:"700", display:"block", marginBottom:"6px" }}>نوع الإجازة</label>
-                    <select style={{ width:"100%", padding:"12px", background:"#0d1117", border:"1px solid #30363d", borderRadius:"12px", color:"#e6edf3", outline:"none", boxSizing:"border-box" }}
-                      value={empEditRequest.vacation_type_id||""} onChange={e => setEmpEditRequest({...empEditRequest, vacation_type_id: e.target.value})}>
+                  <div><label style={{ fontSize:"12px", color:"#64748b", fontWeight:"700", display:"block", marginBottom:"5px" }}>تاريخ البداية</label>
+                    <input type="date" style={inp} value={empEditReq.start_date} onChange={e => setEmpEditReq({...empEditReq, start_date: e.target.value})}/></div>
+                  <div><label style={{ fontSize:"12px", color:"#64748b", fontWeight:"700", display:"block", marginBottom:"5px" }}>عدد الأيام</label>
+                    <input type="number" step="0.5" min="0.5" style={inp} value={empEditReq.days} onChange={e => setEmpEditReq({...empEditReq, days: Number(e.target.value)})}/></div>
+                  <div><label style={{ fontSize:"12px", color:"#64748b", fontWeight:"700", display:"block", marginBottom:"5px" }}>نوع الإجازة</label>
+                    <select style={inp} value={empEditReq.vacation_type_id||""} onChange={e => setEmpEditReq({...empEditReq, vacation_type_id: e.target.value})}>
                       <option value="">اختر النوع</option>
                       {vacationTypes.map(vt => <option key={vt.id} value={vt.id}>{vt.name}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label style={{ fontSize:"12px", color:"#8b949e", fontWeight:"700", display:"block", marginBottom:"6px" }}>ملاحظات</label>
-                    <textarea style={{ width:"100%", padding:"12px", background:"#0d1117", border:"1px solid #30363d", borderRadius:"12px", color:"#e6edf3", outline:"none", resize:"none", boxSizing:"border-box" }}
-                      rows={2} value={empEditRequest.notes||""} onChange={e => setEmpEditRequest({...empEditRequest, notes: e.target.value})}/>
-                  </div>
-                  <button onClick={handleEmpEditRequest}
-                    style={{ width:"100%", padding:"14px", background:"linear-gradient(135deg,#4f46e5,#7c3aed)", color:"white", border:"none", borderRadius:"12px", fontWeight:"900", cursor:"pointer", fontSize:"14px" }}>
+                    </select></div>
+                  <div><label style={{ fontSize:"12px", color:"#64748b", fontWeight:"700", display:"block", marginBottom:"5px" }}>ملاحظات</label>
+                    <textarea style={{ ...inp, resize:"none" } as any} rows={2} value={empEditReq.notes||""} onChange={e => setEmpEditReq({...empEditReq, notes: e.target.value})}/></div>
+                  <button onClick={handleEmpEditRequest} style={{ padding:"13px", background:"linear-gradient(135deg,#4f46e5,#7c3aed)", color:"white", border:"none", borderRadius:"12px", fontWeight:"900", cursor:"pointer", fontSize:"14px" }}>
                     💾 حفظ التعديل
                   </button>
                 </div>
@@ -3883,16 +3375,148 @@ ${JSON.stringify(systemData)}
           );
         })()}
 
+        {/* Modal: المدير يعدّل الإجازة */}
+        {showManagerEditModal && (
+          <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", backdropFilter:"blur(4px)", display:"flex", alignItems:"center", justifyContent:"center", padding:"16px", zIndex:200 }} onClick={() => setShowManagerEditModal(false)}>
+            <div style={{ background:"white", borderRadius:"24px", width:"100%", maxWidth:"420px", padding:"24px" }} dir="rtl" onClick={e => e.stopPropagation()}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"18px" }}>
+                <div>
+                  <h3 style={{ margin:0, fontWeight:"900", fontSize:"17px" }}>✏️ تعديل الإجازة</h3>
+                  <div style={{ fontSize:"12px", color:"#64748b", marginTop:"3px" }}>{mgrEditForm.empName}</div>
+                </div>
+                <button onClick={() => setShowManagerEditModal(false)} style={{ border:"1px solid #e2e8f0", borderRadius:"8px", padding:"5px 9px", cursor:"pointer" }}><X size={16}/></button>
+              </div>
+              <div style={{ display:"flex", flexDirection:"column", gap:"14px" }}>
+                {[
+                  { label:"تاريخ البداية", type:"date", val:mgrEditForm.start_date, set:(v:string) => setMgrEditForm({...mgrEditForm, start_date:v}) },
+                ].map(f => (
+                  <div key={f.label}><label style={{ fontSize:"12px", color:"#64748b", fontWeight:"700", display:"block", marginBottom:"5px" }}>{f.label}</label>
+                    <input type={f.type} style={{ width:"100%", padding:"11px 14px", border:"1px solid #e2e8f0", borderRadius:"12px", outline:"none", boxSizing:"border-box", fontSize:"13px" }} value={f.val} onChange={e => f.set(e.target.value)}/></div>
+                ))}
+                <div><label style={{ fontSize:"12px", color:"#64748b", fontWeight:"700", display:"block", marginBottom:"5px" }}>عدد الأيام الجديد</label>
+                  <input type="number" step="0.5" min="0.5" style={{ width:"100%", padding:"11px 14px", border:"1px solid #e2e8f0", borderRadius:"12px", outline:"none", boxSizing:"border-box", fontSize:"20px", fontWeight:"900", textAlign:"center" }}
+                    value={mgrEditForm.days} onChange={e => setMgrEditForm({...mgrEditForm, days: Number(e.target.value)})}/>
+                  <div style={{ display:"flex", justifyContent:"space-between", fontSize:"12px", color:"#94a3b8", marginTop:"5px" }}>
+                    <span>كان: <b>{mgrEditForm.oldDays} يوم</b></span>
+                    <span>سيصبح: <b style={{color: mgrEditForm.days > mgrEditForm.oldDays ? "#dc2626" : "#16a34a"}}>{mgrEditForm.days} يوم</b></span>
+                  </div>
+                </div>
+                <div><label style={{ fontSize:"12px", color:"#64748b", fontWeight:"700", display:"block", marginBottom:"5px" }}>سبب التعديل *</label>
+                  <textarea style={{ width:"100%", padding:"11px 14px", border:"1px solid #e2e8f0", borderRadius:"12px", outline:"none", resize:"none", boxSizing:"border-box", fontSize:"13px" }}
+                    rows={3} placeholder="اكتب سبب التعديل..." value={mgrEditForm.reason} onChange={e => setMgrEditForm({...mgrEditForm, reason: e.target.value})}/></div>
+                <button onClick={handleManagerEditRequest} style={{ padding:"13px", background:"linear-gradient(135deg,#059669,#10b981)", color:"white", border:"none", borderRadius:"12px", fontWeight:"900", cursor:"pointer", fontSize:"14px" }}>
+                  💾 حفظ التعديل
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal: طباعة ومشاركة الطلبات */}
+        {showPrintModal && (() => {
+          const approvedReqs = requests.filter(r => {
+            if (r.status !== "approved") return false;
+            if (printFrom && r.start_date < printFrom) return false;
+            if (printTo && r.start_date > printTo) return false;
+            return true;
+          });
+          const allSel = approvedReqs.length > 0 && printSelected.length === approvedReqs.length;
+          return (
+          <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.6)", backdropFilter:"blur(5px)", display:"flex", alignItems:"center", justifyContent:"center", padding:"16px", zIndex:200 }} onClick={() => setShowPrintModal(false)}>
+            <div style={{ background:"white", borderRadius:"24px", width:"100%", maxWidth:"580px", padding:"24px", maxHeight:"90vh", display:"flex", flexDirection:"column" }} dir="rtl" onClick={e => e.stopPropagation()}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"16px" }}>
+                <h3 style={{ margin:0, fontWeight:"900", fontSize:"17px" }}>🖨️ طباعة ومشاركة الطلبات المقبولة</h3>
+                <button onClick={() => setShowPrintModal(false)} style={{ border:"1px solid #e2e8f0", borderRadius:"8px", padding:"5px 9px", cursor:"pointer" }}><X size={16}/></button>
+              </div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"10px", marginBottom:"12px" }}>
+                {[{ label:"من تاريخ", val:printFrom, set:setPrintFrom }, { label:"إلى تاريخ", val:printTo, set:setPrintTo }].map(f => (
+                  <div key={f.label}><label style={{ fontSize:"11px", color:"#64748b", fontWeight:"700", display:"block", marginBottom:"4px" }}>{f.label}</label>
+                    <input type="date" style={{ width:"100%", padding:"9px 12px", border:"1px solid #e2e8f0", borderRadius:"10px", outline:"none", boxSizing:"border-box" }}
+                      value={f.val} onChange={e => { f.set(e.target.value); setPrintSelected([]); }}/></div>
+                ))}
+              </div>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"8px" }}>
+                <span style={{ fontSize:"12px", color:"#64748b" }}>{approvedReqs.length} طلب · <b style={{color:"#4f46e5"}}>{printSelected.length} محدد</b></span>
+                <button onClick={() => setPrintSelected(allSel ? [] : approvedReqs.map(r => r.id))}
+                  style={{ background:"#f1f5f9", border:"1px solid #e2e8f0", borderRadius:"8px", padding:"5px 12px", cursor:"pointer", fontSize:"12px", fontWeight:"700" }}>
+                  {allSel ? "إلغاء الكل" : "تحديد الكل"}
+                </button>
+              </div>
+              <div style={{ flex:1, overflowY:"auto", display:"flex", flexDirection:"column", gap:"6px", marginBottom:"14px" }}>
+                {approvedReqs.length === 0
+                  ? <div style={{ textAlign:"center", padding:"30px", color:"#94a3b8" }}>لا توجد طلبات مقبولة في هذه الفترة</div>
+                  : approvedReqs.map(req => {
+                    const isSel = printSelected.includes(req.id);
+                    const vt = vacationTypes.find(v => v.id === req.vacation_type_id);
+                    const { back } = getCalculatedDates(req.start_date, req.days);
+                    return (
+                      <div key={req.id} onClick={() => setPrintSelected(prev => isSel ? prev.filter(i => i !== req.id) : [...prev, req.id])}
+                        style={{ display:"flex", alignItems:"center", gap:"10px", padding:"10px 12px", borderRadius:"12px", border:`2px solid ${isSel ? "#4f46e5" : "#e2e8f0"}`, background: isSel ? "#f5f3ff" : "white", cursor:"pointer" }}>
+                        <div style={{ width:"18px", height:"18px", borderRadius:"5px", border:`2px solid ${isSel ? "#4f46e5" : "#cbd5e1"}`, background: isSel ? "#4f46e5" : "white", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                          {isSel && <span style={{ color:"white", fontSize:"11px" }}>✓</span>}
+                        </div>
+                        <div style={{ flex:1 }}>
+                          <div style={{ fontWeight:"700", fontSize:"13px" }}>{req.employee_name}</div>
+                          <div style={{ fontSize:"11px", color:"#64748b" }}>
+                            {formatDate(req.start_date)} ← {formatDate(back)} | {req.days} يوم
+                            {vt && <span style={{ marginRight:"6px", padding:"1px 7px", borderRadius:"20px", background:vt.color+"20", color:vt.color, fontSize:"10px", fontWeight:"700" }}>{vt.name}</span>}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                }
+              </div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"10px" }}>
+                <button disabled={!printSelected.length}
+                  onClick={() => {
+                    const sel = requests.filter(r => printSelected.includes(r.id));
+                    const w = window.open("","_blank");
+                    if (!w) return alert("السماح بالنوافذ المنبثقة");
+                    const rows = sel.map((r,i) => {
+                      const vt = vacationTypes.find(v => v.id === r.vacation_type_id);
+                      const { back } = getCalculatedDates(r.start_date, r.days);
+                      return "<tr style=\"background:" + (i%2?"#f9fafb":"white") + "\"><td>" + (i+1) + "</td><td>" + r.employee_name + "</td><td>" + (vt?.name||"-") + "</td><td>" + formatDate(r.start_date) + "</td><td>" + r.days + "</td><td>" + formatDate(back) + "</td></tr>";
+                    }).join("");
+                    w.document.write("<html dir=\"rtl\"><head><title>تقرير الإجازات</title><style>*{font-family:Arial,sans-serif}body{padding:30px}h2{color:#1e1b4b;border-bottom:3px solid #4f46e5;padding-bottom:10px}table{width:100%;border-collapse:collapse;margin-top:20px}th{background:#4f46e5;color:white;padding:12px;text-align:right}td{padding:10px;border-bottom:1px solid #e5e7eb;text-align:right}.meta{color:#6b7280;font-size:13px;margin-bottom:20px}</style></head><body><h2>📋 تقرير الإجازات المقبولة</h2><div class=\"meta\">الفترة: " + (printFrom||"الكل") + " — " + (printTo||"الكل") + " | عدد الطلبات: " + sel.length + "</div><table><thead><tr><th>#</th><th>الموظف</th><th>نوع الإجازة</th><th>تاريخ البداية</th><th>المدة</th><th>تاريخ العودة</th></tr></thead><tbody>" + rows + "</tbody></table><script>window.onload=()=>window.print()<" + "/script></body></html>");
+                    w.document.close();
+                  }}
+                  style={{ padding:"13px", background:!printSelected.length?"#f1f5f9":"linear-gradient(135deg,#1d4ed8,#3b82f6)", color:!printSelected.length?"#94a3b8":"white", border:"none", borderRadius:"12px", fontWeight:"800", cursor:!printSelected.length?"not-allowed":"pointer", fontSize:"14px" }}>
+                  🖨️ طباعة ({printSelected.length})
+                </button>
+                <button disabled={!printSelected.length}
+                  onClick={async () => {
+                    const sel = requests.filter(r => printSelected.includes(r.id));
+                    const text = ["📋 تقرير الإجازات المقبولة", "الفترة: " + (printFrom||"الكل") + " - " + (printTo||"الكل"), "━━━━━━━━━━━━━━━━",
+                      ...sel.map((r,i) => {
+                        const vt = vacationTypes.find(v => v.id === r.vacation_type_id);
+                        const { back } = getCalculatedDates(r.start_date, r.days);
+                        return (i+1) + ". " + r.employee_name + "\n   " + (vt?.name||"-") + " | " + r.days + " يوم\n   📅 " + formatDate(r.start_date) + " ← " + formatDate(back);
+                      })].join("\n");
+                    try {
+                      if (navigator.share) { await navigator.share({ title:"تقرير الإجازات", text }); }
+                      else { await navigator.clipboard.writeText(text); alert("✅ تم نسخ التقرير — الصقه في واتساب أو أي تطبيق"); }
+                    } catch { alert("حدث خطأ في المشاركة"); }
+                  }}
+                  style={{ padding:"13px", background:!printSelected.length?"#f1f5f9":"linear-gradient(135deg,#059669,#10b981)", color:!printSelected.length?"#94a3b8":"white", border:"none", borderRadius:"12px", fontWeight:"800", cursor:!printSelected.length?"not-allowed":"pointer", fontSize:"14px" }}>
+                  📤 مشاركة ({printSelected.length})
+                </button>
+              </div>
+            </div>
+          </div>
+          );
+        })()}
+
         {/* Edit Vacation Modal */}
         {editingVac && (
           <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-6 z-[100]" onClick={() => setEditingVac(null)}>
-            <div style={{ background:"#161b22", padding:"32px", borderRadius:"2rem", width:"100%", maxWidth:"520px", boxShadow:"0 24px 64px rgba(0,0,0,0.5)", border:"1px solid #30363d" }} dir="rtl" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-white p-10 rounded-[2.5rem] w-full max-w-lg shadow-2xl" dir="rtl" onClick={(e) => e.stopPropagation()}>
               <div className="flex justify-between mb-8">
-                <h3 style={{ fontSize:"22px", fontWeight:"900", color:"#e6edf3" }}>تعديل طلب الإجازة</h3>
+                <h3 className="text-2xl font-black">تعديل طلب الإجازة</h3>
                 <button onClick={() => setEditingVac(null)}><X size={28} /></button>
               </div>
               <div className="space-y-5">
-                <div style={{ background:"#1c2333", padding:"14px", borderRadius:"12px" }}><p style={{ fontWeight:"900", fontSize:"18px", color:"#e6edf3" }}>{editingVac.employee_name}</p></div>
+                <div className="bg-slate-50 p-4 rounded-xl"><p className="font-black text-lg">{editingVac.employee_name}</p></div>
                 <input type="date" className="w-full p-4 border rounded-2xl" value={editingVac.start_date} onChange={(e) => setEditingVac({...editingVac, start_date: e.target.value})} />
                 <input type="number" step="0.5" className="w-full p-4 border rounded-2xl" value={editingVac.days} onChange={(e) => setEditingVac({...editingVac, days: Number(e.target.value)})} />
                 {vacationTypes.length > 0 && (
@@ -3911,18 +3535,18 @@ ${JSON.stringify(systemData)}
         {/* Return Modal */}
         {showReturnModal && returnData && (
           <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-6 z-[100]" onClick={() => setShowReturnModal(false)}>
-            <div style={{ background:"#161b22", padding:"32px", borderRadius:"2rem", width:"100%", maxWidth:"520px", boxShadow:"0 24px 64px rgba(0,0,0,0.5)", border:"1px solid #30363d" }} dir="rtl" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-white p-10 rounded-[2.5rem] w-full max-w-lg shadow-2xl" dir="rtl" onClick={(e) => e.stopPropagation()}>
               <div className="flex justify-between mb-8">
-                <h3 style={{ fontSize:"22px", fontWeight:"900", color:"#e6edf3" }}>✅ تسجيل العودة من الإجازة</h3>
+                <h3 className="text-2xl font-black">✅ تسجيل العودة من الإجازة</h3>
                 <button onClick={() => setShowReturnModal(false)}><X size={28} /></button>
               </div>
               <div className="space-y-5">
-                <div style={{ background:"#1c2333", padding:"20px", borderRadius:"12px" }}>
+                <div className="bg-slate-50 p-6 rounded-xl">
                   <p className="font-black text-lg mb-2">{returnData.employee_name}</p>
                   <div className="text-sm space-y-1">
-                    <p><span style={{ color:"#8b949e" }}>بداية الإجازة:</span> <span className="font-bold">{formatDate(returnData.start_date)}</span></p>
-                    <p><span style={{ color:"#8b949e" }}>المدة:</span> <span className="font-bold">{returnData.days} يوم</span></p>
-                    <p><span style={{ color:"#8b949e" }}>العودة المتوقعة:</span> <span className="font-bold text-indigo-600">{formatDate(getCalculatedDates(returnData.start_date, returnData.days).back)}</span></p>
+                    <p><span className="text-slate-500">بداية الإجازة:</span> <span className="font-bold">{formatDate(returnData.start_date)}</span></p>
+                    <p><span className="text-slate-500">المدة:</span> <span className="font-bold">{returnData.days} يوم</span></p>
+                    <p><span className="text-slate-500">العودة المتوقعة:</span> <span className="font-bold text-indigo-600">{formatDate(getCalculatedDates(returnData.start_date, returnData.days).back)}</span></p>
                   </div>
                 </div>
                 <div>
@@ -3938,9 +3562,9 @@ ${JSON.stringify(systemData)}
         {/* Add Department Modal */}
         {showAddDept && (
           <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-6 z-[100]" onClick={() => setShowAddDept(false)}>
-            <div style={{ background:"#161b22", padding:"32px", borderRadius:"2rem", width:"100%", maxWidth:"520px", boxShadow:"0 24px 64px rgba(0,0,0,0.5)", border:"1px solid #30363d" }} dir="rtl" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-white p-10 rounded-[2.5rem] w-full max-w-lg shadow-2xl" dir="rtl" onClick={(e) => e.stopPropagation()}>
               <div className="flex justify-between mb-8">
-                <h3 style={{ fontSize:"22px", fontWeight:"900", color:"#e6edf3" }}>إضافة قسم جديد</h3>
+                <h3 className="text-2xl font-black">إضافة قسم جديد</h3>
                 <button onClick={() => setShowAddDept(false)}><X size={28} /></button>
               </div>
               <div className="space-y-5">
@@ -3955,9 +3579,9 @@ ${JSON.stringify(systemData)}
         {/* Add Holiday Modal */}
         {showAddHoliday && (
           <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-6 z-[100]" onClick={() => setShowAddHoliday(false)}>
-            <div style={{ background:"#161b22", padding:"32px", borderRadius:"2rem", width:"100%", maxWidth:"520px", boxShadow:"0 24px 64px rgba(0,0,0,0.5)", border:"1px solid #30363d" }} dir="rtl" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-white p-10 rounded-[2.5rem] w-full max-w-lg shadow-2xl" dir="rtl" onClick={(e) => e.stopPropagation()}>
               <div className="flex justify-between mb-8">
-                <h3 style={{ fontSize:"22px", fontWeight:"900", color:"#e6edf3" }}>إضافة عطلة رسمية</h3>
+                <h3 className="text-2xl font-black">إضافة عطلة رسمية</h3>
                 <button onClick={() => setShowAddHoliday(false)}><X size={28} /></button>
               </div>
               <div className="space-y-5">
@@ -3976,17 +3600,17 @@ ${JSON.stringify(systemData)}
         {/* Audit Log Modal */}
         {showAuditLog && (
           <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-6 z-[100]" onClick={() => setShowAuditLog(false)}>
-            <div className="bg-transparent" dir="rtl" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-white p-10 rounded-[2.5rem] w-full max-w-4xl shadow-2xl max-h-[80vh] overflow-auto" dir="rtl" onClick={(e) => e.stopPropagation()}>
               <div className="flex justify-between mb-8">
-                <h3 style={{ fontSize:"22px", fontWeight:"900", color:"#e6edf3" }}>📋 سجل التعديلات</h3>
+                <h3 className="text-2xl font-black">📋 سجل التعديلات</h3>
                 <button onClick={() => setShowAuditLog(false)}><X size={28} /></button>
               </div>
-              <div style={{ display:"flex", flexDirection:"column", gap:"10px" }}>
+              <div className="space-y-3">
                 {auditLog.map((log, idx) => (
-                  <div key={idx} style={{ padding:"14px", background:"#1c2333", borderRadius:"12px", border:"1px solid #30363d" }}>
+                  <div key={idx} className="p-4 bg-slate-50 rounded-xl border border-slate-100">
                     <div className="flex justify-between items-start mb-2">
                       <div>
-                        <span style={{ fontWeight:"700", color:"#e6edf3" }}>{log.user_name}</span>
+                        <span className="font-bold text-slate-800">{log.user_name}</span>
                         <span className="text-sm text-slate-500 mr-2">{log.action === "monthly_balance_update" ? "💰 تحديث رصيد شهري" : log.action}</span>
                       </div>
                       <span className="text-xs text-slate-400">{formatDateTime(log.created_at)}</span>
@@ -4006,10 +3630,10 @@ ${JSON.stringify(systemData)}
         {/* Balance Log Modal */}
         {showBalanceLog && (
           <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-6 z-[100]" onClick={() => setShowBalanceLog(false)}>
-            <div className="bg-transparent" dir="rtl" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-white p-10 rounded-[2.5rem] w-full max-w-4xl shadow-2xl max-h-[80vh] overflow-auto" dir="rtl" onClick={(e) => e.stopPropagation()}>
               <div className="flex justify-between items-center mb-8">
                 <div>
-                  <h3 style={{ fontSize:"22px", fontWeight:"900", color:"#e6edf3" }}>💰 سجل حركات الرصيد الشهري</h3>
+                  <h3 className="text-2xl font-black">💰 سجل حركات الرصيد الشهري</h3>
                   <p className="text-slate-500 text-sm mt-1">كل مرة أضاف فيها النظام رصيداً تلقائياً لموظف</p>
                 </div>
                 <button onClick={() => setShowBalanceLog(false)} className="text-slate-400 hover:text-slate-700"><X size={28} /></button>
@@ -4023,7 +3647,7 @@ ${JSON.stringify(systemData)}
                   <p className="text-slate-300 text-sm mt-2">سيتم التسجيل تلقائياً كل أول شهر عند إضافة الرصيد الدوري</p>
                 </div>
               ) : (
-                <div style={{ display:"flex", flexDirection:"column", gap:"10px" }}>
+                <div className="space-y-3">
                   {balanceLogs.map((log, idx) => {
                     const empName = log.employees?.name || "—";
                     const empCode = log.employees?.code || "";
@@ -4076,7 +3700,7 @@ ${JSON.stringify(systemData)}
           <div style={{
             position: "fixed", bottom: "104px", left: "32px", zIndex: 50,
             width: "400px", height: "560px",
-            background: "#161b22", borderRadius: "24px",
+            background: "white", borderRadius: "24px",
             boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
             display: "flex", flexDirection: "column", overflow: "hidden",
             border: "1px solid rgba(99,102,241,0.2)",
@@ -4119,7 +3743,7 @@ ${JSON.stringify(systemData)}
             {/* Input */}
             <div style={{ padding: "16px", borderTop: "1px solid #f1f5f9", display: "flex", gap: "10px" }}>
               <input
-                style={{ flex: 1, background: "#f8fafc", border: "1px solid #30363d", borderRadius: "12px", padding: "12px 16px", fontSize: "13px", outline: "none", fontFamily: "inherit", textAlign: "right" }}
+                style={{ flex: 1, background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "12px", padding: "12px 16px", fontSize: "13px", outline: "none", fontFamily: "inherit", textAlign: "right" }}
                 placeholder="اكتب أمرك هنا... مثال: أضف موظف اسمه محمد"
                 value={aiInput}
                 onChange={(e) => setAiInput(e.target.value)}
@@ -4149,210 +3773,156 @@ ${JSON.stringify(systemData)}
   // ==================== EMPLOYEE VIEW ====================
   if (currentView === "employee") {
     const empStatus = getEmployeeStatus(currentUser);
-    const empRequests = requests.filter(r => r.employee_id === currentUser.id);
-    const approvedReqs = empRequests.filter(r => r.status === "approved");
-    const totalVacDays = approvedReqs.reduce((s, r) => s + Number(r.days), 0);
-    const workedDays = calculateWorkedDays(currentUser.return_date);
-    const greeting = getGreeting();
-    const isOnVac = empStatus === "إجازة";
-
     return (
-      <div style={{ minHeight:"100vh", background:"#161b22", direction:"rtl", fontFamily:"inherit" }}>
-
-        {/* ===== Header Banner ===== */}
-        <div style={{
-          background: isOnVac
-            ? "linear-gradient(135deg,#92400e,#b45309,#d97706)"
-            : "linear-gradient(135deg,#0f172a,#1e1b4b,#312e81,#4338ca)",
-          padding:"28px 20px 80px", position:"relative", overflow:"hidden"
-        }}>
-          <div style={{ position:"absolute", top:"-40px", right:"-40px", width:"200px", height:"200px", borderRadius:"50%", background:"rgba(255,255,255,0.05)" }}/>
-          <div style={{ position:"absolute", bottom:"-60px", left:"10%", width:"250px", height:"250px", borderRadius:"50%", background:"rgba(255,255,255,0.03)" }}/>
-          <div style={{ position:"relative", zIndex:1 }}>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"20px" }}>
-              <div style={{ display:"inline-flex", alignItems:"center", gap:"6px", background:"rgba(255,255,255,0.12)", borderRadius:"20px", padding:"5px 12px", border:"1px solid rgba(255,255,255,0.15)" }}>
-                <div style={{ width:"7px", height:"7px", borderRadius:"50%", background: isOnVac ? "#fbbf24" : "#34d399", boxShadow:`0 0 6px ${isOnVac ? "#fbbf24" : "#34d399"}` }}/>
-                <span style={{ fontSize:"12px", color:"white", fontWeight:"700" }}>{isOnVac ? "🏖️ في إجازة" : "✅ في العمل"}</span>
-              </div>
-              <button onClick={() => { localStorage.removeItem("vms_currentUser"); localStorage.removeItem("vms_currentView"); setCurrentView("login"); setCurrentUser(null); setLoginData({ email:"", password:"" }); setEmpCodeInput(""); }}
-                style={{ display:"flex", alignItems:"center", gap:"6px", background:"rgba(239,68,68,0.15)", border:"1px solid rgba(239,68,68,0.3)", borderRadius:"20px", padding:"6px 14px", color:"#fca5a5", fontSize:"13px", fontWeight:"700", cursor:"pointer" }}>
-                <LogOut size={14}/> خروج
-              </button>
-            </div>
-            <div style={{ display:"flex", alignItems:"center", gap:"12px", marginBottom:"20px" }}>
-              <div style={{ width:"52px", height:"52px", borderRadius:"50%", background:"rgba(255,255,255,0.15)", border:"2px solid rgba(255,255,255,0.25)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:"22px", fontWeight:"900", color:"white", flexShrink:0 }}>
-                {currentUser.name?.charAt(0)}
-              </div>
-              <div>
-                <div style={{ fontSize:"11px", color:"rgba(255,255,255,0.5)", marginBottom:"2px" }}>{greeting.emoji} {greeting.text}</div>
-                <div style={{ fontSize:"17px", fontWeight:"900", color:"white", lineHeight:"1.2" }}>{currentUser.name}</div>
-                {currentUser.position && <div style={{ fontSize:"11px", color:"rgba(255,255,255,0.5)", marginTop:"2px" }}>{currentUser.position}</div>}
-              </div>
-            </div>
-            <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:"10px" }}>
-              {([
-                { label:"رصيد الإجازة",          value:`${currentUser.balance}`,          unit:"يوم",      color:"#a5b4fc", icon:"💼", warn: Number(currentUser.balance) < 5 },
-                { label:"رصيد شهري",              value:`+${currentUser.monthly_balance||0}`, unit:"يوم/شهر", color:"#6ee7b7", icon:"📅", warn:false },
-                { label:"أيام العمل منذ العودة", value:`${workedDays}`,                   unit:"يوم",      color:"#fde68a", icon:"⚡", warn:false },
-                { label:"إجمالي إجازاتي",        value:`${totalVacDays}`,                 unit:"يوم",      color:"#fca5a5", icon:"✈️", warn:false },
-              ] as any[]).map((s:any) => (
-                <div key={s.label} style={{ background: s.warn ? "rgba(239,68,68,0.2)" : "rgba(255,255,255,0.1)", borderRadius:"16px", padding:"14px", border:`1px solid ${s.warn ? "rgba(239,68,68,0.4)" : "rgba(255,255,255,0.12)"}` }}>
-                  <div style={{ fontSize:"18px", marginBottom:"4px" }}>{s.icon}</div>
-                  <div style={{ display:"flex", alignItems:"baseline", gap:"4px" }}>
-                    <span style={{ fontSize:"28px", fontWeight:"900", color: s.warn ? "#fca5a5" : s.color, lineHeight:"1" }}>{s.value}</span>
-                    <span style={{ fontSize:"11px", color:"rgba(255,255,255,0.5)" }}>{s.unit}</span>
-                  </div>
-                  <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.5)", marginTop:"3px" }}>{s.label}</div>
-                  {s.warn && <div style={{ fontSize:"9px", color:"#fca5a5", marginTop:"2px", fontWeight:"700" }}>⚠️ رصيد منخفض</div>}
-                </div>
-              ))}
-            </div>
+      <div className="min-h-screen bg-slate-50 p-6" dir="rtl">
+        <header className="max-w-4xl mx-auto flex justify-between items-center mb-10">
+          <div>
+            <h2 className="text-3xl font-black text-slate-800">أهلاً {currentUser.name} 👋</h2>
+            <p className="text-slate-500">
+              رصيدك: <span className="font-black text-indigo-600">{currentUser.balance} يوم</span>
+              {currentUser.monthly_balance > 0 && <span className="mr-2 text-emerald-600 text-sm">(+{currentUser.monthly_balance} شهرياً)</span>}
+            </p>
+            {currentUser.hire_date && <p className="text-slate-400 text-sm">تاريخ التعيين: {formatDate(currentUser.hire_date)}</p>}
+            {currentUser.return_date && (
+              <p className="text-slate-400 text-sm">
+                أيام العمل منذ العودة: <span className="font-bold text-purple-600">{calculateWorkedDays(currentUser.return_date)} يوم</span>
+              </p>
+            )}
+            <span className={`inline-block mt-1 px-3 py-1 rounded-full text-xs font-black ${empStatus === "عمل" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
+              {empStatus === "عمل" ? "🟢 في العمل" : "🟡 في إجازة"}
+            </span>
           </div>
-        </div>
+          <button onClick={() => { localStorage.removeItem("vms_currentUser"); localStorage.removeItem("vms_currentView"); setCurrentView("login"); setCurrentUser(null); setLoginData({ email: "", password: "" }); setEmpCodeInput(""); }} className="text-red-500 font-bold flex items-center gap-2 hover:bg-red-50 px-4 py-2 rounded-xl">
+            <LogOut size={20} /> خروج
+          </button>
+        </header>
 
-        {/* ===== المحتوى الرئيسي ===== */}
-        <div style={{ margin:"-40px 16px 20px", position:"relative", zIndex:10, display:"flex", flexDirection:"column", gap:"16px" }}>
-
-          {/* فورم طلب الإجازة */}
-          <div style={{ background:"#161b22", borderRadius:"24px", boxShadow:"0 8px 32px rgba(0,0,0,0.1)", overflow:"hidden" }}>
-            <div style={{ padding:"18px 20px", borderBottom:"1px solid #f1f5f9", display:"flex", alignItems:"center", gap:"10px" }}>
-              <div style={{ width:"36px", height:"36px", borderRadius:"12px", background:"linear-gradient(135deg,#4f46e5,#7c3aed)", display:"flex", alignItems:"center", justifyContent:"center" }}>
-                <Plus size={18} style={{color:"white"}}/>
-              </div>
-              <span style={{ fontWeight:"900", fontSize:"16px" }}>طلب إجازة جديد</span>
-            </div>
-            <div style={{ padding:"20px", display:"flex", flexDirection:"column", gap:"16px" }}>
+        <div className="max-w-4xl mx-auto grid md:grid-cols-2 gap-8">
+          <section className="bg-white p-8 rounded-[2.5rem] shadow-sm border">
+            <h3 className="text-xl font-black mb-6 flex items-center gap-3"><Plus className="text-indigo-600" /> طلب إجازة جديد</h3>
+            <div className="space-y-5">
               <div>
-                <label style={{ fontSize:"12px", fontWeight:"700", color:"#8b949e", display:"block", marginBottom:"8px" }}>نوع الإجازة *</label>
-                <select style={{ width:"100%", padding:"14px", background:"#0d1117", border:"1px solid #30363d", borderRadius:"14px", fontSize:"14px", outline:"none", boxSizing:"border-box", color:"#e6edf3" }}
-                  value={newRequest.vacation_type_id} onChange={e => setNewRequest({...newRequest, vacation_type_id: e.target.value})}>
-                  <option value="">اختر النوع...</option>
+                <label className="text-sm font-bold text-slate-400 mb-2 block">نوع الإجازة</label>
+                <select className="w-full p-4 bg-slate-50 border-none rounded-2xl outline-none" value={newRequest.vacation_type_id} onChange={(e) => setNewRequest({...newRequest, vacation_type_id: e.target.value})}>
+                  <option value="">اختر النوع</option>
                   {vacationTypes.map(vt => <option key={vt.id} value={vt.id}>{vt.name}</option>)}
                 </select>
               </div>
               <div>
-                <label style={{ fontSize:"12px", fontWeight:"700", color:"#8b949e", display:"block", marginBottom:"8px" }}>تاريخ النزول *</label>
-                <input type="date" style={{ width:"100%", padding:"14px", background:"#0d1117", border:"1px solid #30363d", borderRadius:"14px", fontSize:"14px", outline:"none", boxSizing:"border-box" }}
-                  value={newRequest.start_date} onChange={e => setNewRequest({...newRequest, start_date: e.target.value})}/>
+                <label className="text-sm font-bold text-slate-400 mb-2 block">تاريخ النزول</label>
+                <input type="date" className="w-full p-4 bg-slate-50 border-none rounded-2xl outline-none" value={newRequest.start_date} onChange={(e) => setNewRequest({...newRequest, start_date: e.target.value})} />
               </div>
               <div>
-                <label style={{ fontSize:"12px", fontWeight:"700", color:"#8b949e", display:"block", marginBottom:"8px" }}>موعد النزول</label>
-                <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:"8px" }}>
+                <label className="text-sm font-bold text-slate-400 mb-2 block">موعد النزول</label>
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:"10px" }}>
                   {[
-                    { value:"actual",     icon:"✅", label:"بداية الإجازة الفعلي" },
-                    { value:"morning",    icon:"🌅", label:"صباحاً" },
-                    { value:"after_work", icon:"🌆", label:"بعد العمل" },
+                    { value:"after_work", icon:"🌆", label:"بعد العمل",           desc:"يوم التاريخ عمل\nثاني يوم سفر\nثالث يوم إجازة" },
+                    { value:"morning",    icon:"🌅", label:"صباحاً",              desc:"يوم التاريخ سفر\nثاني يوم إجازة" },
+                    { value:"actual",     icon:"✅", label:"بداية الإجازة الفعلي", desc:"يوم التاريخ أول يوم إجازة" },
                   ].map(opt => (
-                    <button key={opt.value} type="button"
+                    <button key={opt.value} type="button" title={opt.desc}
                       onClick={() => setNewRequest({...newRequest, departure_time: opt.value})}
-                      style={{ padding:"12px 6px", borderRadius:"14px", border:`2px solid ${newRequest.departure_time === opt.value ? "#6366f1" : "#30363d"}`, background: newRequest.departure_time === opt.value ? "rgba(79,70,229,0.2)" : "#1c2333", color: newRequest.departure_time === opt.value ? "#4f46e5" : "#64748b", fontWeight:"700", fontSize:"11px", cursor:"pointer", textAlign:"center", transition:"all 0.15s" }}>
-                      <div style={{ fontSize:"20px", marginBottom:"4px" }}>{opt.icon}</div>
+                      style={{
+                        padding:"12px 6px", borderRadius:"16px", border:`2px solid ${newRequest.departure_time === opt.value ? "#6366f1" : "#e2e8f0"}`,
+                        background: newRequest.departure_time === opt.value ? "#ede9fe" : "#f8fafc",
+                        color: newRequest.departure_time === opt.value ? "#6366f1" : "#64748b",
+                        fontWeight:"700", fontSize:"11px", cursor:"pointer", textAlign:"center" as const, transition:"all 0.2s",
+                      }}>
+                      <div style={{ fontSize:"22px", marginBottom:"4px" }}>{opt.icon}</div>
                       {opt.label}
                     </button>
                   ))}
                 </div>
-              </div>
-              {newRequest.start_date && (
-                <div style={{ background:"linear-gradient(135deg,rgba(79,70,229,0.15),rgba(99,102,241,0.1))", borderRadius:"14px", padding:"14px 16px", border:"1px solid rgba(99,102,241,0.3)" }}>
-                  <div style={{ fontSize:"11px", color:"#4f46e5", fontWeight:"800", marginBottom:"10px" }}>📅 ملخص الإجازة</div>
-                  <div style={{ display:"flex", flexDirection:"column", gap:"6px" }}>
-                    {([
-                      { label:"تاريخ النزول",        value: formatDate(newRequest.start_date) },
-                      { label:"موعد النزول",          value: getDepartureLabel(newRequest.departure_time) },
-                      { label:"أول يوم إجازة فعلي",  value: formatDate(getActualStartDate(newRequest.start_date, newRequest.departure_time)), bold:true },
-                      ...(newRequest.days > 0 ? [{ label:"تاريخ العودة", value: formatDate(getCalculatedDates(getActualStartDate(newRequest.start_date, newRequest.departure_time), newRequest.days).back), bold:true, green:true }] : []),
-                    ] as any[]).map((item:any) => (
-                      <div key={item.label} style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-                        <span style={{ fontSize:"12px", color:"#6d28d9" }}>{item.label}</span>
-                        <span style={{ fontSize:"13px", fontWeight: item.bold ? "900" : "700", color: item.green ? "#059669" : "#3730a3" }}>{item.value}</span>
+                {newRequest.start_date && (
+                  <div style={{ marginTop:"12px", padding:"14px 16px", borderRadius:"14px", background:"linear-gradient(135deg,#ede9fe,#ddd6fe)", border:"1px solid #c4b5fd" }}>
+                    <p style={{ fontSize:"11px", color:"#7c3aed", fontWeight:"700", marginBottom:"8px" }}>📅 ملخص الإجازة</p>
+                    <div style={{ display:"flex", flexDirection:"column" as const, gap:"5px", fontSize:"13px" }}>
+                      <div style={{ display:"flex", justifyContent:"space-between" }}>
+                        <span style={{ color:"#6d28d9" }}>تاريخ النزول:</span>
+                        <span style={{ fontWeight:"800", color:"#4c1d95" }}>{formatDate(newRequest.start_date)}</span>
                       </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-              <div>
-                <label style={{ fontSize:"12px", fontWeight:"700", color:"#8b949e", display:"block", marginBottom:"8px" }}>عدد الأيام</label>
-                <input type="number" step="0.5" min="0.5" style={{ width:"100%", padding:"14px", background:"#0d1117", border:"1px solid #30363d", borderRadius:"14px", fontSize:"14px", outline:"none", boxSizing:"border-box" }}
-                  value={newRequest.days} onChange={e => setNewRequest({...newRequest, days: Number(e.target.value)})}/>
-              </div>
-              <div>
-                <label style={{ fontSize:"12px", fontWeight:"700", color:"#8b949e", display:"block", marginBottom:"8px" }}>ملاحظات</label>
-                <textarea style={{ width:"100%", padding:"14px", background:"#0d1117", border:"1px solid #30363d", borderRadius:"14px", fontSize:"14px", outline:"none", resize:"none", boxSizing:"border-box", minHeight:"80px" }}
-                  placeholder="سبب الإجازة..." value={newRequest.notes} onChange={e => setNewRequest({...newRequest, notes: e.target.value})}/>
-              </div>
-              <button onClick={submitVacationRequest} disabled={isSubmitting}
-                style={{ width:"100%", padding:"16px", background: isSubmitting ? "#94a3b8" : "linear-gradient(135deg,#4f46e5,#7c3aed)", color:"white", border:"none", borderRadius:"14px", fontSize:"15px", fontWeight:"900", cursor: isSubmitting ? "not-allowed" : "pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:"8px" }}>
-                {isSubmitting ? <><Loader2 size={18} style={{animation:"spin 1s linear infinite"}}/> جاري الإرسال...</> : <>✈️ إرسال الطلب</>}
-              </button>
-            </div>
-          </div>
-
-          {/* طلباتي */}
-          <div style={{ background:"#161b22", borderRadius:"24px", boxShadow:"0 4px 16px rgba(0,0,0,0.06)", overflow:"hidden" }}>
-            <div style={{ padding:"18px 20px", borderBottom:"1px solid #f1f5f9", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-              <div style={{ display:"flex", alignItems:"center", gap:"10px" }}>
-                <div style={{ width:"36px", height:"36px", borderRadius:"12px", background:"linear-gradient(135deg,#f59e0b,#d97706)", display:"flex", alignItems:"center", justifyContent:"center" }}>
-                  <Clock size={18} style={{color:"white"}}/>
-                </div>
-                <span style={{ fontWeight:"900", fontSize:"16px" }}>طلباتي</span>
-              </div>
-              <span style={{ background:"#161b22", color:"#8b949e", borderRadius:"20px", padding:"3px 10px", fontSize:"12px", fontWeight:"700" }}>{empRequests.length} طلب</span>
-            </div>
-            <div style={{ padding:"12px", display:"flex", flexDirection:"column", gap:"10px" }}>
-              {empRequests.length === 0 ? (
-                <div style={{ padding:"40px", textAlign:"center", color:"#6e7681" }}>
-                  <Clock size={36} style={{ margin:"0 auto 10px", opacity:0.3 }}/>
-                  <p style={{ fontWeight:"700" }}>لم تقدم أي طلبات بعد</p>
-                </div>
-              ) : empRequests.map(req => {
-                const vacType = vacationTypes.find(vt => vt.id === req.vacation_type_id);
-                const { back } = getCalculatedDates(req.start_date, req.days);
-                const statusConfig: Record<string,{label:string,bg:string,color:string}> = {
-                  approved:      { label:"✓ مقبول",         bg:"#dcfce7", color:"#16a34a" },
-                  rejected:      { label:"✗ مرفوض",         bg:"#fee2e2", color:"#dc2626" },
-                  dept_approved: { label:"◑ موافقة مبدئية", bg:"#e0e7ff", color:"#4f46e5" },
-                  pending:       { label:"⏳ معلق",          bg:"#fef3c7", color:"#d97706" },
-                };
-                const sc = statusConfig[req.status] || statusConfig.pending;
-                return (
-                  <div key={req.id} style={{ borderRadius:"16px", border:"1px solid #30363d", overflow:"hidden", background:"#1c2333" }}>
-                    <div style={{ height:"4px", background:sc.color }}/>
-                    <div style={{ padding:"14px" }}>
-                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"8px" }}>
-                        <div>
-                          <div style={{ fontWeight:"800", fontSize:"14px", color:"#e6edf3" }}>{formatDate(req.start_date)}</div>
-                          <div style={{ fontSize:"11px", color:"#6e7681", marginTop:"2px" }}>{req.days} يوم • عودة {formatDate(back)}</div>
-                        </div>
-                        <span style={{ padding:"4px 10px", borderRadius:"20px", fontSize:"11px", fontWeight:"800", background:sc.bg, color:sc.color, whiteSpace:"nowrap" }}>{sc.label}</span>
+                      <div style={{ display:"flex", justifyContent:"space-between" }}>
+                        <span style={{ color:"#6d28d9" }}>موعد النزول:</span>
+                        <span style={{ fontWeight:"800", color:"#4c1d95" }}>{getDepartureLabel(newRequest.departure_time)}</span>
                       </div>
-                      {vacType && <span style={{ display:"inline-block", padding:"3px 10px", borderRadius:"20px", fontSize:"11px", fontWeight:"700", backgroundColor:vacType.color+"20", color:vacType.color, marginBottom:"6px" }}>{vacType.name}</span>}
-                      {req.departure_time && req.departure_time !== "actual" && (
-                        <div style={{ fontSize:"11px", color:"#7c3aed", fontWeight:"700", marginBottom:"4px" }}>🛫 نزول {req.departure_time === "after_work" ? "بعد العمل" : "صباحاً"}{req.departure_date ? ` (${formatDate(req.departure_date)})` : ""}</div>
-                      )}
-                      {req.admin_notes && (
-                        <div style={{ marginTop:"8px", padding:"10px 12px", background:"rgba(59,130,246,0.1)", borderRadius:"10px", border:"1px solid #bfdbfe" }}>
-                          <div style={{ fontSize:"10px", color:"#3b82f6", fontWeight:"800", marginBottom:"4px", display:"flex", alignItems:"center", gap:"4px" }}>
-                            <MessageSquare size={11}/> ملاحظات الإدارة
-                          </div>
-                          <div style={{ fontSize:"12px", color:"#1e40af" }}>{req.admin_notes}</div>
+                      <div style={{ height:"1px", background:"#c4b5fd", margin:"4px 0" }} />
+                      <div style={{ display:"flex", justifyContent:"space-between" }}>
+                        <span style={{ color:"#6d28d9" }}>أول يوم إجازة فعلي:</span>
+                        <span style={{ fontWeight:"900", color:"#4c1d95", fontSize:"14px" }}>{formatDate(getActualStartDate(newRequest.start_date, newRequest.departure_time))}</span>
+                      </div>
+                      {newRequest.days > 0 && (
+                        <div style={{ display:"flex", justifyContent:"space-between" }}>
+                          <span style={{ color:"#6d28d9" }}>تاريخ العودة:</span>
+                          <span style={{ fontWeight:"900", color:"#059669", fontSize:"14px" }}>
+                            {formatDate(getCalculatedDates(getActualStartDate(newRequest.start_date, newRequest.departure_time), newRequest.days).back)}
+                          </span>
                         </div>
                       )}
-                      {req.status === "pending" && (() => {
-                        const created = new Date(req.created_at || Date.now());
-                        const daysOld = Math.floor((Date.now() - created.getTime()) / 86400000);
-                        return daysOld <= 3 ? (
-                          <button onClick={() => { setEmpEditRequest({...req}); setShowEmpEditModal(true); }}
-                            style={{ marginTop:"10px", width:"100%", padding:"9px", background:"rgba(99,102,241,0.15)", border:"1px solid rgba(99,102,241,0.3)", borderRadius:"10px", color:"#818cf8", cursor:"pointer", fontWeight:"700", fontSize:"12px" }}>
-                            ✏️ تعديل الطلب (متبقي {3 - daysOld} يوم)
-                          </button>
-                        ) : null;
-                      })()}
                     </div>
                   </div>
-                );
-              })}
+                )}
+              </div>
+              <div>
+                <label className="text-sm font-bold text-slate-400 mb-2 block">عدد الأيام</label>
+                <input type="number" step="0.5" min="0.5" className="w-full p-4 bg-slate-50 border-none rounded-2xl outline-none" value={newRequest.days} onChange={(e) => setNewRequest({...newRequest, days: Number(e.target.value)})} />
+              </div>
+              <div>
+                <label className="text-sm font-bold text-slate-400 mb-2 block">ملاحظات</label>
+                <textarea className="w-full p-4 bg-slate-50 border-none rounded-2xl outline-none h-24" placeholder="سبب الإجازة..." value={newRequest.notes} onChange={(e) => setNewRequest({...newRequest, notes: e.target.value})} />
+              </div>
+              <button onClick={submitVacationRequest} disabled={isSubmitting} className="w-full bg-indigo-600 text-white p-5 rounded-2xl font-black text-lg disabled:opacity-50">
+                {isSubmitting ? <Loader2 className="animate-spin mx-auto" /> : "إرسال الطلب"}
+              </button>
             </div>
-          </div>
+          </section>
+
+          <section className="space-y-6">
+            <h3 className="text-xl font-black flex items-center gap-3"><Clock className="text-amber-500" /> طلباتي</h3>
+            {requests.filter(r => r.employee_id === currentUser.id).map(req => {
+              const vacType = vacationTypes.find(vt => vt.id === req.vacation_type_id);
+              return (
+                <div key={req.id} className="bg-white p-6 rounded-[2rem] shadow-sm border">
+                  <div className="flex justify-between items-start mb-4">
+                    <div>
+                      <p className="font-bold text-slate-800">{formatDate(req.start_date)}</p>
+                      <p className="text-xs text-slate-400">{req.days} يوم</p>
+                      {req.departure_time && req.departure_time !== "actual" && (
+                        <p className="text-xs text-purple-600 font-bold mt-1">
+                          🛫 نزول {req.departure_time === "after_work" ? "بعد العمل" : "صباحاً"}
+                          {req.departure_date ? ` (${formatDate(req.departure_date)})` : ""}
+                        </p>
+                      )}
+                      {vacType && <span className="inline-block mt-2 px-2 py-1 rounded-full text-xs font-bold" style={{ backgroundColor: vacType.color+'20', color: vacType.color }}>{vacType.name}</span>}
+                    </div>
+                    <span className={`px-4 py-1.5 rounded-full text-xs font-black ${req.status === 'approved' ? 'bg-emerald-100 text-emerald-700' : req.status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
+                      {req.status === 'approved' ? '✓ مقبول' : req.status === 'rejected' ? '✗ مرفوض' : req.status === 'dept_approved' ? '◑ موافقة مبدئية' : '⏳ معلق'}
+                    </span>
+                  </div>
+                  {req.admin_notes && (
+                    <div className="mt-4 p-4 bg-blue-50 rounded-xl border border-blue-100">
+                      <p className="text-xs text-blue-600 font-bold mb-1 flex items-center gap-1"><MessageSquare size={14} /> ملاحظات الإدارة:</p>
+                      <p className="text-sm text-blue-900">{req.admin_notes}</p>
+                    </div>
+                  )}
+                  {req.status === "pending" && (() => {
+                    const created = new Date(req.created_at || Date.now());
+                    const daysOld = Math.floor((Date.now() - created.getTime()) / 86400000);
+                    return daysOld <= 3 ? (
+                      <button onClick={() => { setEmpEditReq({...req}); setShowEditRequestModal(true); }}
+                        style={{ marginTop:"10px", width:"100%", padding:"9px", background:"#f5f3ff", border:"1px solid #ddd6fe", borderRadius:"10px", color:"#7c3aed", cursor:"pointer", fontWeight:"700", fontSize:"12px" }}>
+                        ✏️ تعديل الطلب (متبقي {3 - daysOld} يوم)
+                      </button>
+                    ) : null;
+                  })()}
+                </div>
+              );
+            })}
+            {requests.filter(r => r.employee_id === currentUser.id).length === 0 && (
+              <div className="bg-white p-16 rounded-[2rem] text-center border border-dashed">
+                <p className="text-slate-400 font-bold">لم تقدم أي طلبات بعد</p>
+              </div>
+            )}
+          </section>
         </div>
       </div>
     );
@@ -4362,3 +3932,145 @@ ${JSON.stringify(systemData)}
 };
 
 export default VacationManagementSystem;
+
+// ================================================================
+// 🏢 مكوّن مديرو الأقسام — للـ Owner فقط
+// ================================================================
+const ManagersTab = ({ departments, supabase, logAction, currentUser }: {
+  departments: any[]; supabase: any; logAction: Function; currentUser: any;
+}) => {
+  const [managers, setManagers]   = useState<any[]>([]);
+  const [loading, setLoading]     = useState(true);
+  const [showForm, setShowForm]   = useState(false);
+  const [editingMgr, setEditingMgr] = useState<any>(null);
+  const [saving, setSaving]       = useState(false);
+  const [form, setForm]           = useState({ name:"", email:"", password:"", department_id:"" });
+
+  const fetch = async () => {
+    setLoading(true);
+    const { data } = await supabase.from("department_managers").select("*, departments(name)").order("name");
+    if (data) setManagers(data);
+    setLoading(false);
+  };
+  useEffect(() => { fetch(); }, []);
+
+  const openAdd = () => { setEditingMgr(null); setForm({ name:"", email:"", password:"", department_id:"" }); setShowForm(true); };
+  const openEdit = (m: any) => { setEditingMgr(m); setForm({ name:m.name, email:m.email, password:m.password, department_id:m.department_id }); setShowForm(true); };
+
+  const save = async () => {
+    if (!form.name || !form.email || !form.password || !form.department_id) return alert("جميع الحقول مطلوبة");
+    setSaving(true);
+    if (editingMgr) {
+      await supabase.from("department_managers").update(form).eq("id", editingMgr.id);
+    } else {
+      const { error } = await supabase.from("department_managers").insert([form]);
+      if (error) { alert("خطأ: " + error.message); setSaving(false); return; }
+    }
+    await logAction(editingMgr ? "update" : "create", "department_managers", editingMgr?.id ?? null);
+    setSaving(false); setShowForm(false); setEditingMgr(null);
+    setForm({ name:"", email:"", password:"", department_id:"" });
+    fetch();
+  };
+
+  const del = async (m: any) => {
+    if (!window.confirm(`حذف مدير القسم "${m.name}"؟`)) return;
+    await supabase.from("department_managers").delete().eq("id", m.id);
+    await logAction("delete", "department_managers", m.id);
+    fetch();
+  };
+
+  return (
+    <div dir="rtl" className="space-y-6">
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+        <div>
+          <h2 style={{ fontSize:"24px", fontWeight:"900", margin:0 }}>🏢 مديرو الأقسام</h2>
+          <p style={{ color:"#64748b", fontSize:"13px", marginTop:"4px" }}>يدخلون بالإيميل + كلمة السر ويرون قسمهم فقط. موافقتهم أولى ثم تنتظر موافقتك النهائية.</p>
+        </div>
+        <button onClick={openAdd} style={{ background:"linear-gradient(135deg,#4f46e5,#7c3aed)", color:"white", border:"none", borderRadius:"14px", padding:"12px 22px", fontWeight:"800", fontSize:"14px", cursor:"pointer" }}>+ إضافة مدير قسم</button>
+      </div>
+
+      {/* بطاقة الشرح */}
+      <div style={{ background:"linear-gradient(135deg,#ede9fe,#ddd6fe)", borderRadius:"16px", padding:"16px 20px", display:"flex", gap:"16px", alignItems:"center" }}>
+        <div style={{ fontSize:"36px" }}>🔄</div>
+        <div style={{ fontSize:"13px", color:"#4c1d95", lineHeight:"1.8" }}>
+          <strong>سير العمل (Double Approval):</strong><br/>
+          موظف يقدم طلب → <strong>مدير القسم يوافق مبدئياً</strong> → <strong>أنت توافق نهائياً</strong> → يُخصم الرصيد ويُرسل الإشعار
+        </div>
+      </div>
+
+      {loading ? <div style={{ textAlign:"center", padding:"60px", color:"#94a3b8" }}>جاري التحميل...</div> : (
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))", gap:"16px" }}>
+          {managers.map(m => (
+            <div key={m.id} style={{ background:"white", borderRadius:"20px", padding:"24px", border:"1px solid #e2e8f0" }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"16px" }}>
+                <div style={{ display:"flex", gap:"12px", alignItems:"center" }}>
+                  <div style={{ width:"46px", height:"46px", borderRadius:"14px", background:"linear-gradient(135deg,#ede9fe,#ddd6fe)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:"22px" }}>🏢</div>
+                  <div>
+                    <div style={{ fontWeight:"800", fontSize:"15px" }}>{m.name}</div>
+                    <div style={{ fontSize:"12px", color:"#6366f1", fontWeight:"700" }}>{m.departments?.name || "—"}</div>
+                  </div>
+                </div>
+                <div style={{ display:"flex", gap:"6px" }}>
+                  <button onClick={() => openEdit(m)} style={{ padding:"7px", background:"#eff6ff", border:"none", borderRadius:"8px", cursor:"pointer" }}>✏️</button>
+                  <button onClick={() => del(m)}       style={{ padding:"7px", background:"#fff1f2", border:"none", borderRadius:"8px", cursor:"pointer" }}>🗑️</button>
+                </div>
+              </div>
+              <div style={{ background:"#f8fafc", borderRadius:"12px", padding:"12px 14px", fontSize:"13px" }}>
+                <div style={{ marginBottom:"6px" }}>📧 {m.email}</div>
+                <div style={{ color:"#94a3b8" }}>🔑 {"•".repeat(m.password?.length || 6)}</div>
+              </div>
+              <div style={{ marginTop:"10px", background:"#f0fdf4", borderRadius:"10px", padding:"8px 12px", fontSize:"12px", color:"#16a34a", fontWeight:"700" }}>
+                ✅ صلاحية: موافقة مبدئية على طلبات قسمه
+              </div>
+            </div>
+          ))}
+          {managers.length === 0 && (
+            <div style={{ gridColumn:"1/-1", padding:"60px", textAlign:"center", background:"white", borderRadius:"20px", border:"2px dashed #e2e8f0" }}>
+              <div style={{ fontSize:"48px", marginBottom:"12px" }}>🏢</div>
+              <p style={{ color:"#94a3b8", fontWeight:"700" }}>لم تضف مديري أقسام بعد</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* فورم الإضافة / التعديل */}
+      {showForm && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(15,23,42,0.6)", backdropFilter:"blur(8px)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:1000, padding:"20px" }} onClick={() => setShowForm(false)}>
+          <div style={{ background:"white", borderRadius:"28px", padding:"40px", width:"100%", maxWidth:"460px", direction:"rtl" }} onClick={e => e.stopPropagation()}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"28px" }}>
+              <h3 style={{ margin:0, fontSize:"20px", fontWeight:"900" }}>{editingMgr ? "تعديل مدير قسم" : "إضافة مدير قسم جديد"}</h3>
+              <button onClick={() => setShowForm(false)} style={{ background:"#f1f5f9", border:"none", borderRadius:"10px", padding:"8px 14px", cursor:"pointer", fontSize:"16px" }}>✕</button>
+            </div>
+            <div style={{ display:"flex", flexDirection:"column", gap:"14px" }}>
+              {[
+                { label:"الاسم الكامل *", key:"name", type:"text", ph:"مثال: أحمد محمد" },
+                { label:"البريد الإلكتروني *", key:"email", type:"email", ph:"manager@company.com" },
+                { label:"كلمة المرور *", key:"password", type:"text", ph:"اختر كلمة مرور قوية" },
+              ].map(f => (
+                <div key={f.key}>
+                  <label style={{ fontSize:"12px", fontWeight:"700", color:"#64748b", display:"block", marginBottom:"6px" }}>{f.label}</label>
+                  <input type={f.type} placeholder={f.ph} value={(form as any)[f.key]} onChange={e => setForm({...form, [f.key]: e.target.value})}
+                    style={{ width:"100%", padding:"12px 16px", border:"1.5px solid #e2e8f0", borderRadius:"14px", fontSize:"14px", outline:"none", boxSizing:"border-box" as const, fontFamily:"inherit" }} />
+                </div>
+              ))}
+              <div>
+                <label style={{ fontSize:"12px", fontWeight:"700", color:"#64748b", display:"block", marginBottom:"6px" }}>القسم المسؤول عنه *</label>
+                <select value={form.department_id} onChange={e => setForm({...form, department_id: e.target.value})}
+                  style={{ width:"100%", padding:"12px 16px", border:"1.5px solid #e2e8f0", borderRadius:"14px", fontSize:"14px", outline:"none", boxSizing:"border-box" as const, fontFamily:"inherit" }}>
+                  <option value="">اختر القسم</option>
+                  {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                </select>
+              </div>
+              <div style={{ background:"#fef3c7", borderRadius:"12px", padding:"12px", fontSize:"12px", color:"#92400e", fontWeight:"700" }}>
+                ⚠️ احتفظ بكلمة المرور بشكل آمن
+              </div>
+              <button onClick={save} disabled={saving} style={{ width:"100%", background:"linear-gradient(135deg,#4f46e5,#7c3aed)", color:"white", border:"none", borderRadius:"14px", padding:"14px", fontWeight:"900", fontSize:"15px", cursor:"pointer", opacity: saving ? 0.6 : 1, fontFamily:"inherit" }}>
+                {saving ? "جاري الحفظ..." : editingMgr ? "💾 تحديث" : "✅ إضافة"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
