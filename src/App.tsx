@@ -947,56 +947,55 @@ ${JSON.stringify(summaryData)}
     const { id, action, employee_id, days } = currentRequest;
     const oldData = requests.find(r => r.id === id);
     const emp = employees.find(e => e.id === employee_id);
-    const approverName = currentUser?.name || "المدير";
+    const approvedBy = currentUser?.name || "المدير";
 
-    // ===== موافقة نهائية من أي مدير =====
     if (action === "approved") {
       if (!emp) return;
       if (Number(emp.balance) < Number(days)) {
-        alert("رصيد الموظف غير كافٍ! الرصيد الحالي: " + emp.balance + " يوم");
-        setShowApprovalModal(false);
-        return;
+        alert("رصيد الموظف غير كاف (" + emp.balance + " يوم متاح)");
+        setShowApprovalModal(false); return;
       }
       await supabase.from("employees").update({
         balance: Number(emp.balance) - Number(days),
-        status: "إجازة",
-        return_date: null,
+        status: "اجازة", return_date: null,
       }).eq("id", emp.id);
       if (emp.email) {
         const { back } = getCalculatedDates(currentRequest.start_date, days);
         sendEmail(EMAILJS_TEMPLATES.approved, emp.email, {
-          employee_name: emp.name,
-          start_date: formatDate(currentRequest.start_date),
-          days,
-          back_date: formatDate(back),
-          admin_notes: adminNotes || "لا توجد ملاحظات",
-          request_id: id,
+          employee_name: emp.name, start_date: formatDate(currentRequest.start_date),
+          days, back_date: formatDate(back),
+          admin_notes: adminNotes || "لا توجد ملاحظات", request_id: id,
         });
       }
+      const { error } = await supabase.from("vacation_requests").update({
+        status: "approved", admin_notes: adminNotes || null,
+        owner_approved_by: approvedBy, owner_approved_at: new Date().toISOString(),
+      }).eq("id", id);
+      if (error) { alert("خطا: " + error.message); return; }
+      sendLocalNotification("تمت الموافقة على اجازة", emp.name + " - " + days + " يوم");
+      setShowApprovalModal(false); setCurrentRequest(null); setAdminNotes("");
+      fetchData();
+      await logAction("approved", "vacation_requests", id, oldData, { status: "approved", approved_by: approvedBy });
+      return;
     }
-    if (action === "rejected" && emp?.email) {
-      sendEmail(EMAILJS_TEMPLATES.rejected, emp.email, {
-        employee_name: emp.name,
-        start_date: formatDate(currentRequest.start_date),
-        admin_notes: adminNotes || "تم رفض الطلب",
-        request_id: id,
+
+    if (action === "rejected") {
+      if (emp?.email) sendEmail(EMAILJS_TEMPLATES.rejected, emp.email, {
+        employee_name: emp?.name, start_date: formatDate(currentRequest.start_date),
+        admin_notes: adminNotes || "تم رفض الطلب", request_id: id,
       });
+      const { error } = await supabase.from("vacation_requests").update({
+        status: "rejected", admin_notes: adminNotes || null,
+        owner_approved_by: approvedBy, owner_approved_at: new Date().toISOString(),
+      }).eq("id", id);
+      if (error) { alert("خطا: " + error.message); return; }
+      sendLocalNotification("تم رفض طلب اجازة", (emp?.name || "") + " - " + currentRequest.days + " يوم");
+      setShowApprovalModal(false); setCurrentRequest(null); setAdminNotes("");
+      fetchData();
+      await logAction("rejected", "vacation_requests", id, oldData, { status: "rejected", rejected_by: approvedBy });
+      return;
     }
-    const { error: updateErr } = await supabase.from("vacation_requests").update({
-      status: action,
-      admin_notes: adminNotes || null,
-      owner_approved_by: approverName,
-      owner_approved_at: new Date().toISOString(),
-    }).eq("id", id);
-    if (updateErr) { alert("❌ خطأ: " + updateErr.message); return; }
-    sendLocalNotification(
-      action === "approved" ? "✅ تمت الموافقة على إجازة" : "❌ تم رفض طلب إجازة",
-      (emp?.name || "") + " - " + days + " يوم"
-    );
-    setShowApprovalModal(false); setCurrentRequest(null); setAdminNotes("");
-    await fetchData();
-    await logAction(action, "vacation_requests", id, oldData, { status: action, admin_notes: adminNotes, approved_by: approverName });
-  };
+  };;
 
 
 
@@ -2036,7 +2035,7 @@ ${JSON.stringify(systemData)}
                           </div>
                           <div style={{ padding:"12px", display:"flex", flexDirection:"column", gap:"8px" }}>
                             {grouped.map(group => {
-                              const groupKey = dept.id + "_" + group.rank;
+                              const groupKey = (myDeptId || "dept") + "_" + group.rank;
                               const isOpen = expandedDeptGroups[groupKey] !== false;
                               return (
                               <div key={group.rank} style={{ border:"1px solid #f1f5f9", borderRadius:"14px", overflow:"hidden" }}>
@@ -2607,7 +2606,7 @@ ${JSON.stringify(systemData)}
                               </div>
                               {req.notes && <p className="text-sm text-slate-500 italic mb-6">"{req.notes}"</p>}
                               <div className="flex gap-3">
-                                <button onClick={() => openApprovalModal(req, "approved")} className="flex-1 bg-amber-500 hover:bg-amber-600 text-white py-4 rounded-2xl font-black">✅ موافقة</button>
+                                <button onClick={() => openApprovalModal(req, "approved")} className="flex-1 bg-amber-500 hover:bg-amber-600 text-white py-4 rounded-2xl font-black">موافقة</button>
                                 <button onClick={() => openApprovalModal(req, "rejected")} className="flex-1 bg-red-50 text-red-600 hover:bg-red-100 py-4 rounded-2xl font-black">رفض</button>
                                 <button onClick={() => { setMgrEditForm({ id:req.id, empName:req.employee_name, days:req.days, start_date:req.start_date, reason:"", oldDays:req.days }); setShowManagerEditModal(true); }}
                                   style={{ width:"100%", marginTop:"6px", padding:"10px", background:"#f5f3ff", border:"1px solid #ddd6fe", borderRadius:"14px", color:"#7c3aed", cursor:"pointer", fontWeight:"700", fontSize:"12px" }}>
@@ -2626,98 +2625,53 @@ ${JSON.stringify(systemData)}
                     </>
                   )}
 
-                  {/* Owner: طلبات بانتظار موافقة مدير القسم */}
-                  {isOwner && filteredRequests.filter(r => r.status === "pending").length > 0 && (
+                  {/* Owner: جميع الطلبات المعلقة - موافقة مباشرة بدون مرحلتين */}
+                  {isOwner && filteredRequests.filter(r => r.status === "pending" || r.status === "dept_approved").length > 0 && (
                     <>
-                      <h3 className="font-black text-lg text-amber-600">⏳ طلبات تحتاج موافقتك ({filteredRequests.filter(r => r.status === "pending" || r.status === "dept_approved").length})</h3>
+                      <h3 className="font-black text-lg text-emerald-600">
+                        طلبات تحتاج موافقتك ({filteredRequests.filter(r => r.status === "pending" || r.status === "dept_approved").length})
+                      </h3>
                       <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(300px, 1fr))", gap:"16px" }}>
                         {filteredRequests.filter(r => r.status === "pending" || r.status === "dept_approved").map(req => {
-                          const vacType = vacationTypes.find(vt => vt.id === req.vacation_type_id);
-                          const dept = departments.find(d => d.id === employees.find(e => e.id === req.employee_id)?.department_id);
-                          return (
-                            <div key={req.id} className="bg-white p-8 rounded-[2.5rem] border shadow-sm opacity-80">
-                              <div className="flex justify-between items-start mb-4">
-                                <div>
-                                  <h4 className="font-black text-xl text-slate-800">{req.employee_name}</h4>
-                                  <p className="text-xs text-amber-600 font-bold mt-1">🏢 {dept?.name || "—"} — بانتظار مدير القسم</p>
-                                </div>
-                                <div className="flex gap-2">
-                                  {vacType && <span className="px-3 py-1 rounded-full text-xs font-bold" style={{ backgroundColor: vacType.color+'20', color: vacType.color }}>{vacType.name}</span>}
-                                  <button onClick={() => handleDeleteVacation(req.id)} className="p-2 text-red-400 hover:bg-red-50 rounded-xl"><Trash2 size={16} /></button>
-                                </div>
-                              </div>
-                              <div className="bg-slate-50 p-4 rounded-2xl text-sm space-y-2">
-                                <div className="flex justify-between font-bold"><span className="text-slate-400">البداية</span><span>{formatDate(req.start_date)}</span></div>
-                                <div className="flex justify-between font-bold"><span className="text-slate-400">المدة</span><span>{req.days} يوم</span></div>
-                                <div className="flex justify-between font-bold pt-2 border-t"><span className="text-indigo-600">تاريخ العودة</span><span className="text-indigo-600 font-black">{formatDate(getCalculatedDates(req.start_date, req.days).back)}</span></div>
-                              </div>
-                              {req.notes && <p className="text-sm text-slate-500 italic my-3">"{req.notes}"</p>}
-                              <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
-                                <div className="flex gap-3">
-                                  <button onClick={() => openApprovalModal(req, "approved")} className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-4 rounded-2xl font-black">✅ موافقة</button>
-                                  <button onClick={() => openApprovalModal(req, "rejected")} className="flex-1 bg-red-50 text-red-600 hover:bg-red-100 py-4 rounded-2xl font-black">❌ رفض</button>
-                                </div>
-                                <button onClick={() => { setMgrEditForm({ id:req.id, empName:req.employee_name, days:req.days, start_date:req.start_date, reason:"", oldDays:req.days }); setShowManagerEditModal(true); }}
-                                  style={{ width:"100%", padding:"10px", background:"#f5f3ff", border:"1px solid #ddd6fe", borderRadius:"14px", color:"#7c3aed", cursor:"pointer", fontWeight:"700", fontSize:"12px" }}>
-                                  ✏️ تعديل الإجازة
-                                </button>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </>
-                  )}
-
-                  {/* --- separator removed: owner sees all pending directly --- */}
-                  {isOwner && false && (
-                    <>
-                      <h3 className="font-black text-lg text-indigo-600">
-                        🔔 وافق عليها مدير القسم — بانتظار موافقتك النهائية ({filteredRequests.filter(r => r.status === "dept_approved").length})
-                      </h3>
-                      <div className="grid grid-cols-2 gap-6">
-                        {filteredRequests.filter(r => r.status === "dept_approved").map(req => {
                           const vacType = vacationTypes.find(vt => vt.id === req.vacation_type_id);
                           const emp = employees.find(e => e.id === req.employee_id);
                           const dept = departments.find(d => d.id === emp?.department_id);
                           return (
-                            <div key={req.id} className="bg-white p-8 rounded-[2.5rem] border-2 border-indigo-300 shadow-md">
+                            <div key={req.id} className="bg-white p-8 rounded-[2.5rem] border-2 border-emerald-200 shadow-sm">
                               <div className="flex justify-between items-start mb-4">
                                 <div>
                                   <h4 className="font-black text-xl text-slate-800">{req.employee_name}</h4>
-                                  <p className="text-xs text-indigo-600 font-bold mt-1">✅ وافق عليها: {req.dept_approved_by || dept?.name}</p>
+                                  <p className="text-xs text-slate-400 font-bold mt-1">{dept?.name || ""}</p>
+                                  {req.status === "dept_approved" && (
+                                    <p className="text-xs text-indigo-600 font-bold mt-1">وافق عليها مدير القسم: {req.dept_approved_by}</p>
+                                  )}
                                 </div>
                                 <div className="flex gap-2 items-center">
                                   {vacType && <span className="px-3 py-1 rounded-full text-xs font-bold" style={{ backgroundColor: vacType.color+'20', color: vacType.color }}>{vacType.name}</span>}
                                   <button onClick={() => handleDeleteVacation(req.id)} className="p-2 text-red-400 hover:bg-red-50 rounded-xl"><Trash2 size={16} /></button>
                                 </div>
                               </div>
-                              <div className="bg-indigo-50 p-6 rounded-2xl space-y-3 mb-6">
-                                <div className="flex justify-between text-sm font-bold"><span className="text-slate-400">تاريخ البداية</span><span>{formatDate(req.start_date)}</span></div>
-                                <div className="flex justify-between text-sm font-bold"><span className="text-slate-400">المدة</span><span>{req.days} يوم</span></div>
-                                <div className="flex justify-between text-sm font-bold pt-3 border-t"><span className="text-indigo-600">تاريخ العودة</span><span className="text-indigo-600 font-black">{formatDate(getCalculatedDates(req.start_date, req.days).back)}</span></div>
+                              <div className="bg-slate-50 p-4 rounded-2xl text-sm space-y-2 mb-4">
+                                <div className="flex justify-between font-bold"><span className="text-slate-400">البداية</span><span>{formatDate(req.start_date)}</span></div>
+                                <div className="flex justify-between font-bold"><span className="text-slate-400">المدة</span><span>{req.days} يوم</span></div>
+                                <div className="flex justify-between font-bold pt-2 border-t"><span className="text-indigo-600">العودة</span><span className="text-indigo-600 font-black">{formatDate(getCalculatedDates(req.start_date, req.days).back)}</span></div>
                               </div>
-                              {req.dept_manager_notes && <p className="text-sm text-indigo-500 italic mb-4">💬 مدير القسم: "{req.dept_manager_notes}"</p>}
                               {req.notes && <p className="text-sm text-slate-500 italic mb-4">"{req.notes}"</p>}
-                              {emp?.email && <p className="text-xs text-indigo-400 mb-4 flex items-center gap-1"><Mail size={12} /> إشعار لـ {emp.email}</p>}
-                              <div className="flex gap-3">
-                                <button onClick={() => openApprovalModal(req, "approved")} className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-4 rounded-2xl font-black">✅ موافقة نهائية</button>
-                                <button onClick={() => openApprovalModal(req, "rejected")} className="flex-1 bg-red-50 text-red-600 hover:bg-red-100 py-4 rounded-2xl font-black">❌ رفض</button>
-                                <button onClick={() => { setMgrEditForm({ id:req.id, empName:req.employee_name, days:req.days, start_date:req.start_date, reason:"", oldDays:req.days }); setShowManagerEditModal(true); }}
-                                  style={{ width:"100%", marginTop:"6px", padding:"10px", background:"#f5f3ff", border:"1px solid #ddd6fe", borderRadius:"14px", color:"#7c3aed", cursor:"pointer", fontWeight:"700", fontSize:"12px" }}>
-                                  ✏️ تعديل الإجازة
-                                </button>
+                              {emp?.email && <p className="text-xs text-slate-400 mb-4 flex items-center gap-1"><Mail size={12}/> {emp.email}</p>}
+                              <div className="flex gap-3 mb-2">
+                                <button onClick={() => openApprovalModal(req, "approved")} className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-4 rounded-2xl font-black">موافقة</button>
+                                <button onClick={() => openApprovalModal(req, "rejected")} className="flex-1 bg-red-50 text-red-600 hover:bg-red-100 py-4 rounded-2xl font-black">رفض</button>
                               </div>
+                              <button onClick={() => { setMgrEditForm({ id:req.id, empName:req.employee_name, days:req.days, start_date:req.start_date, reason:"", oldDays:req.days }); setShowManagerEditModal(true); }}
+                                style={{ width:"100%", padding:"10px", background:"#f5f3ff", border:"1px solid #ddd6fe", borderRadius:"14px", color:"#7c3aed", cursor:"pointer", fontWeight:"700", fontSize:"12px" }}>
+                                تعديل الاجازة
+                              </button>
                             </div>
                           );
                         })}
-                        {filteredRequests.filter(r => r.status === "dept_approved").length === 0 && (
-                          <div className="col-span-2 py-16 text-center bg-indigo-50 rounded-[3rem] border border-dashed border-indigo-200">
-                            <p className="text-indigo-300 font-bold">لا توجد طلبات بانتظار موافقتك النهائية ✅</p>
-                          </div>
-                        )}
                       </div>
                     </>
+                  )}
                   )}
                 </div>
               )}
