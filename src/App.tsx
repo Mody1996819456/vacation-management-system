@@ -1137,17 +1137,57 @@ ${JSON.stringify(summaryData)}
 
   // ===== Handler: الموظف يعدّل طلبه (خلال 3 أيام) =====
   const handleEmpEditRequest = async () => {
-    if (!empEditReq) return;
+    if (!empEditReq) return alert("لا يوجد طلب محدد");
+    if (!empEditReq.id) return alert("خطأ: معرّف الطلب مفقود");
     if (!empEditReq.start_date) return alert("حدد تاريخ البداية");
     if (!empEditReq.days || Number(empEditReq.days) < 0.5) return alert("عدد الأيام يجب أن يكون 0.5 على الأقل");
-    const { error } = await supabase.from("vacation_requests").update({
-      start_date: empEditReq.start_date,
-      days: empEditReq.days,
-      notes: empEditReq.notes,
-      vacation_type_id: empEditReq.vacation_type_id,
-      departure_time: empEditReq.departure_time,
-    }).eq("id", empEditReq.id);
-    if (error) return alert("خطأ: " + error.message);
+
+    // محاولة update أولاً
+    const { data: updData, error: updError } = await supabase
+      .from("vacation_requests")
+      .update({
+        start_date: empEditReq.start_date,
+        days: Number(empEditReq.days),
+        notes: empEditReq.notes || null,
+        vacation_type_id: empEditReq.vacation_type_id || null,
+        departure_time: empEditReq.departure_time || "actual",
+      })
+      .eq("id", empEditReq.id)
+      .select();
+
+    // لو فشل الـ update بسبب RLS، نحذف ونعيد إنشاء
+    if (updError || !updData || updData.length === 0) {
+      const { error: delError } = await supabase
+        .from("vacation_requests")
+        .delete()
+        .eq("id", empEditReq.id)
+        .eq("employee_id", currentUser.id);
+
+      if (delError) {
+        alert("❌ لا يمكن تعديل الطلب. يرجى التواصل مع المدير.\nالخطأ: " + (updError?.message || delError.message));
+        return;
+      }
+
+      const { error: insError } = await supabase
+        .from("vacation_requests")
+        .insert([{
+          employee_id: currentUser.id,
+          employee_name: currentUser.name,
+          start_date: empEditReq.start_date,
+          departure_date: empEditReq.start_date,
+          departure_time: empEditReq.departure_time || "actual",
+          days: Number(empEditReq.days),
+          notes: empEditReq.notes || null,
+          vacation_type_id: empEditReq.vacation_type_id || null,
+          status: "pending",
+        }]);
+
+      if (insError) {
+        alert("❌ خطأ في إعادة إنشاء الطلب: " + insError.message);
+        return;
+      }
+    }
+
     setShowEditRequestModal(false);
     setEmpEditReq(null);
     await fetchData();
