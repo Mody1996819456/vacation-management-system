@@ -30,7 +30,6 @@ const EMAILJS_TEMPLATES = {
 const ADMIN_EMAIL = "mohamedgamal199681945@gmail.com";
 
 // ==================== EMAIL SENDER ====================
-// ==================== EMAIL SENDER ====================
 // منع تكرار إيميلات تلقائية (return_reminder) بس - مش إيميلات الموافقة/الرفض
 const autoEmailCache = new Set<string>();
 
@@ -230,62 +229,62 @@ const EmpEditModal = ({ req, vacationTypes, onClose, onChange, onSave }: {
 
 const VacationManagementSystem = () => {
   // ========== STATES ==========
-  const[employees, setEmployees] = useState<any[]>([]);
+  const [employees, setEmployees] = useState<any[]>([]);
   const [requests, setRequests] = useState<any[]>([]);
   const [vacationTypes, setVacationTypes] = useState<any[]>([]);
   const [departments, setDepartments] = useState<any[]>([]);
   const[publicHolidays, setPublicHolidays] = useState<any[]>([]);
-  const [auditLog, setAuditLog] = useState<any[]>([]);
+  const[auditLog, setAuditLog] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const[activeTab, setActiveTab] = useState("dashboard");
+  const [activeTab, setActiveTab] = useState("dashboard");
   const [currentView, setCurrentView] = useState("login");
   const [currentUser, setCurrentUser] = useState<any>(null);
 
   // Filters & Search
   const [empSearch, setEmpSearch] = useState("");
-  const[vacSearch, setVacSearch] = useState("");
-  const [departmentFilter, setDepartmentFilter] = useState("all");
-  const[vacationTypeFilter, setVacationTypeFilter] = useState("all");
-  const[statusFilter, setStatusFilter] = useState("all");
-  const [empStatusFilter, setEmpStatusFilter] = useState("all");
+  const [vacSearch, setVacSearch] = useState("");
+  const[departmentFilter, setDepartmentFilter] = useState("all");
+  const [vacationTypeFilter, setVacationTypeFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const[empStatusFilter, setEmpStatusFilter] = useState("all");
   const [empSortField, setEmpSortField] = useState(""); // فرز الموظفين
   const [showStatusModal, setShowStatusModal] = useState(false);
   const[statusChangeEmp, setStatusChangeEmp] = useState<any>(null);
-  const[statusChangeForm, setStatusChangeForm] = useState({ status: "إجازة", start_date: "", days: 1, notes: "", vacation_type_id: "" });
+  const [statusChangeForm, setStatusChangeForm] = useState({ status: "إجازة", start_date: "", days: 1, notes: "", vacation_type_id: "" });
   const [empSortDir, setEmpSortDir] = useState<"asc"|"desc">("desc");
   const [empSortDropdown, setEmpSortDropdown] = useState("");
-  const [reqSearch, setReqSearch] = useState(""); // بحث في طلبات الإجازة
-  const [reqDateFrom, setReqDateFrom] = useState("");
-  const[reqDateTo, setReqDateTo] = useState("");
+  const[reqSearch, setReqSearch] = useState(""); // بحث في طلبات الإجازة
+  const[reqDateFrom, setReqDateFrom] = useState("");
+  const [reqDateTo, setReqDateTo] = useState("");
 
   // Modals & Forms
-  const[loginData, setLoginData] = useState({ email: "", password: "" });
-  const[empCodeInput, setEmpCodeInput] = useState("");
+  const [loginData, setLoginData] = useState({ email: "", password: "" });
+  const [empCodeInput, setEmpCodeInput] = useState("");
   const [showAddEmp, setShowAddEmp] = useState(false);
   const [editingEmp, setEditingEmp] = useState<any>(null);
-  const[editingVac, setEditingVac] = useState<any>(null);
-  const [showImportModal, setShowImportModal] = useState(false);
+  const [editingVac, setEditingVac] = useState<any>(null);
+  const[showImportModal, setShowImportModal] = useState(false);
   const [uploadingFile, setUploadingFile] = useState(false);
-  const[showApprovalModal, setShowApprovalModal] = useState(false);
-  const [currentRequest, setCurrentRequest] = useState<any>(null);
+  const [showApprovalModal, setShowApprovalModal] = useState(false);
+  const[currentRequest, setCurrentRequest] = useState<any>(null);
   const [adminNotes, setAdminNotes] = useState("");
-  const[notifications, setNotifications] = useState<any[]>([]);
+  const [notifications, setNotifications] = useState<any[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showReturnModal, setShowReturnModal] = useState(false);
-  const[returnData, setReturnData] = useState<any>(null);
-  const [showAddDept, setShowAddDept] = useState(false);
+  const [returnData, setReturnData] = useState<any>(null);
+  const[showAddDept, setShowAddDept] = useState(false);
   const [showAddHoliday, setShowAddHoliday] = useState(false);
   const [showAuditLog, setShowAuditLog] = useState(false);
   const[showBalanceLog, setShowBalanceLog] = useState(false);
   const balanceUpdatedRef = React.useRef(false);
-  const [balanceLogs, setBalanceLogs] = useState<any[]>([]);
-  const[balanceLogLoading, setBalanceLogLoading] = useState(false);
+  const[balanceLogs, setBalanceLogs] = useState<any[]>([]);
+  const [balanceLogLoading, setBalanceLogLoading] = useState(false);
 
   // Calendar
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Form Data - أضفنا return_date و email وحذفنا hire_date من الحساب
+  // Form Data
   const[newEmp, setNewEmp] = useState({
     name: "", code: "", position: "", balance: 21, monthly_balance: 0,
     department_id: "", hire_date: "", return_date: "", email: "",
@@ -293,12 +292,12 @@ const VacationManagementSystem = () => {
 
   const [newRequest, setNewRequest] = useState({
     start_date: "", days: 1, notes: "", vacation_type_id: "",
-    departure_time: "actual", // 'morning' | 'after_work' | 'actual'
+    departure_time: "actual",
   });
 
   const [newDept, setNewDept] = useState({ name: "", description: "" });
-  const[newHoliday, setNewHoliday] = useState({ name: "", date: "", is_recurring: false });
-  const[isSubmitting, setIsSubmitting] = useState(false);
+  const [newHoliday, setNewHoliday] = useState({ name: "", date: "", is_recurring: false });
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const[showDirectVacModal, setShowDirectVacModal] = useState(false);
   const [directVacForm, setDirectVacForm] = useState({ employee_id: "", days: 1, start_date: "", notes: "", vacation_type_id: "" });
   const [vacSearch2, setVacSearch2] = useState("");
@@ -307,22 +306,24 @@ const VacationManagementSystem = () => {
   const [vacDeptFilter2, setVacDeptFilter2] = useState("all");
   const [empSearchDirect, setEmpSearchDirect] = useState("");
   const[selectedCalendarDay, setSelectedCalendarDay] = useState<string | null>(null);
-  const[showEmpDropdown, setShowEmpDropdown] = useState(false);
+  const [showEmpDropdown, setShowEmpDropdown] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+
   // ===== States للميزات الجديدة =====
-  const[showEditRequestModal, setShowEditRequestModal] = useState(false);
-  const [empEditReq, setEmpEditReq] = useState<any>(null);
+  const [showEditRequestModal, setShowEditRequestModal] = useState(false);
+  const[empEditReq, setEmpEditReq] = useState<any>(null);
   const [showManagerEditModal, setShowManagerEditModal] = useState(false);
   const [mgrEditForm, setMgrEditForm] = useState({ id:"", empName:"", days:1, start_date:"", reason:"", oldDays:1 });
   const [showPrintModal, setShowPrintModal] = useState(false);
   const [printFrom, setPrintFrom] = useState("");
-  const[printTo, setPrintTo] = useState("");
-  const [printSelected, setPrintSelected] = useState<string[]>([]);
+  const [printTo, setPrintTo] = useState("");
+  const[printSelected, setPrintSelected] = useState<string[]>([]);
   const [expandedDeptGroups, setExpandedDeptGroups] = useState<Record<string,boolean>>({});
   const [showEmpInfoModal, setShowEmpInfoModal] = useState(false);
-  const[empInfoTarget, setEmpInfoTarget] = useState<any>(null);
+  const [empInfoTarget, setEmpInfoTarget] = useState<any>(null);
   const[showAIChat, setShowAIChat] = useState(false);
   const [backupLoading, setBackupLoading] = useState(false);
+  
   // ===== NEW FEATURES STATES =====
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [showInsights, setShowInsights] = useState(false);
@@ -331,14 +332,14 @@ const VacationManagementSystem = () => {
   const [pushEnabled, setPushEnabled] = useState(() => {
     try { return typeof Notification !== "undefined" && Notification.permission === "granted"; } catch { return false; }
   });
-  const [showPWAGuide, setShowPWAGuide] = useState(false);
+  const[showPWAGuide, setShowPWAGuide] = useState(false);
   const[lastBackup, setLastBackup] = useState<string>("");
   const GOOGLE_SCRIPT_URL = process.env.REACT_APP_GOOGLE_SCRIPT_URL || "";
   const [aiMessages, setAiMessages] = useState<{role:string, content:string}[]>([
     { role: "assistant", content: "مرحباً! أنا مساعدك الذكي لإدارة الإجازات 🤖\n\nأستطيع مساعدتك في:\n• إضافة أو حذف موظف\n• عرض الإحصائيات والتقارير\n• الاستفسار عن أي موظف\n• مراجعة الطلبات المعلقة\n• وأي شيء آخر تحتاجه!\n\nاكتب أمرك بالعربي وأنا أنفذه." }
   ]);
   const [aiInput, setAiInput] = useState("");
-  const[aiLoading, setAiLoading] = useState(false);
+  const [aiLoading, setAiLoading] = useState(false);
   const GROQ_API_KEY = process.env.REACT_APP_GROQ_API_KEY || "";
   const [currentTime, setCurrentTime] = useState(new Date());
 
@@ -348,7 +349,7 @@ const VacationManagementSystem = () => {
     const handler = () => setEmpSortDropdown("");
     document.addEventListener("click", handler);
     return () => document.removeEventListener("click", handler);
-  },[empSortDropdown]);
+  }, [empSortDropdown]);
 
   // تحديث الساعة كل ثانية
   useEffect(() => {
@@ -429,12 +430,10 @@ ${JSON.stringify(summaryData)}
       alert("متصفحك لا يدعم الإشعارات. جرب Chrome أو Edge.");
       return;
     }
-    // لو مرفوض مسبقاً
     if (Notification.permission === "denied") {
       alert("الإشعارات محجوبة في إعدادات المتصفح.\n\nعشان تفعّلها:\n1. اضغط على 🔒 في شريط العنوان\n2. اختر إعدادات الموقع\n3. فعّل الإشعارات");
       return;
     }
-    // لو مفعّل أصلاً
     if (Notification.permission === "granted") {
       setPushEnabled(true);
       new Notification("🔔 الإشعارات مفعّلة", {
@@ -444,7 +443,6 @@ ${JSON.stringify(summaryData)}
       });
       return;
     }
-    // طلب الإذن
     const permission = await Notification.requestPermission();
     if (permission === "granted") {
       setPushEnabled(true);
@@ -461,7 +459,7 @@ ${JSON.stringify(summaryData)}
     }
   };
 
-  // ===== Send Local Notification - بيتحقق من الإذن مباشرة مش من الـ state =====
+  // ===== Send Local Notification =====
   const sendLocalNotification = (title: string, body: string) => {
     try {
       if (!("Notification" in window)) return;
@@ -571,9 +569,9 @@ ${JSON.stringify(summaryData)}
       console.error("Fetch Error:", err);
     }
     setLoading(false);
-    // استعادة موضع التمرير بعد التحديث
     requestAnimationFrame(() => { window.scrollTo({ top: scrollRef.current, behavior: "auto" }); });
   }, [currentUser, currentView]);
+
   // ========== تذكير العودة التلقائي ==========
   useEffect(() => {
     if (currentView !== "admin" || requests.length === 0) return;
@@ -590,15 +588,13 @@ ${JSON.stringify(summaryData)}
           sendEmail(EMAILJS_TEMPLATES.return_reminder, emp.email, {
             employee_name: emp.name,
             back_date: formatDate(back),
-          }, true); // منع التكرار للإيميل التلقائي
+          }, true);
         }
       }
     });
   },[requests, employees, currentView]);
 
-  // ========== حالة الموظف تلقائياً ==========
   const getEmployeeStatus = (emp: any) => {
-    // الحالة تُقرأ مباشرة من قاعدة البيانات - لا تغيير تلقائي
     return emp.status === "إجازة" ? "إجازة" : "عمل";
   };
 
@@ -634,17 +630,15 @@ ${JSON.stringify(summaryData)}
       const currentMonthName = monthNames[today.getMonth()];
       const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split("T")[0];
 
-      // فلتر الموظفين المحتاجين تحديث فقط
       const toUpdate = employees.filter(emp =>
         emp.monthly_balance > 0 &&
         (!emp.last_balance_update || emp.last_balance_update < firstDayOfMonth)
       );
 
-      if (toUpdate.length === 0) return; // مفيش حاجة تتعمل
+      if (toUpdate.length === 0) return;
 
       console.log(`🔄 جاري تحديث رصيد ${toUpdate.length} موظف...`);
 
-      // Bulk update — كل الموظفين دفعة واحدة بدل واحد واحد
       await Promise.all(toUpdate.map(async (emp) => {
         const newBalance = parseFloat((emp.balance + emp.monthly_balance).toFixed(2));
         const description = `تم إضافة ${emp.monthly_balance} يوم للموظف ${emp.name} - رصيد دوري لشهر ${currentMonthName}`;
@@ -696,7 +690,6 @@ ${JSON.stringify(summaryData)}
       const now = new Date();
       return r.status === "approved" && reqDate.getMonth() === now.getMonth() && reqDate.getFullYear() === now.getFullYear();
     }).length;
-    // الحالة مباشرة من DB
     const onVacationNow = employees.filter(e => e.status === "إجازة").length;
     const atWorkNow = employees.filter(e => e.status !== "إجازة").length;
     const avgBalance = employees.length > 0
@@ -737,7 +730,6 @@ ${JSON.stringify(summaryData)}
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // 1️⃣ Owner
     if (loginData.email === ADMIN_EMAIL && loginData.password === "Mg1996819456") {
       const ownerUser = { role: "owner", name: "محمد جمال" };
       setCurrentUser(ownerUser);
@@ -748,7 +740,6 @@ ${JSON.stringify(summaryData)}
       return;
     }
 
-    // 2️⃣ مدير قسم
     if (loginData.email && loginData.password) {
       const { data: mgr } = await supabase
         .from("department_managers")
@@ -774,7 +765,6 @@ ${JSON.stringify(summaryData)}
       }
     }
 
-    // 3️⃣ موظف بالكود
     if (empCodeInput.trim()) {
       const { data: emp } = await supabase.from("employees").select("*").eq("code", empCodeInput.trim()).single();
       if (emp) {
@@ -829,7 +819,6 @@ ${JSON.stringify(summaryData)}
       },
     ];
     const ws = XLSX.utils.json_to_sheet(template);
-    // تنسيق عرض الأعمدة
     ws["!cols"] =[
       { wch: 14 }, { wch: 22 }, { wch: 16 }, { wch: 28 },
       { wch: 12 }, { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 14 },
@@ -839,11 +828,9 @@ ${JSON.stringify(summaryData)}
     XLSX.writeFile(wb, "نموذج_استيراد_الموظفين.xlsx");
   };
 
-  // ========== دالة تحويل التواريخ من أي صيغة ==========
   const parseFlexibleDate = (value: any): string | null => {
     if (!value && value !== 0) return null;
 
-    // 1) Excel serial number (رقم تسلسلي من Excel)
     if (typeof value === "number") {
       const excelEpoch = new Date(1899, 11, 30);
       const date = new Date(excelEpoch.getTime() + value * 86400000);
@@ -854,33 +841,28 @@ ${JSON.stringify(summaryData)}
     const str = String(value).trim();
     if (!str) return null;
 
-    // 2) YYYY-MM-DD أو YYYY/MM/DD
     if (/^\d{4}[-/]\d{1,2}[-/]\d{1,2}$/.test(str)) {
       const d = new Date(str.replace(/\//g, "-"));
       if (!isNaN(d.getTime())) return d.toISOString().split("T")[0];
     }
 
-    // 3) DD-MM-YYYY أو DD/MM/YYYY
     if (/^\d{1,2}[-/]\d{1,2}[-/]\d{4}$/.test(str)) {
       const parts = str.split(/[-/]/);
       const d = new Date(`${parts[2]}-${parts[1].padStart(2, "0")}-${parts[0].padStart(2, "0")}`);
       if (!isNaN(d.getTime())) return d.toISOString().split("T")[0];
     }
 
-    // 4) MM/DD/YYYY
     if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(str)) {
       const d = new Date(str);
       if (!isNaN(d.getTime())) return d.toISOString().split("T")[0];
     }
 
-    // 5) أي صيغة أخرى يقدر JavaScript يفهمها
     const fallback = new Date(str);
     if (!isNaN(fallback.getTime())) return fallback.toISOString().split("T")[0];
 
     return null;
   };
 
-  // ========== دالة رفع الملف المحسّنة (تحديث جزئي + كل صيغ التواريخ) ==========
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -891,20 +873,16 @@ ${JSON.stringify(summaryData)}
       const worksheet = workbook.Sheets[workbook.SheetNames[0]];
       const jsonData = XLSX.utils.sheet_to_json(worksheet, { raw: true });
 
-      // تجهيز البيانات من الملف — فقط الحقول الموجودة فعلاً
       const fileRows = jsonData.map((row: any) => {
         const deptName = row["القسم"] || "";
         const dept = departments.find(d => d.name === deptName);
 
         const parsed: any = {};
-
-        // الحقول الإجبارية
         const name = row["الاسم الكامل"] || row["name"] || row["الاسم"];
         const code = String(row["الكود الوظيفي"] || row["code"] || row["الكود"] || "").trim();
         if (name) parsed.name = String(name).trim();
         if (code) parsed.code = code;
 
-        // الحقول الاختيارية — فقط لو موجودة في الملف
         const position = row["المنصب"] || row["position"];
         if (position !== undefined && position !== "") parsed.position = String(position).trim();
 
@@ -929,8 +907,7 @@ ${JSON.stringify(summaryData)}
         return parsed;
       });
 
-      // الاعتماد على الكود الوظيفي فقط كمعرّف أساسي
-      const validRows = fileRows.filter((r: any) => r.code); // الكود فقط مطلوب
+      const validRows = fileRows.filter((r: any) => r.code);
       const rowsWithoutCode = fileRows.length - validRows.length;
 
       if (validRows.length === 0) {
@@ -939,7 +916,6 @@ ${JSON.stringify(summaryData)}
         return;
       }
 
-      // جلب الموظفين الحاليين بالكود
       const codes = validRows.map((r: any) => r.code);
       const { data: existingEmps } = await supabase
         .from("employees")
@@ -958,7 +934,6 @@ ${JSON.stringify(summaryData)}
       for (const row of validRows) {
         const existing = existingMap.get(String(row.code).trim());
         if (existing) {
-          // تحديث جزئي — فقط الحقول الموجودة في الملف (لا تمسح الحقول الفارغة)
           const updatePayload: any = { id: existing.id };
           if (row.name !== undefined)             updatePayload.name = row.name;
           if (row.position !== undefined)         updatePayload.position = row.position;
@@ -971,7 +946,6 @@ ${JSON.stringify(summaryData)}
           toUpdate.push(updatePayload);
           updatedCount++;
         } else {
-          // إضافة موظف جديد — الاسم مطلوب للإضافة
           if (!row.name) {
             skippedRows.push(row.code);
             continue;
@@ -993,13 +967,11 @@ ${JSON.stringify(summaryData)}
 
       let errorMsg = "";
 
-      // إضافة الجدد
       if (toAdd.length > 0) {
         const { error: addErr } = await supabase.from("employees").insert(toAdd);
         if (addErr) errorMsg += "\n⚠️ خطأ في الإضافة: " + addErr.message;
       }
 
-      // تحديث الموجودين — كل سجل على حدة لضمان التحديث الجزئي
       for (const upd of toUpdate) {
         const { id, ...fields } = upd;
         const { error: updErr } = await supabase.from("employees").update(fields).eq("id", id);
@@ -1027,7 +999,6 @@ ${JSON.stringify(summaryData)}
   };
 
   const exportToExcel = (data: any[], fileName: string) => {
-    // تحويل بيانات الموظفين لأعمدة النظام
     const isEmpData = data.length > 0 && "name" in data[0] && "code" in data[0] && "balance" in data[0];
     const exportData = isEmpData ? data.map(emp => {
       const dept = departments.find((d: any) => d.id === emp.department_id);
@@ -1076,7 +1047,6 @@ ${JSON.stringify(summaryData)}
     exportToExcel(reportData, `تقرير_شامل_${new Date().toISOString().split('T')[0]}`);
   };
 
-  // ========== EMPLOYEE OPERATIONS ==========
   const handleAddEmployee = async () => {
     if (!newEmp.name || !newEmp.code) return alert("الاسم والكود الوظيفي مطلوبان ❌");
     setIsSubmitting(true);
@@ -1138,7 +1108,6 @@ ${JSON.stringify(summaryData)}
     }
   };
 
-  // ========== VACATION OPERATIONS ==========
   const openApprovalModal = (req: any, action: "approved" | "rejected") => {
     setCurrentRequest({ ...req, action });
     setAdminNotes("");
@@ -1205,7 +1174,6 @@ ${JSON.stringify(summaryData)}
   const handleDeleteVacation = async (id: string) => {
     if (!window.confirm("حذف هذا السجل من القائمة فقط؟\n⚠️ لن يتأثر رصيد الموظف أو حالته.")) return;
     const req = requests.find(r => r.id === id);
-    // الحذف من السجل فقط - لا تعديل على رصيد الموظف أو حالته
     await supabase.from("vacation_requests").delete().eq("id", id);
     await logAction("delete", "vacation_requests", id, req);
     fetchData();
@@ -1228,7 +1196,6 @@ ${JSON.stringify(summaryData)}
     await logAction("update", "vacation_requests", editingVac.id, oldData, editingVac);
   };
 
-  // ========== RETURN FROM VACATION ==========
   const openReturnModal = (request: any) => {
     setReturnData({ ...request, actual_return_date: new Date().toISOString().split("T")[0] });
     setShowReturnModal(true);
@@ -1238,7 +1205,6 @@ ${JSON.stringify(summaryData)}
     if (!returnData) return;
     const emp = employees.find(e => e.id === returnData.employee_id);
     if (!emp) return;
-    // تسجيل تاريخ العودة الفعلي + حالة الموظف = عمل
     await supabase.from("employees").update({
       return_date: returnData.actual_return_date,
       status: "عمل",
@@ -1251,12 +1217,10 @@ ${JSON.stringify(summaryData)}
     await logAction("return_from_vacation", "vacation_requests", returnData.id);
   };
 
-  // ========== EMPLOYEE PORTAL ==========
   const submitVacationRequest = async () => {
     if (!newRequest.start_date) return alert("حدد تاريخ البداية");
     if (!newRequest.vacation_type_id) return alert("اختر نوع الإجازة");
 
-    // ===== منع الطلب المكرر =====
     const pendingReq = requests.find(r =>
       r.employee_id === currentUser.id && (r.status === "pending" || r.status === "dept_approved")
     );
@@ -1279,7 +1243,6 @@ ${JSON.stringify(summaryData)}
       return;
     }
 
-    // ===== التحقق من الرصيد مع مراعاة الرصيد الشهري =====
     const reqDays = Number(newRequest.days);
     const currentBalance = Number(currentUser.balance || 0);
     const monthlyBalance = Number(currentUser.monthly_balance || 0);
@@ -1333,14 +1296,12 @@ ${JSON.stringify(summaryData)}
     setIsSubmitting(false);
   };
 
-  // ===== Handler: الموظف يعدّل طلبه (خلال 3 أيام) =====
   const handleEmpEditRequest = async () => {
     if (!empEditReq) return alert("لا يوجد طلب محدد");
     if (!empEditReq.id) return alert("خطأ: معرّف الطلب مفقود");
     if (!empEditReq.start_date) return alert("حدد تاريخ البداية");
     if (!empEditReq.days || Number(empEditReq.days) < 0.5) return alert("عدد الأيام يجب أن يكون 0.5 على الأقل");
 
-    // محاولة update أولاً
     const { data: updData, error: updError } = await supabase
       .from("vacation_requests")
       .update({
@@ -1353,7 +1314,6 @@ ${JSON.stringify(summaryData)}
       .eq("id", empEditReq.id)
       .select();
 
-    // لو فشل الـ update بسبب RLS، نحذف ونعيد إنشاء
     if (updError || !updData || updData.length === 0) {
       const { error: delError } = await supabase
         .from("vacation_requests")
@@ -1392,7 +1352,6 @@ ${JSON.stringify(summaryData)}
     alert("✅ تم تعديل الطلب بنجاح");
   };
 
-  // ===== Handler: المدير يعدّل الإجازة (أيام + تاريخ + سبب) =====
   const handleManagerEditRequest = async () => {
     if (!mgrEditForm.reason.trim()) return alert("يرجى كتابة سبب التعديل");
     if (Number(mgrEditForm.days) < 0.5) return alert("عدد الأيام يجب أن يكون 0.5 على الأقل");
@@ -1417,18 +1376,15 @@ ${JSON.stringify(summaryData)}
     alert("✅ تم تعديل الإجازة بنجاح");
   };
 
-  // ========== تغيير حالة الموظف يدوياً ==========
   const handleManualStatusChange = async () => {
     if (!statusChangeEmp) return;
     const emp = statusChangeEmp;
 
     if (statusChangeForm.status === "إجازة") {
-      // التحقق من الرصيد
       const days = Number(statusChangeForm.days);
       if (days > 0 && Number(emp.balance) < days) {
         if (!window.confirm(`رصيد ${emp.name} (${emp.balance} يوم) أقل من المطلوب (${days} يوم).\nهل تريد المتابعة؟`)) return;
       }
-      // تحديث حالة الموظف
       await supabase.from("employees").update({
         status: "إجازة",
         return_date: statusChangeForm.start_date && days > 0
@@ -1436,7 +1392,7 @@ ${JSON.stringify(summaryData)}
           : null,
         ...(days > 0 ? { balance: Number(emp.balance) - days } : {}),
       }).eq("id", emp.id);
-      // إضافة سجل إجازة لو كانت فيه بيانات
+      
       if (statusChangeForm.start_date && statusChangeForm.vacation_type_id) {
         await supabase.from("vacation_requests").insert([{
           employee_id: emp.id,
@@ -1453,7 +1409,6 @@ ${JSON.stringify(summaryData)}
       await logAction("manual_status", "employees", emp.id, { status: emp.status }, { status: "إجازة" });
       alert(`✅ تم تغيير حالة ${emp.name} إلى إجازة`);
     } else {
-      // تغيير إلى عمل
       await supabase.from("employees").update({
         status: "عمل",
         return_date: new Date().toISOString().split("T")[0],
@@ -1467,7 +1422,6 @@ ${JSON.stringify(summaryData)}
     await fetchData();
   };
 
-  // ========== DIRECT VACATION (إجازة مباشرة) ==========
   const handleDirectVacation = async () => {
     if (!directVacForm.employee_id) return alert("اختر الموظف ❌");
     if (!directVacForm.start_date) return alert("حدد تاريخ البداية ❌");
@@ -1477,7 +1431,6 @@ ${JSON.stringify(summaryData)}
     if (!emp) { setIsSubmitting(false); return; }
     const days = Number(directVacForm.days);
     const { back } = getCalculatedDates(directVacForm.start_date, days);
-    // إضافة الطلب مباشرة بحالة approved
     const { error: reqErr } = await supabase.from("vacation_requests").insert([{
       employee_id: emp.id,
       employee_name: emp.name,
@@ -1490,7 +1443,6 @@ ${JSON.stringify(summaryData)}
       owner_approved_at: new Date().toISOString(),
     }]);
     if (reqErr) { alert("❌ " + reqErr.message); setIsSubmitting(false); return; }
-    // خصم الرصيد وتغيير الحالة
     await supabase.from("employees").update({
       balance: emp.balance - days,
       status: "إجازة",
@@ -1504,7 +1456,6 @@ ${JSON.stringify(summaryData)}
 تاريخ العودة: ${formatDate(back)}`);
   };
 
-  // ========== DEPARTMENT OPERATIONS ==========
   const handleAddDepartment = async () => {
     if (!newDept.name) return alert("أدخل اسم القسم");
     const { error } = await supabase.from("departments").insert([newDept]);
@@ -1528,7 +1479,6 @@ ${JSON.stringify(summaryData)}
     }
   };
 
-  // ========== HOLIDAY OPERATIONS ==========
   const handleAddHoliday = async () => {
     if (!newHoliday.name || !newHoliday.date) return alert("أدخل بيانات العطلة");
     const { error } = await supabase.from("public_holidays").insert([newHoliday]);
@@ -1549,7 +1499,6 @@ ${JSON.stringify(summaryData)}
     }
   };
 
-  // ========== CALENDAR RENDER ==========
   const renderCalendar = () => {
     const year = currentMonth.getFullYear();
     const month = currentMonth.getMonth();
@@ -1609,12 +1558,10 @@ ${JSON.stringify(summaryData)}
     );
   };
 
-  // ========== ROLE HELPERS ==========
   const isOwner   = currentUser?.role === "owner";
   const isDeptMgr = currentUser?.role === "dept_manager";
   const myDeptId  = currentUser?.dept_id ?? null;
 
-  // Owner يرى الكل — مدير القسم يرى قسمه فقط
   const scopedEmployees = isDeptMgr
     ? employees.filter(e => e.department_id === myDeptId)
     : employees;
@@ -1622,17 +1569,14 @@ ${JSON.stringify(summaryData)}
     ? requests.filter(r => scopedEmployees.some(e => e.id === r.employee_id))
     : requests;
 
-  // ========== FILTERED DATA ==========
   const filteredEmployees = useMemo(() => {
     let result = scopedEmployees.filter(emp => {
       const matchSearch = emp.name.includes(empSearch) || emp.code.includes(empSearch) || (emp.position||"").includes(empSearch);
       const matchDept = departmentFilter === "all" || emp.department_id === departmentFilter;
-      // الحالة تُقرأ مباشرة من قاعدة البيانات
       const empStatus = emp.status === "إجازة" ? "إجازة" : "عمل";
       const matchStatus = empStatusFilter === "all" || empStatus === empStatusFilter;
       return matchSearch && matchDept && matchStatus;
     });
-    // فرز حسب العمود المحدد
     if (empSortField) {
       result = [...result].sort((a, b) => {
         let va: any, vb: any;
@@ -1674,7 +1618,6 @@ ${JSON.stringify(summaryData)}
     });
   },[scopedRequests, vacSearch, reqSearch, vacationTypeFilter, statusFilter, reqDateFrom, reqDateTo]);
 
-  // ==================== GOOGLE SHEETS BACKUP ====================
   const handleBackup = async () => {
     if (!GOOGLE_SCRIPT_URL) {
       alert("❌ لم يتم إعداد REACT_APP_GOOGLE_SCRIPT_URL بعد!\nراجع خطوات الإعداد في إعدادات Vercel.");
@@ -1730,15 +1673,13 @@ ${JSON.stringify(summaryData)}
     setBackupLoading(false);
   };
 
-  // ==================== AI CHAT HANDLER ====================
   const handleAIMessage = async () => {
     if (!aiInput.trim() || aiLoading) return;
     const userMsg = aiInput.trim();
     setAiInput("");
-    setAiMessages(prev =>[...prev, { role: "user", content: userMsg }]);
+    setAiMessages(prev => [...prev, { role: "user", content: userMsg }]);
     setAiLoading(true);
 
-    // ✅ تحقق من وجود الـ API Key أولاً
     if (!GROQ_API_KEY) {
       setAiMessages(prev =>[...prev, {
         role: "assistant",
@@ -1748,10 +1689,7 @@ ${JSON.stringify(summaryData)}
       return;
     }
 
-    // ✅ بيانات شاملة ومضغوطة - كل الموظفين مع حالتهم دايماً
     const today = new Date().toISOString().split("T")[0];
-
-    // حساب من في إجازة دلوقتي
     const onVacationEmployees = employees.filter(e => {
       return requests.some(r => {
         if (r.employee_id !== e.id || r.status !== "approved") return false;
@@ -1764,7 +1702,6 @@ ${JSON.stringify(summaryData)}
 
     const onVacationIds = new Set(onVacationEmployees.map(e => e.id));
 
-    // كل الموظفين بدون حدود مع حالتهم الحقيقية
     const compactEmployees = employees.map(e => ({
       id: e.id,
       name: e.name,
@@ -1776,7 +1713,6 @@ ${JSON.stringify(summaryData)}
       status: onVacationIds.has(e.id) ? "إجازة" : "عمل",
     }));
 
-    // كل الطلبات المعلقة والحالية بدون حدود
     const activeRequests = requests
       .filter(r => r.status === "pending" || (r.status === "approved" && r.start_date <= today))
       .map(r => ({
@@ -1821,7 +1757,6 @@ ${JSON.stringify(systemData)}
 - تعديل منصب موظفين: ACTION: {"type":"bulk_update_position","data":{"employee_ids":["id1","id2"],"position":""}}`;
 
     try {
-      // بناء تاريخ المحادثة بصيغة OpenAI المتوافقة مع Groq
       const conversationHistory = aiMessages
         .filter((m, idx) => !(m.role === "assistant" && idx === 0))
         .map(m => ({ role: m.role, content: m.content }));
@@ -1846,7 +1781,6 @@ ${JSON.stringify(systemData)}
 
       const data = await response.json();
 
-      // ✅ التعامل مع أخطاء API
       if (data.error) {
         const errCode = data.error.code || "";
         let arabicError = `❌ خطأ من Groq API:\n${data.error.message}`;
@@ -1863,14 +1797,11 @@ ${JSON.stringify(systemData)}
       }
 
       const replyText = data.choices?.[0]?.message?.content || "عذراً، لم يرجع رد من الـ AI.";
-
-      // تحقق من وجود ACTION في الرد
       const actionMatch = replyText.match(/ACTION:\s*(\{.*\})/s);
       const cleanReply = replyText.replace(/ACTION:\s*\{.*\}/s, "").trim();
 
-      setAiMessages(prev => [...prev, { role: "assistant", content: cleanReply }]);
+      setAiMessages(prev =>[...prev, { role: "assistant", content: cleanReply }]);
 
-      // تنفيذ الأمر لو موجود
       if (actionMatch) {
         try {
           const action = JSON.parse(actionMatch[1]);
@@ -1894,12 +1825,12 @@ ${JSON.stringify(systemData)}
             if (req && emp) {
               await supabase.from("employees").update({ balance: emp.balance - req.days, status: "إجازة", return_date: null }).eq("id", emp.id);
               await supabase.from("vacation_requests").update({ status: "approved" }).eq("id", action.data.id);
-              setAiMessages(prev =>[...prev, { role: "assistant", content: "✅ تمت الموافقة على الطلب!" }]);
+              setAiMessages(prev => [...prev, { role: "assistant", content: "✅ تمت الموافقة على الطلب!" }]);
               fetchData();
             }
           } else if (action.type === "reject_request" && action.data?.id) {
             await supabase.from("vacation_requests").update({ status: "rejected" }).eq("id", action.data.id);
-            setAiMessages(prev => [...prev, { role: "assistant", content: "✅ تم رفض الطلب!" }]);
+            setAiMessages(prev =>[...prev, { role: "assistant", content: "✅ تم رفض الطلب!" }]);
             fetchData();
           } else if (action.type === "bulk_update_department" && action.data?.employee_ids && action.data?.department_id) {
             const ids = action.data.employee_ids;
@@ -2223,7 +2154,7 @@ ${JSON.stringify(systemData)}
                       if (rank === 3) return { label: "المشرفون", icon: "👮", color: "#065f46", bg: "linear-gradient(135deg,#d1fae5,#a7f3d0)" };
                       return { label: "الموظفون", icon: "👨‍💼", color: "#92400e", bg: "linear-gradient(135deg,#fef3c7,#fde68a)" };
                     };
-                    const grouped = [1,2,3,4].map(rank => ({
+                    const grouped =[1,2,3,4].map(rank => ({
                       rank,
                       ...getRankLabel(rank),
                       emps: deptEmps.filter(e => getRank(e.position) === rank)
@@ -3312,4 +3243,296 @@ ${JSON.stringify(systemData)}
                       {!isDeptMgr && (
                         <select style={{ padding:"10px 14px", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:"10px", outline:"none", fontSize:"13px", fontFamily:"inherit" }}
                           value={vacDeptFilter2} onChange={e => setVacDeptFilter2(e.target.value)}>
-                          <option value="all">كل الأق
+                          <option value="all">كل الأقسام</option>
+                          {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                        </select>
+                      )}
+                      <select style={{ padding:"10px 14px", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:"10px", outline:"none", fontSize:"13px", fontFamily:"inherit" }}
+                        value={vacTypeFilter2 || "all"} onChange={e => setVacTypeFilter2(e.target.value)}>
+                        <option value="all">كل أنواع الإجازات</option>
+                        {vacationTypes.map(vt => <option key={vt.id} value={vt.id}>{vt.name}</option>)}
+                      </select>
+                      <div style={{ background:"#eef2ff", color:"#4f46e5", borderRadius:"10px", padding:"10px 16px", fontWeight:"800", fontSize:"13px", whiteSpace:"nowrap" }}>
+                        {filtered.length} موظف في إجازة
+                      </div>
+                    </div>
+
+                    {/* جدول الإجازات الفعلية */}
+                    <div style={{ background:"white", borderRadius:"16px", border:"1px solid #e2e8f0", overflow:"hidden" }}>
+                      {filtered.length === 0 ? (
+                        <div style={{ padding:"60px", textAlign:"center", color:"#94a3b8" }}>
+                          <CheckCircle size={48} style={{ margin:"0 auto 12px", opacity:0.3, display:"block" }}/>
+                          <p style={{ fontWeight:"700", fontSize:"16px" }}>لا يوجد موظفون في إجازة الآن ✅</p>
+                        </div>
+                      ) : (
+                        <div style={{ overflowX:"auto" }}>
+                          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:"13px" }}>
+                            <thead style={{ background:"#f8fafc", borderBottom:"2px solid #e2e8f0" }}>
+                              <tr>
+                                {["الموظف", "القسم", "نوع الإجازة", "تاريخ البداية", "المدة", "تاريخ العودة", "الرصيد", "المصدر", "الإجراءات"].map(h => (
+                                  <th key={h} style={{ padding:"12px 14px", textAlign:"right", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>{h}</th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {filtered.map(row => {
+                                const { emp, lastReq, dept, vacType, back, daysLeft, source } = row;
+                                const today = new Date().toISOString().split("T")[0];
+                                return (
+                                  <tr key={emp.id} style={{ borderBottom:"1px solid #f1f5f9" }}
+                                    onMouseEnter={e => (e.currentTarget.style.background="#f8fafc")}
+                                    onMouseLeave={e => (e.currentTarget.style.background="white")}>
+                                    <td style={{ padding:"12px 14px" }}>
+                                      <div style={{ fontWeight:"700", color:"#1e293b" }}>{emp.name}</div>
+                                      <div style={{ fontSize:"11px", color:"#94a3b8" }}>{emp.code}</div>
+                                    </td>
+                                    <td style={{ padding:"12px 14px", color:"#64748b", fontSize:"12px" }}>{dept?.name || "-"}</td>
+                                    <td style={{ padding:"12px 14px" }}>
+                                      {vacType
+                                        ? <span style={{ padding:"3px 10px", borderRadius:"20px", fontSize:"11px", fontWeight:"700", background:(vacType as any).color+"22", color:(vacType as any).color }}>{(vacType as any).name}</span>
+                                        : <span style={{ color:"#94a3b8", fontSize:"11px" }}>غير محدد</span>}
+                                    </td>
+                                    <td style={{ padding:"12px 14px", textAlign:"center", fontSize:"12px" }}>
+                                      {lastReq ? formatDate(lastReq.start_date) : "-"}
+                                    </td>
+                                    <td style={{ padding:"12px 14px", textAlign:"center", fontWeight:"700" }}>
+                                      {lastReq ? `${lastReq.days} يوم` : "-"}
+                                    </td>
+                                    <td style={{ padding:"12px 14px", textAlign:"center" }}>
+                                      {back ? (
+                                        <>
+                                          <div style={{ fontWeight:"700", color:"#4f46e5" }}>{formatDate(back)}</div>
+                                          {daysLeft !== null && (
+                                            <div style={{ fontSize:"11px", color: daysLeft <= 0 ? "#ef4444" : daysLeft <= 2 ? "#f59e0b" : "#94a3b8" }}>
+                                              {daysLeft <= 0 ? "اليوم" : `بعد ${daysLeft} يوم`}
+                                            </div>
+                                          )}
+                                        </>
+                                      ) : <span style={{ color:"#94a3b8" }}>-</span>}
+                                    </td>
+                                    <td style={{ padding:"12px 14px", textAlign:"center" }}>
+                                      <span style={{ fontWeight:"700", color: (emp.balance || 0) < 5 ? "#ef4444" : "#374151" }}>{emp.balance}</span>
+                                    </td>
+                                    <td style={{ padding:"12px 14px", textAlign:"center" }}>
+                                      <span style={{
+                                        padding:"3px 10px", borderRadius:"20px", fontSize:"11px", fontWeight:"700",
+                                        background: source === "طلب" ? "#eef2ff" : "#fef3c7",
+                                        color: source === "طلب" ? "#4f46e5" : "#d97706"
+                                      }}>{source}</span>
+                                    </td>
+                                    <td style={{ padding:"10px 14px", textAlign:"center" }}>
+                                      <div style={{ display:"flex", gap:"6px", justifyContent:"center" }}>
+                                        {lastReq && (
+                                          <button onClick={() => openReturnModal(lastReq)}
+                                            style={{ padding:"6px 10px", background:"#dcfce7", color:"#16a34a", border:"none", borderRadius:"8px", fontWeight:"700", cursor:"pointer", fontSize:"12px", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+                                            ✅ عودة
+                                          </button>
+                                        )}
+                                        {!lastReq && (
+                                          <button onClick={async () => {
+                                            if (!window.confirm(`تسجيل عودة ${emp.name} إلى العمل؟`)) return;
+                                            await supabase.from("employees").update({ status:"عمل", return_date: new Date().toISOString().split("T")[0] }).eq("id", emp.id);
+                                            fetchData();
+                                          }}
+                                            style={{ padding:"6px 10px", background:"#dcfce7", color:"#16a34a", border:"none", borderRadius:"8px", fontWeight:"700", cursor:"pointer", fontSize:"12px", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+                                            ✅ عودة
+                                          </button>
+                                        )}
+                                      </div>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* ===== قسم جميع الطلبات المقدمة ===== */}
+                    <div style={{ marginTop:"8px" }}>
+                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"14px", flexWrap:"wrap", gap:"10px" }}>
+                        <h3 style={{ margin:0, fontWeight:"900", fontSize:"17px" }}>📋 جميع الطلبات المقدمة</h3>
+                        <div style={{ display:"flex", alignItems:"center", gap:"10px" }}>
+                          <select style={{ padding:"9px 14px", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:"10px", outline:"none", fontSize:"13px", fontFamily:"inherit" }}
+                            value={allReqStatusFilter || "all"} onChange={e => setAllReqStatusFilter(e.target.value)}>
+                            <option value="all">كل الحالات</option>
+                            <option value="pending">⏳ معلق</option>
+                            <option value="dept_approved">◑ موافقة مبدئية</option>
+                            <option value="approved">✓ مقبول</option>
+                            <option value="rejected">✗ مرفوض</option>
+                          </select>
+                          <span style={{ fontSize:"12px", color:"#64748b" }}>
+                            {allRequestsForExport.filter(r => allReqStatusFilter === "all" || r.status === allReqStatusFilter).length} طلب
+                          </span>
+                        </div>
+                      </div>
+                      <div style={{ background:"white", borderRadius:"16px", border:"1px solid #e2e8f0", overflow:"hidden" }}>
+                        <div style={{ overflowX:"auto" }}>
+                          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:"13px" }}>
+                            <thead style={{ background:"#f8fafc", borderBottom:"2px solid #e2e8f0" }}>
+                              <tr>
+                                {["الموظف","القسم","النوع","تاريخ التقديم","البداية","الأيام","العودة","الحالة","موافق بواسطة","ملاحظات"].map(h => (
+                                  <th key={h} style={{ padding:"11px 12px", textAlign:"right", fontWeight:"800", color:"#374151", whiteSpace:"nowrap", fontSize:"12px" }}>{h}</th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {allRequestsForExport
+                                .filter(r => allReqStatusFilter === "all" || r.status === allReqStatusFilter)
+                                .sort((a,b) => b.created_at?.localeCompare(a.created_at||"")||0)
+                                .map((req, idx) => {
+                                  const emp = employees.find(e => e.id === req.employee_id);
+                                  const dept = departments.find(d => d.id === emp?.department_id);
+                                  const vt = vacationTypes.find(v => v.id === req.vacation_type_id);
+                                  const { back } = getCalculatedDates(req.start_date, req.days);
+                                  const statusConfig: any = {
+                                    pending:       { label:"معلق",           bg:"#fef3c7", color:"#d97706" },
+                                    dept_approved: { label:"موافقة مبدئية", bg:"#ede9fe", color:"#7c3aed" },
+                                    approved:      { label:"مقبول",          bg:"#dcfce7", color:"#16a34a" },
+                                    rejected:      { label:"مرفوض",          bg:"#fee2e2", color:"#dc2626" },
+                                  };
+                                  const sc = statusConfig[req.status] || { label:req.status, bg:"#f1f5f9", color:"#64748b" };
+                                  return (
+                                    <tr key={req.id} style={{ borderBottom:"1px solid #f1f5f9", background: idx%2===0?"white":"#fafafa" }}
+                                      onMouseEnter={e=>(e.currentTarget.style.background="#f0f4ff")}
+                                      onMouseLeave={e=>(e.currentTarget.style.background=idx%2===0?"white":"#fafafa")}>
+                                      <td style={{ padding:"10px 12px" }}>
+                                        <div style={{ fontWeight:"700", color:"#1e293b", fontSize:"13px" }}>{req.employee_name}</div>
+                                        <div style={{ fontSize:"10px", color:"#94a3b8" }}>{emp?.code}</div>
+                                      </td>
+                                      <td style={{ padding:"10px 12px", fontSize:"12px", color:"#64748b" }}>{dept?.name||"-"}</td>
+                                      <td style={{ padding:"10px 12px" }}>
+                                        {vt && <span style={{ padding:"2px 8px", borderRadius:"20px", fontSize:"11px", fontWeight:"700", background:(vt as any).color+"22", color:(vt as any).color }}>{(vt as any).name}</span>}
+                                      </td>
+                                      <td style={{ padding:"10px 12px", fontSize:"11px", color:"#94a3b8" }}>{req.created_at ? req.created_at.split("T")[0] : "-"}</td>
+                                      <td style={{ padding:"10px 12px", fontSize:"12px", fontWeight:"600" }}>{formatDate(req.start_date)}</td>
+                                      <td style={{ padding:"10px 12px", textAlign:"center", fontWeight:"800", color:"#059669" }}>{req.days}</td>
+                                      <td style={{ padding:"10px 12px", fontSize:"12px", color:"#4f46e5", fontWeight:"600" }}>{formatDate(back)}</td>
+                                      <td style={{ padding:"10px 12px" }}>
+                                        <span style={{ padding:"3px 10px", borderRadius:"20px", fontSize:"11px", fontWeight:"700", background:sc.bg, color:sc.color }}>{sc.label}</span>
+                                      </td>
+                                      <td style={{ padding:"10px 12px", fontSize:"11px", color:"#64748b" }}>{req.owner_approved_by||"-"}</td>
+                                      <td style={{ padding:"10px 12px", fontSize:"11px", color:"#94a3b8", maxWidth:"120px", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }} title={req.notes||""}>{req.notes||"-"}</td>
+                                    </tr>
+                                  );
+                                })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </div>
+
+                  </div>
+                );
+              })()}
+
+              {/* Modal إضافة إجازة مباشرة */}
+              {showDirectVacModal && (
+                <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", backdropFilter:"blur(4px)", display:"flex", alignItems:"center", justifyContent:"center", padding:"20px", zIndex:200 }} onClick={() => { setShowDirectVacModal(false); setEmpSearchDirect(""); setShowEmpDropdown(false); }}>
+                  <div style={{ background:"white", borderRadius:"24px", width:"100%", maxWidth:"480px", padding:"28px", boxShadow:"0 20px 60px rgba(0,0,0,0.2)" }} dir="rtl" onClick={e => e.stopPropagation()}>
+                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"20px" }}>
+                      <h3 style={{ margin:0, fontWeight:"900", fontSize:"18px" }}>➕ إضافة إجازة مباشرة</h3>
+                      <button onClick={() => { setShowDirectVacModal(false); setEmpSearchDirect(""); setShowEmpDropdown(false); }} style={{ background:"#f1f5f9", border:"none", borderRadius:"8px", padding:"6px 10px", cursor:"pointer" }}><X size={18}/></button>
+                    </div>
+                    <div style={{ display:"flex", flexDirection:"column", gap:"14px" }}>
+                      <div style={{ position:"relative" }}>
+                        <label style={{ fontSize:"13px", fontWeight:"700", color:"#64748b", display:"block", marginBottom:"6px" }}>الموظف *</label>
+                        <div style={{ position:"relative" }}>
+                          <Search style={{ position:"absolute", right:"12px", top:"50%", transform:"translateY(-50%)", color:"#94a3b8" }} size={15}/>
+                          <input
+                            style={{ width:"100%", padding:"12px 36px 12px 12px", border:"1px solid #e2e8f0", borderRadius:"12px", fontSize:"14px", outline:"none", background:"#f8fafc", boxSizing:"border-box" }}
+                            placeholder="ابحث بالاسم أو الكود..."
+                            value={empSearchDirect}
+                            onChange={e => { setEmpSearchDirect(e.target.value); setShowEmpDropdown(true); if(!e.target.value) { setDirectVacForm({...directVacForm, employee_id:""}); } }}
+                            onFocus={() => setShowEmpDropdown(true)}
+                          />
+                        </div>
+                        {showEmpDropdown && empSearchDirect && (() => {
+                          const filtered = (isDeptMgr ? employees.filter(e => e.department_id === myDeptId) : employees)
+                            .filter(e => e.name.includes(empSearchDirect) || e.code.includes(empSearchDirect))
+                            .slice(0, 6);
+                          return filtered.length > 0 ? (
+                            <div style={{ position:"absolute", top:"100%", right:0, left:0, background:"white", border:"1px solid #e2e8f0", borderRadius:"12px", boxShadow:"0 8px 24px rgba(0,0,0,0.12)", zIndex:300, maxHeight:"200px", overflowY:"auto", marginTop:"4px" }}>
+                              {filtered.map(e => (
+                                <div key={e.id}
+                                  onClick={() => { setDirectVacForm({...directVacForm, employee_id: e.id}); setEmpSearchDirect(e.name + " (" + e.code + ")"); setShowEmpDropdown(false); }}
+                                  style={{ padding:"10px 14px", cursor:"pointer", borderBottom:"1px solid #f1f5f9", display:"flex", justifyContent:"space-between", alignItems:"center" }}
+                                  onMouseEnter={ev => ev.currentTarget.style.background="#f8fafc"}
+                                  onMouseLeave={ev => ev.currentTarget.style.background="white"}
+                                >
+                                  <div>
+                                    <div style={{ fontWeight:"700", fontSize:"13px" }}>{e.name}</div>
+                                    <div style={{ fontSize:"11px", color:"#94a3b8" }}>كود: {e.code}</div>
+                                  </div>
+                                  <span style={{ fontSize:"12px", fontWeight:"700", color:"#4f46e5" }}>رصيد: {e.balance} يوم</span>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div style={{ position:"absolute", top:"100%", right:0, left:0, background:"white", border:"1px solid #e2e8f0", borderRadius:"12px", padding:"12px", textAlign:"center", color:"#94a3b8", fontSize:"13px", zIndex:300, marginTop:"4px" }}>
+                              لا توجد نتائج
+                            </div>
+                          );
+                        })()}
+                        {directVacForm.employee_id && (() => {
+                          const emp = employees.find(e => e.id === directVacForm.employee_id);
+                          return emp ? (
+                            <div style={{ marginTop:"6px", background:"#eef2ff", borderRadius:"8px", padding:"8px 12px", fontSize:"12px", color:"#4f46e5", fontWeight:"700" }}>
+                              ✅ {emp.name} | رصيد: {emp.balance} يوم
+                            </div>
+                          ) : null;
+                        })()}
+                      </div>
+                      <div>
+                        <label style={{ fontSize:"13px", fontWeight:"700", color:"#64748b", display:"block", marginBottom:"6px" }}>نوع الإجازة *</label>
+                        <select
+                          style={{ width:"100%", padding:"12px", border:"1px solid #e2e8f0", borderRadius:"12px", fontSize:"14px", outline:"none", background:"#f8fafc", boxSizing:"border-box" }}
+                          value={directVacForm.vacation_type_id}
+                          onChange={e => setDirectVacForm({...directVacForm, vacation_type_id: e.target.value})}
+                        >
+                          <option value="">اختر النوع...</option>
+                          {vacationTypes.map(vt => <option key={vt.id} value={vt.id}>{vt.name}</option>)}
+                        </select>
+                      </div>
+                      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"12px" }}>
+                        <div>
+                          <label style={{ fontSize:"13px", fontWeight:"700", color:"#64748b", display:"block", marginBottom:"6px" }}>تاريخ البداية *</label>
+                          <input type="date" style={{ width:"100%", padding:"12px", border:"1px solid #e2e8f0", borderRadius:"12px", fontSize:"14px", outline:"none", background:"#f8fafc", boxSizing:"border-box" }} value={directVacForm.start_date} onChange={e => setDirectVacForm({...directVacForm, start_date: e.target.value})}/>
+                        </div>
+                        <div>
+                          <label style={{ fontSize:"13px", fontWeight:"700", color:"#64748b", display:"block", marginBottom:"6px" }}>عدد الأيام *</label>
+                          <input type="number" min="1" style={{ width:"100%", padding:"12px", border:"1px solid #e2e8f0", borderRadius:"12px", fontSize:"14px", outline:"none", background:"#f8fafc", boxSizing:"border-box" }} value={directVacForm.days} onChange={e => setDirectVacForm({...directVacForm, days: Number(e.target.value)})}/>
+                        </div>
+                      </div>
+                      {directVacForm.start_date && directVacForm.days > 0 && (
+                        <div style={{ background:"#eef2ff", borderRadius:"10px", padding:"10px 14px", fontSize:"13px", color:"#4f46e5", fontWeight:"700" }}>
+                          📅 تاريخ العودة: {formatDate(getCalculatedDates(directVacForm.start_date, directVacForm.days).back)}
+                        </div>
+                      )}
+                      <div>
+                        <label style={{ fontSize:"13px", fontWeight:"700", color:"#64748b", display:"block", marginBottom:"6px" }}>ملاحظات</label>
+                        <textarea style={{ width:"100%", padding:"12px", border:"1px solid #e2e8f0", borderRadius:"12px", fontSize:"14px", outline:"none", background:"#f8fafc", resize:"none", boxSizing:"border-box" }} rows={2} placeholder="ملاحظات اختيارية..." value={directVacForm.notes} onChange={e => setDirectVacForm({...directVacForm, notes: e.target.value})}/>
+                      </div>
+                      <button onClick={handleDirectVacation} disabled={isSubmitting} style={{ width:"100%", padding:"14px", background:"#4f46e5", color:"white", border:"none", borderRadius:"12px", fontSize:"15px", fontWeight:"900", cursor:"pointer", opacity: isSubmitting ? 0.7 : 1 }}>
+                        {isSubmitting ? "جاري الحفظ..." : "✅ تأكيد الإجازة"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Modal يوم التقويم */}
+              {selectedCalendarDay && (() => {
+                const dayReqs = requests.filter(r => {
+                  if (r.status !== "approved") return false;
+                  const { back } = getCalculatedDates(r.start_date, r.days);
+                  return r.start_date <= selectedCalendarDay && back > selectedCalendarDay;
+                });
+                return (
+                  <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", backdropFilter:"blur(4px)", display:"flex", alignItems:"center", justifyContent:"center", padding:"20px", zIndex:200 }} onClick={() => setSelectedCalendarDay(null)}>
+                    <div style={{ background:"white", borderRadius:"24px", width:"100%", maxWidth:"480px", padding:"24px", boxShadow:"0 20px 60px rgba(0,0,0,0.2)", maxHeight:"80vh", overflow:"hidden", display:"flex", flexDirection:"column" }} onClick={e => e.stopPropagation()}>
+                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"16px" }}>
+                        <div>
+                          <h3 style={{ margin:0, fontWeight:"900", fontSize:"17px" }}>📅 موظفو الإجازة</h3>
+                          <p style={{ margin:"2px 0 0", fontSize
