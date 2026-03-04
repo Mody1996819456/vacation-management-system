@@ -574,6 +574,9 @@ ${JSON.stringify(summaryData)}
     // استعادة موضع التمرير بعد التحديث
     requestAnimationFrame(() => { window.scrollTo({ top: scrollRef.current, behavior: "auto" }); });
   }, [currentUser, currentView]);
+useEffect(() => {
+  fetchData();
+}, [fetchData]);
   // ========== تذكير العودة التلقائي ==========
   useEffect(() => {
     if (currentView !== "admin" || requests.length === 0) return;
