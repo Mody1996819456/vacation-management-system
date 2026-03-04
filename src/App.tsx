@@ -249,6 +249,9 @@ const VacationManagementSystem = () => {
   const [statusFilter, setStatusFilter] = useState("all");
   const [empStatusFilter, setEmpStatusFilter] = useState("all");
   const [empSortField, setEmpSortField] = useState(""); // فرز الموظفين
+  const [showStatusModal, setShowStatusModal] = useState(false);
+  const [statusChangeEmp, setStatusChangeEmp] = useState<any>(null);
+  const [statusChangeForm, setStatusChangeForm] = useState({ status: "إجازة", start_date: "", days: 1, notes: "", vacation_type_id: "" });
   const [empSortDir, setEmpSortDir] = useState<"asc"|"desc">("desc");
   const [empSortDropdown, setEmpSortDropdown] = useState("");
   const [reqSearch, setReqSearch] = useState(""); // بحث في طلبات الإجازة
@@ -591,12 +594,8 @@ ${JSON.stringify(summaryData)}
 
   // ========== حالة الموظف تلقائياً ==========
   const getEmployeeStatus = (emp: any) => {
-    const today = new Date().toISOString().split("T")[0];
-    const isOnVacation = requests.some(r =>
-      r.employee_id === emp.id && r.status === "approved" &&
-      (() => { const { back } = getCalculatedDates(r.start_date, r.days); return r.start_date <= today && back > today; })()
-    );
-    return isOnVacation ? "إجازة" : "عمل";
+    // الحالة تُقرأ مباشرة من قاعدة البيانات - لا تغيير تلقائي
+    return emp.status === "إجازة" ? "إجازة" : "عمل";
   };
 
   // ========== AUDIT LOG ==========
@@ -1159,9 +1158,11 @@ ${JSON.stringify(summaryData)}
         alert("رصيد الموظف غير كاف (" + emp.balance + " يوم متاح)");
         setShowApprovalModal(false); return;
       }
+      const { back: backDate } = getCalculatedDates(currentRequest.start_date, days);
       await supabase.from("employees").update({
         balance: Number(emp.balance) - Number(days),
-        status: "اجازة", return_date: null,
+        status: "إجازة",
+        return_date: backDate,
       }).eq("id", emp.id);
       if (emp.email) {
         const { back } = getCalculatedDates(currentRequest.start_date, days);
@@ -1184,13 +1185,6 @@ ${JSON.stringify(summaryData)}
     }
 
     if (action === "rejected") {
-      // لو الطلب كان approved سابقاً، نرجع الرصيد للموظف
-      if (oldData?.status === "approved" && emp) {
-        await supabase.from("employees").update({
-          balance: Number(emp.balance) + Number(days),
-          status: "عمل",
-        }).eq("id", emp.id);
-      }
       if (emp?.email) sendEmail(EMAILJS_TEMPLATES.rejected, emp.email, {
         employee_name: emp?.name, start_date: formatDate(currentRequest.start_date),
         admin_notes: adminNotes || "تم رفض الطلب", request_id: id,
@@ -1211,23 +1205,13 @@ ${JSON.stringify(summaryData)}
 
 
   const handleDeleteVacation = async (id: string) => {
-    if (!window.confirm("حذف طلب الإجازة؟")) return;
+    if (!window.confirm("حذف هذا السجل من القائمة فقط؟\n⚠️ لن يتأثر رصيد الموظف أو حالته.")) return;
     const req = requests.find(r => r.id === id);
-    const emp = req ? employees.find(e => e.id === req.employee_id) : null;
-
-    // إرجاع الرصيد عند الحذف لو كان الطلب معتمداً (approved) فقط
-    // الطلبات pending و dept_approved لم يُخصم منها رصيد بعد
-    if (req?.status === "approved" && emp) {
-      await supabase.from("employees").update({
-        balance: Number(emp.balance) + Number(req.days),
-        status: "عمل",
-      }).eq("id", emp.id);
-    }
-
+    // الحذف من السجل فقط - لا تعديل على رصيد الموظف أو حالته
     await supabase.from("vacation_requests").delete().eq("id", id);
     await logAction("delete", "vacation_requests", id, req);
     fetchData();
-    alert("تم الحذف ✅" + (req?.status === "approved" ? "\nتم إرجاع " + req.days + " يوم للرصيد" : ""));
+    alert("✅ تم حذف السجل.\nملاحظة: رصيد الموظف وحالته لم يتغيرا.");
   };
 
   const handleUpdateVacation = async () => {
@@ -1433,6 +1417,56 @@ ${JSON.stringify(summaryData)}
     setMgrEditForm({ id:"", empName:"", days:1, start_date:"", reason:"", oldDays:1 });
     await fetchData();
     alert("✅ تم تعديل الإجازة بنجاح");
+  };
+
+  // ========== تغيير حالة الموظف يدوياً ==========
+  const handleManualStatusChange = async () => {
+    if (!statusChangeEmp) return;
+    const emp = statusChangeEmp;
+
+    if (statusChangeForm.status === "إجازة") {
+      // التحقق من الرصيد
+      const days = Number(statusChangeForm.days);
+      if (days > 0 && Number(emp.balance) < days) {
+        if (!window.confirm(`رصيد ${emp.name} (${emp.balance} يوم) أقل من المطلوب (${days} يوم).\nهل تريد المتابعة؟`)) return;
+      }
+      // تحديث حالة الموظف
+      await supabase.from("employees").update({
+        status: "إجازة",
+        return_date: statusChangeForm.start_date && days > 0
+          ? getCalculatedDates(statusChangeForm.start_date, days).back
+          : null,
+        ...(days > 0 ? { balance: Number(emp.balance) - days } : {}),
+      }).eq("id", emp.id);
+      // إضافة سجل إجازة لو كانت فيه بيانات
+      if (statusChangeForm.start_date && statusChangeForm.vacation_type_id) {
+        await supabase.from("vacation_requests").insert([{
+          employee_id: emp.id,
+          employee_name: emp.name,
+          start_date: statusChangeForm.start_date,
+          days,
+          notes: statusChangeForm.notes || "تم تغيير الحالة يدوياً",
+          vacation_type_id: statusChangeForm.vacation_type_id,
+          status: "approved",
+          owner_approved_by: currentUser?.name,
+          owner_approved_at: new Date().toISOString(),
+        }]);
+      }
+      await logAction("manual_status", "employees", emp.id, { status: emp.status }, { status: "إجازة" });
+      alert(`✅ تم تغيير حالة ${emp.name} إلى إجازة`);
+    } else {
+      // تغيير إلى عمل
+      await supabase.from("employees").update({
+        status: "عمل",
+        return_date: new Date().toISOString().split("T")[0],
+      }).eq("id", emp.id);
+      await logAction("manual_status", "employees", emp.id, { status: emp.status }, { status: "عمل" });
+      alert(`✅ تم تغيير حالة ${emp.name} إلى عمل`);
+    }
+    setShowStatusModal(false);
+    setStatusChangeEmp(null);
+    setStatusChangeForm({ status: "إجازة", start_date: "", days: 1, notes: "", vacation_type_id: "" });
+    await fetchData();
   };
 
   // ========== DIRECT VACATION (إجازة مباشرة) ==========
@@ -2831,6 +2865,16 @@ ${JSON.stringify(systemData)}
                                 {/* إجراءات */}
                                 <td style={{ padding:"12px", textAlign:"center" }}>
                                   <div style={{ display:"flex", justifyContent:"center", gap:"6px" }}>
+                                    <button
+                                      title={empStatus === "إجازة" ? "تغيير إلى عمل" : "تغيير إلى إجازة"}
+                                      onClick={() => {
+                                        setStatusChangeEmp(emp);
+                                        setStatusChangeForm({ status: empStatus === "إجازة" ? "عمل" : "إجازة", start_date: "", days: 1, notes: "", vacation_type_id: "" });
+                                        setShowStatusModal(true);
+                                      }}
+                                      style={{ padding:"6px 8px", background: empStatus === "إجازة" ? "#fef3c7" : "#dcfce7", border:"none", borderRadius:"8px", cursor:"pointer", fontSize:"14px" }}>
+                                      {empStatus === "إجازة" ? "🏢" : "🏖️"}
+                                    </button>
                                     <button onClick={() => setEditingEmp(emp)} style={{ padding:"6px", background:"#eff6ff", border:"none", borderRadius:"8px", cursor:"pointer", color:"#3b82f6", display:"flex", alignItems:"center" }} title="تعديل"><Edit3 size={14} /></button>
                                     <button onClick={() => handleDeleteEmployee(emp.id)} style={{ padding:"6px", background:"#fff1f2", border:"none", borderRadius:"8px", cursor:"pointer", color:"#ef4444", display:"flex", alignItems:"center" }} title="حذف"><Trash2 size={14} /></button>
                                   </div>
@@ -3589,6 +3633,84 @@ ${JSON.stringify(systemData)}
                 </div>
 
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal تغيير حالة الموظف يدوياً */}
+        {showStatusModal && statusChangeEmp && (
+          <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.6)", backdropFilter:"blur(6px)", display:"flex", alignItems:"center", justifyContent:"center", padding:"16px", zIndex:9999 }}
+            onClick={() => setShowStatusModal(false)}>
+            <div style={{ background:"white", borderRadius:"24px", width:"100%", maxWidth:"420px", padding:"28px", boxShadow:"0 32px 80px rgba(0,0,0,0.25)" }}
+              dir="rtl" onClick={e => e.stopPropagation()}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"20px" }}>
+                <h3 style={{ margin:0, fontWeight:"900", fontSize:"18px" }}>
+                  {statusChangeForm.status === "إجازة" ? "🏖️ تغيير إلى إجازة" : "🏢 تغيير إلى عمل"}
+                </h3>
+                <button onClick={() => setShowStatusModal(false)} style={{ border:"1px solid #e2e8f0", borderRadius:"8px", padding:"6px 12px", cursor:"pointer", background:"white", fontSize:"16px" }}>✕</button>
+              </div>
+              <div style={{ background:"#f8fafc", borderRadius:"14px", padding:"12px 16px", marginBottom:"18px", fontSize:"13px" }}>
+                <span style={{ fontWeight:"700", color:"#1e293b" }}>{statusChangeEmp.name}</span>
+                <span style={{ color:"#64748b", marginRight:"8px" }}>• الرصيد الحالي: <b style={{ color:"#4f46e5" }}>{statusChangeEmp.balance} يوم</b></span>
+              </div>
+              {statusChangeForm.status === "إجازة" ? (
+                <div style={{ display:"flex", flexDirection:"column", gap:"14px" }}>
+                  <div>
+                    <label style={{ fontSize:"12px", fontWeight:"700", color:"#64748b", display:"block", marginBottom:"5px" }}>نوع الإجازة</label>
+                    <select style={{ width:"100%", padding:"11px 14px", border:"1px solid #e2e8f0", borderRadius:"12px", outline:"none", fontSize:"13px", fontFamily:"inherit" }}
+                      value={statusChangeForm.vacation_type_id}
+                      onChange={e => setStatusChangeForm({...statusChangeForm, vacation_type_id: e.target.value})}>
+                      <option value="">بدون تسجيل نوع</option>
+                      {vacationTypes.map((vt:any) => <option key={vt.id} value={vt.id}>{vt.name}</option>)}
+                    </select>
+                  </div>
+                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"10px" }}>
+                    <div>
+                      <label style={{ fontSize:"12px", fontWeight:"700", color:"#64748b", display:"block", marginBottom:"5px" }}>تاريخ البداية</label>
+                      <input type="date" style={{ width:"100%", padding:"10px 12px", border:"1px solid #e2e8f0", borderRadius:"12px", outline:"none", fontSize:"13px", boxSizing:"border-box" as any }}
+                        value={statusChangeForm.start_date}
+                        onChange={e => setStatusChangeForm({...statusChangeForm, start_date: e.target.value})} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize:"12px", fontWeight:"700", color:"#64748b", display:"block", marginBottom:"5px" }}>عدد الأيام</label>
+                      <input type="number" min="0" step="0.5" style={{ width:"100%", padding:"10px 12px", border:"1px solid #e2e8f0", borderRadius:"12px", outline:"none", fontSize:"13px", boxSizing:"border-box" as any }}
+                        value={statusChangeForm.days}
+                        onChange={e => setStatusChangeForm({...statusChangeForm, days: Number(e.target.value)})} />
+                    </div>
+                  </div>
+                  <div style={{ background:"#fffbeb", borderRadius:"10px", padding:"10px 12px", fontSize:"12px", color:"#92400e", border:"1px solid #fde68a" }}>
+                    ⚠️ لو عدد الأيام = 0 لن يُخصم من الرصيد ولن يُضاف سجل إجازة
+                  </div>
+                  <div>
+                    <label style={{ fontSize:"12px", fontWeight:"700", color:"#64748b", display:"block", marginBottom:"5px" }}>ملاحظات</label>
+                    <textarea rows={2} style={{ width:"100%", padding:"10px 12px", border:"1px solid #e2e8f0", borderRadius:"12px", outline:"none", fontSize:"13px", resize:"none", fontFamily:"inherit", boxSizing:"border-box" as any }}
+                      placeholder="سبب التغيير..."
+                      value={statusChangeForm.notes}
+                      onChange={e => setStatusChangeForm({...statusChangeForm, notes: e.target.value})} />
+                  </div>
+                  <button onClick={handleManualStatusChange}
+                    style={{ padding:"13px", background:"linear-gradient(135deg,#f59e0b,#d97706)", color:"white", border:"none", borderRadius:"12px", fontWeight:"900", cursor:"pointer", fontSize:"14px", fontFamily:"inherit" }}>
+                    🏖️ تحويل إلى إجازة
+                  </button>
+                </div>
+              ) : (
+                <div style={{ display:"flex", flexDirection:"column", gap:"14px" }}>
+                  <div style={{ background:"#f0fdf4", borderRadius:"12px", padding:"14px", border:"1px solid #bbf7d0", fontSize:"13px", color:"#15803d" }}>
+                    ✅ سيتم تغيير حالة الموظف إلى <b>عمل</b> وتسجيل تاريخ اليوم كتاريخ عودة.
+                  </div>
+                  <div>
+                    <label style={{ fontSize:"12px", fontWeight:"700", color:"#64748b", display:"block", marginBottom:"5px" }}>ملاحظات (اختياري)</label>
+                    <textarea rows={2} style={{ width:"100%", padding:"10px 12px", border:"1px solid #e2e8f0", borderRadius:"12px", outline:"none", fontSize:"13px", resize:"none", fontFamily:"inherit", boxSizing:"border-box" as any }}
+                      placeholder="سبب التغيير..."
+                      value={statusChangeForm.notes}
+                      onChange={e => setStatusChangeForm({...statusChangeForm, notes: e.target.value})} />
+                  </div>
+                  <button onClick={handleManualStatusChange}
+                    style={{ padding:"13px", background:"linear-gradient(135deg,#059669,#16a34a)", color:"white", border:"none", borderRadius:"12px", fontWeight:"900", cursor:"pointer", fontSize:"14px", fontFamily:"inherit" }}>
+                    🏢 تحويل إلى عمل
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         )}
