@@ -1626,16 +1626,11 @@ ${JSON.stringify(summaryData)}
 
   // ========== FILTERED DATA ==========
   const filteredEmployees = useMemo(() => {
-    const today = new Date().toISOString().split("T")[0];
     let result = scopedEmployees.filter(emp => {
       const matchSearch = emp.name.includes(empSearch) || emp.code.includes(empSearch) || (emp.position||"").includes(empSearch);
       const matchDept = departmentFilter === "all" || emp.department_id === departmentFilter;
-      const isOnVacation = requests.some(r => {
-        if (r.employee_id !== emp.id || r.status !== "approved") return false;
-        const { back } = getCalculatedDates(r.start_date, r.days);
-        return r.start_date <= today && back > today;
-      });
-      const empStatus = isOnVacation ? "إجازة" : "عمل";
+      // الحالة تُقرأ مباشرة من قاعدة البيانات
+      const empStatus = emp.status === "إجازة" ? "إجازة" : "عمل";
       const matchStatus = empStatusFilter === "all" || empStatus === empStatusFilter;
       return matchSearch && matchDept && matchStatus;
     });
