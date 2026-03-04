@@ -198,6 +198,13 @@ const VacationManagementSystem = () => {
   const [vacationTypeFilter, setVacationTypeFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [empStatusFilter, setEmpStatusFilter] = useState("all");
+  const [empSortField, setEmpSortField] = useState<"balance"|"workedDays"|"">(""); // فرز الموظفين
+  const [empSortDir, setEmpSortDir] = useState<"asc"|"desc">("desc");
+  const [empSortDropdown, setEmpSortDropdown] = useState<"balance"|"workedDays"|"">("");
+  const [empSortDropdown, setEmpSortDropdown] = useState<"balance"|"workedDays"|"">("");
+  const [reqSearch, setReqSearch] = useState(""); // بحث في طلبات الإجازة
+  const [reqDateFrom, setReqDateFrom] = useState("");
+  const [reqDateTo, setReqDateTo] = useState("");
 
   // Modals & Forms
   const [loginData, setLoginData] = useState({ email: "", password: "" });
@@ -280,6 +287,14 @@ const VacationManagementSystem = () => {
   const [aiLoading, setAiLoading] = useState(false);
   const GROQ_API_KEY = process.env.REACT_APP_GROQ_API_KEY || "";
   const [currentTime, setCurrentTime] = useState(new Date());
+
+  // إغلاق dropdown الفرز عند الضغط خارجه
+  useEffect(() => {
+    if (!empSortDropdown) return;
+    const handler = () => setEmpSortDropdown("");
+    document.addEventListener("click", handler);
+    return () => document.removeEventListener("click", handler);
+  }, [empSortDropdown]);
 
   // تحديث الساعة كل ثانية
   useEffect(() => {
@@ -909,7 +924,27 @@ ${JSON.stringify(summaryData)}
   };
 
   const exportToExcel = (data: any[], fileName: string) => {
-    const ws = XLSX.utils.json_to_sheet(data);
+    // تحويل بيانات الموظفين لأعمدة النظام
+    const isEmpData = data.length > 0 && "name" in data[0] && "code" in data[0] && "balance" in data[0];
+    const exportData = isEmpData ? data.map(emp => {
+      const dept = departments.find((d: any) => d.id === emp.department_id);
+      const workedDays = calculateWorkedDays(emp.return_date);
+      const status = getEmployeeStatus(emp);
+      return {
+        "الاسم الكامل": emp.name || "",
+        "الكود الوظيفي": emp.code || "",
+        "المنصب": emp.position || "",
+        "البريد الإلكتروني": emp.email || "",
+        "القسم": dept?.name || "",
+        "الرصيد الحالي": emp.balance ?? 0,
+        "الرصيد الشهري": emp.monthly_balance ?? 0,
+        "تاريخ التعيين": emp.hire_date || "",
+        "تاريخ العودة": emp.return_date || "",
+        "أيام العمل بعد العودة": workedDays,
+        "حالة الموظف": status,
+      };
+    }) : data;
+    const ws = XLSX.utils.json_to_sheet(exportData);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "البيانات");
     XLSX.writeFile(wb, `${fileName}.xlsx`);
@@ -1454,27 +1489,44 @@ ${JSON.stringify(summaryData)}
   // ========== FILTERED DATA ==========
   const filteredEmployees = useMemo(() => {
     const today = new Date().toISOString().split("T")[0];
-    return scopedEmployees.filter(emp => {
-      const matchSearch = emp.name.includes(empSearch) || emp.code.includes(empSearch);
+    let result = scopedEmployees.filter(emp => {
+      const matchSearch = emp.name.includes(empSearch) || emp.code.includes(empSearch) || (emp.position||"").includes(empSearch);
       const matchDept = departmentFilter === "all" || emp.department_id === departmentFilter;
-      const isOnVacation = requests.some(r =>
-        r.employee_id === emp.id && r.status === "approved" &&
-        (() => { const { back } = getCalculatedDates(r.start_date, r.days); return r.start_date <= today && back > today; })()
-      );
+      const isOnVacation = requests.some(r => {
+        if (r.employee_id !== emp.id || r.status !== "approved") return false;
+        const { back } = getCalculatedDates(r.start_date, r.days);
+        return r.start_date <= today && back > today;
+      });
       const empStatus = isOnVacation ? "إجازة" : "عمل";
       const matchStatus = empStatusFilter === "all" || empStatus === empStatusFilter;
       return matchSearch && matchDept && matchStatus;
     });
-  }, [scopedEmployees, empSearch, departmentFilter, empStatusFilter, requests]);
+    // فرز حسب الرصيد أو أيام العمل
+    if (empSortField === "balance") {
+      result = [...result].sort((a, b) => empSortDir === "desc" ? b.balance - a.balance : a.balance - b.balance);
+    } else if (empSortField === "workedDays") {
+      result = [...result].sort((a, b) => {
+        const wa = calculateWorkedDays(a.return_date);
+        const wb = calculateWorkedDays(b.return_date);
+        return empSortDir === "desc" ? wb - wa : wa - wb;
+      });
+    }
+    return result;
+  }, [scopedEmployees, empSearch, departmentFilter, empStatusFilter, empSortField, empSortDir, requests]);
 
   const filteredRequests = useMemo(() => {
     return scopedRequests.filter(req => {
-      const matchSearch = req.employee_name?.includes(vacSearch);
+      const searchTerm = (vacSearch || reqSearch).trim();
+      const matchSearch = !searchTerm ||
+        req.employee_name?.includes(searchTerm) ||
+        req.notes?.includes(searchTerm);
       const matchType = vacationTypeFilter === "all" || req.vacation_type_id === vacationTypeFilter;
       const matchStatus = statusFilter === "all" || req.status === statusFilter;
-      return matchSearch && matchType && matchStatus;
+      const matchDateFrom = !reqDateFrom || req.start_date >= reqDateFrom;
+      const matchDateTo = !reqDateTo || req.start_date <= reqDateTo;
+      return matchSearch && matchType && matchStatus && matchDateFrom && matchDateTo;
     });
-  }, [scopedRequests, vacSearch, vacationTypeFilter, statusFilter]);
+  }, [scopedRequests, vacSearch, reqSearch, vacationTypeFilter, statusFilter, reqDateFrom, reqDateTo]);
 
   // ==================== GOOGLE SHEETS BACKUP ====================
   const handleBackup = async () => {
@@ -2606,9 +2658,63 @@ ${JSON.stringify(systemData)}
                             <th style={{ padding:"14px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>الكود</th>
                             <th style={{ padding:"14px 12px", textAlign:"right", fontWeight:"800", color:"#374151", whiteSpace:"nowrap", minWidth:"140px" }}>المنصب</th>
                             <th style={{ padding:"14px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>القسم</th>
-                            <th style={{ padding:"14px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>الرصيد</th>
+                            <th style={{ padding:"14px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap", position:"relative" }}>
+                              <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:"4px" }}>
+                                الرصيد
+                                <button onClick={() => setEmpSortDropdown(d => d==="balance" ? "" : "balance")}
+                                  style={{ background: empSortField==="balance" ? "#4f46e5" : "#e2e8f0", border:"none", borderRadius:"4px", padding:"1px 5px", cursor:"pointer", fontSize:"11px", color: empSortField==="balance" ? "white" : "#64748b", lineHeight:"1.4" }}>
+                                  {empSortField==="balance" ? (empSortDir==="desc"?"↓":"↑") : "⇅"}
+                                </button>
+                              </div>
+                              {empSortDropdown==="balance" && (
+                                <div style={{ position:"absolute", top:"100%", left:"50%", transform:"translateX(-50%)", background:"white", border:"1px solid #e2e8f0", borderRadius:"10px", boxShadow:"0 8px 24px rgba(0,0,0,0.12)", zIndex:50, minWidth:"160px", overflow:"hidden" }}
+                                  onClick={e => e.stopPropagation()}>
+                                  <button onClick={() => { setEmpSortField("balance"); setEmpSortDir("desc"); setEmpSortDropdown(""); }}
+                                    style={{ display:"flex", alignItems:"center", gap:"8px", width:"100%", padding:"10px 14px", background: empSortField==="balance" && empSortDir==="desc" ? "#eef2ff" : "white", border:"none", cursor:"pointer", fontSize:"13px", fontWeight:"700", color:"#1e293b", textAlign:"right" as any }}>
+                                    ↓ من الأعلى للأقل
+                                  </button>
+                                  <button onClick={() => { setEmpSortField("balance"); setEmpSortDir("asc"); setEmpSortDropdown(""); }}
+                                    style={{ display:"flex", alignItems:"center", gap:"8px", width:"100%", padding:"10px 14px", background: empSortField==="balance" && empSortDir==="asc" ? "#eef2ff" : "white", border:"none", cursor:"pointer", fontSize:"13px", fontWeight:"700", color:"#1e293b", textAlign:"right" as any }}>
+                                    ↑ من الأقل للأعلى
+                                  </button>
+                                  {empSortField==="balance" && (
+                                    <button onClick={() => { setEmpSortField(""); setEmpSortDropdown(""); }}
+                                      style={{ display:"flex", alignItems:"center", gap:"8px", width:"100%", padding:"10px 14px", background:"#fff1f2", border:"none", borderTop:"1px solid #fee2e2", cursor:"pointer", fontSize:"12px", fontWeight:"700", color:"#dc2626", textAlign:"right" as any }}>
+                                      ✕ إلغاء الفرز
+                                    </button>
+                                  )}
+                                </div>
+                              )}
+                            </th>
                             <th style={{ padding:"14px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>شهري</th>
-                            <th style={{ padding:"14px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>أيام العمل</th>
+                            <th style={{ padding:"14px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap", position:"relative" }}>
+                              <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:"4px" }}>
+                                أيام العمل
+                                <button onClick={() => setEmpSortDropdown(d => d==="workedDays" ? "" : "workedDays")}
+                                  style={{ background: empSortField==="workedDays" ? "#4f46e5" : "#e2e8f0", border:"none", borderRadius:"4px", padding:"1px 5px", cursor:"pointer", fontSize:"11px", color: empSortField==="workedDays" ? "white" : "#64748b", lineHeight:"1.4" }}>
+                                  {empSortField==="workedDays" ? (empSortDir==="desc"?"↓":"↑") : "⇅"}
+                                </button>
+                              </div>
+                              {empSortDropdown==="workedDays" && (
+                                <div style={{ position:"absolute", top:"100%", left:"50%", transform:"translateX(-50%)", background:"white", border:"1px solid #e2e8f0", borderRadius:"10px", boxShadow:"0 8px 24px rgba(0,0,0,0.12)", zIndex:50, minWidth:"160px", overflow:"hidden" }}
+                                  onClick={e => e.stopPropagation()}>
+                                  <button onClick={() => { setEmpSortField("workedDays"); setEmpSortDir("desc"); setEmpSortDropdown(""); }}
+                                    style={{ display:"flex", alignItems:"center", gap:"8px", width:"100%", padding:"10px 14px", background: empSortField==="workedDays" && empSortDir==="desc" ? "#eef2ff" : "white", border:"none", cursor:"pointer", fontSize:"13px", fontWeight:"700", color:"#1e293b", textAlign:"right" as any }}>
+                                    ↓ من الأعلى للأقل
+                                  </button>
+                                  <button onClick={() => { setEmpSortField("workedDays"); setEmpSortDir("asc"); setEmpSortDropdown(""); }}
+                                    style={{ display:"flex", alignItems:"center", gap:"8px", width:"100%", padding:"10px 14px", background: empSortField==="workedDays" && empSortDir==="asc" ? "#eef2ff" : "white", border:"none", cursor:"pointer", fontSize:"13px", fontWeight:"700", color:"#1e293b", textAlign:"right" as any }}>
+                                    ↑ من الأقل للأعلى
+                                  </button>
+                                  {empSortField==="workedDays" && (
+                                    <button onClick={() => { setEmpSortField(""); setEmpSortDropdown(""); }}
+                                      style={{ display:"flex", alignItems:"center", gap:"8px", width:"100%", padding:"10px 14px", background:"#fff1f2", border:"none", borderTop:"1px solid #fee2e2", cursor:"pointer", fontSize:"12px", fontWeight:"700", color:"#dc2626", textAlign:"right" as any }}>
+                                      ✕ إلغاء الفرز
+                                    </button>
+                                  )}
+                                </div>
+                              )}
+                            </th>
                             <th style={{ padding:"14px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>الحالة</th>
                             <th style={{ padding:"14px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>إجراءات</th>
                           </tr>
@@ -2694,10 +2800,39 @@ ${JSON.stringify(systemData)}
                   </div>
                       {isDeptMgr && <p className="text-sm text-emerald-600 font-bold mt-1">🏢 تعرض طلبات قسم: {currentUser?.dept_name}</p>}
                     </div>
-                    <select className="px-4 py-3 bg-white border rounded-xl" value={vacationTypeFilter} onChange={(e) => setVacationTypeFilter(e.target.value)}>
+                  </div>
+                  {/* شريط بحث وفلتر في الطلبات */}
+                  <div style={{ background:"white", borderRadius:"16px", padding:"12px 16px", border:"1px solid #e2e8f0", display:"flex", gap:"10px", flexWrap:"wrap", alignItems:"center" }}>
+                    <div style={{ position:"relative", flex:"2", minWidth:"180px" }}>
+                      <Search style={{ position:"absolute", right:"12px", top:"50%", transform:"translateY(-50%)", color:"#94a3b8" }} size={15}/>
+                      <input style={{ width:"100%", padding:"10px 36px 10px 12px", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:"10px", fontSize:"13px", outline:"none", boxSizing:"border-box" as any }}
+                        placeholder="بحث بالاسم..."
+                        value={reqSearch} onChange={e => setReqSearch(e.target.value)} />
+                    </div>
+                    <select style={{ padding:"10px 12px", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:"10px", fontSize:"13px", outline:"none" }}
+                      value={vacationTypeFilter} onChange={e => setVacationTypeFilter(e.target.value)}>
                       <option value="all">كل الأنواع</option>
                       {vacationTypes.map(vt => <option key={vt.id} value={vt.id}>{vt.name}</option>)}
                     </select>
+                    <div style={{ display:"flex", alignItems:"center", gap:"6px" }}>
+                      <label style={{ fontSize:"12px", color:"#64748b", fontWeight:"600", whiteSpace:"nowrap" }}>من:</label>
+                      <input type="date" style={{ padding:"9px 10px", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:"10px", fontSize:"12px", outline:"none" }}
+                        value={reqDateFrom} onChange={e => setReqDateFrom(e.target.value)} />
+                    </div>
+                    <div style={{ display:"flex", alignItems:"center", gap:"6px" }}>
+                      <label style={{ fontSize:"12px", color:"#64748b", fontWeight:"600", whiteSpace:"nowrap" }}>إلى:</label>
+                      <input type="date" style={{ padding:"9px 10px", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:"10px", fontSize:"12px", outline:"none" }}
+                        value={reqDateTo} onChange={e => setReqDateTo(e.target.value)} />
+                    </div>
+                    {(reqSearch || vacationTypeFilter !== "all" || reqDateFrom || reqDateTo) && (
+                      <button onClick={() => { setReqSearch(""); setVacationTypeFilter("all"); setReqDateFrom(""); setReqDateTo(""); }}
+                        style={{ padding:"9px 14px", background:"#fee2e2", color:"#dc2626", border:"none", borderRadius:"10px", fontSize:"12px", fontWeight:"700", cursor:"pointer" }}>
+                        ✕ مسح
+                      </button>
+                    )}
+                    <span style={{ fontSize:"12px", color:"#64748b", marginRight:"auto" }}>
+                      {filteredRequests.length} طلب
+                    </span>
                   </div>
 
                   {/* طلبات بانتظار مدير القسم (للدور: مدير قسم) */}
@@ -3189,18 +3324,51 @@ ${JSON.stringify(systemData)}
                 <div className="space-y-6">
                   <div className="flex justify-between items-center">
                     <h2 className="text-2xl font-black">سجل الإجازات</h2>
-                    <div className="flex gap-3">
-                      <input className="px-4 py-3 bg-white border rounded-xl" placeholder="بحث بالاسم..." onChange={(e) => setVacSearch(e.target.value)} />
-                      <select className="px-4 py-3 bg-white border rounded-xl" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-                        <option value="all">كل الحالات</option>
-                        <option value="approved">✓ مقبول</option>
-                        <option value="rejected">✗ مرفوض</option>
-                        <option value="dept_approved">◑ موافقة مبدئية</option>
-                        <option value="pending">⏳ معلق</option>
-                      </select>
-                      <button onClick={() => setShowAuditLog(true)} className="bg-purple-600 text-white px-6 py-3 rounded-xl flex items-center gap-2 font-bold"><History size={20} /> سجل التعديلات</button>
-                      <button onClick={() => { setShowBalanceLog(true); fetchBalanceLogs(); }} className="bg-emerald-600 text-white px-6 py-3 rounded-xl flex items-center gap-2 font-bold">💰 سجل حركات الرصيد</button>
+                    <div style={{ display:"flex", gap:"8px", flexWrap:"wrap" }}>
+                      <button onClick={() => setShowAuditLog(true)} className="bg-purple-600 text-white px-4 py-2 rounded-xl flex items-center gap-2 font-bold text-sm"><History size={16} /> سجل التعديلات</button>
+                      <button onClick={() => { setShowBalanceLog(true); fetchBalanceLogs(); }} className="bg-emerald-600 text-white px-4 py-2 rounded-xl flex items-center gap-2 font-bold text-sm">💰 سجل الرصيد</button>
                     </div>
+                  </div>
+                  {/* شريط بحث وفلتر متقدم */}
+                  <div style={{ background:"white", borderRadius:"16px", padding:"14px 16px", border:"1px solid #e2e8f0", display:"flex", gap:"10px", flexWrap:"wrap", alignItems:"center" }}>
+                    <div style={{ position:"relative", flex:"2", minWidth:"180px" }}>
+                      <Search style={{ position:"absolute", right:"12px", top:"50%", transform:"translateY(-50%)", color:"#94a3b8" }} size={15}/>
+                      <input style={{ width:"100%", padding:"10px 36px 10px 12px", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:"10px", fontSize:"13px", outline:"none", boxSizing:"border-box" as any }}
+                        placeholder="بحث بالاسم أو الملاحظات..."
+                        value={reqSearch} onChange={e => setReqSearch(e.target.value)} />
+                    </div>
+                    <select style={{ padding:"10px 12px", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:"10px", fontSize:"13px", outline:"none" }}
+                      value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
+                      <option value="all">كل الحالات</option>
+                      <option value="approved">✓ مقبول</option>
+                      <option value="rejected">✗ مرفوض</option>
+                      <option value="dept_approved">◑ موافقة مبدئية</option>
+                      <option value="pending">⏳ معلق</option>
+                    </select>
+                    <select style={{ padding:"10px 12px", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:"10px", fontSize:"13px", outline:"none" }}
+                      value={vacationTypeFilter} onChange={e => setVacationTypeFilter(e.target.value)}>
+                      <option value="all">كل الأنواع</option>
+                      {vacationTypes.map(vt => <option key={vt.id} value={vt.id}>{vt.name}</option>)}
+                    </select>
+                    <div style={{ display:"flex", alignItems:"center", gap:"6px" }}>
+                      <label style={{ fontSize:"12px", color:"#64748b", fontWeight:"600", whiteSpace:"nowrap" }}>من:</label>
+                      <input type="date" style={{ padding:"9px 10px", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:"10px", fontSize:"12px", outline:"none" }}
+                        value={reqDateFrom} onChange={e => setReqDateFrom(e.target.value)} />
+                    </div>
+                    <div style={{ display:"flex", alignItems:"center", gap:"6px" }}>
+                      <label style={{ fontSize:"12px", color:"#64748b", fontWeight:"600", whiteSpace:"nowrap" }}>إلى:</label>
+                      <input type="date" style={{ padding:"9px 10px", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:"10px", fontSize:"12px", outline:"none" }}
+                        value={reqDateTo} onChange={e => setReqDateTo(e.target.value)} />
+                    </div>
+                    {(reqSearch || statusFilter !== "all" || vacationTypeFilter !== "all" || reqDateFrom || reqDateTo) && (
+                      <button onClick={() => { setReqSearch(""); setStatusFilter("all"); setVacationTypeFilter("all"); setReqDateFrom(""); setReqDateTo(""); }}
+                        style={{ padding:"9px 14px", background:"#fee2e2", color:"#dc2626", border:"none", borderRadius:"10px", fontSize:"12px", fontWeight:"700", cursor:"pointer" }}>
+                        ✕ مسح الفلاتر
+                      </button>
+                    )}
+                    <span style={{ fontSize:"12px", color:"#64748b", marginRight:"auto" }}>
+                      {filteredRequests.length} طلب
+                    </span>
                   </div>
                   <div className="bg-white rounded-[2rem] shadow-sm border overflow-hidden">
                     <table className="w-full text-sm">
