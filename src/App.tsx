@@ -572,7 +572,7 @@ ${JSON.stringify(summaryData)}
     }
     setLoading(false);
     // استعادة موضع التمرير بعد التحديث
-    requestAnimationFrame(() => { window.scrollTo({ top: scrollRef.current, behavior: "instant" }); });
+    requestAnimationFrame(() => { window.scrollTo({ top: scrollRef.current, behavior: "auto" }); });
   }, [currentUser, currentView]);
   // ========== تذكير العودة التلقائي ==========
   useEffect(() => {
