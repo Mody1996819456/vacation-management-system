@@ -115,6 +115,56 @@ const calculateWorkedDays = (returnDate: string) => {
 };
 
 // ==================== MAIN COMPONENT ====================
+// ===== SortTh - عنوان عمود قابل للفرز بقائمة Excel =====
+const SortTh = ({ label, field, sortField, sortDir, sortDropdown, onSort, onClear, onToggle, align="center" }: {
+  label: string; field: string;
+  sortField: string; sortDir: "asc"|"desc"; sortDropdown: string;
+  onSort: (f: string, d: "asc"|"desc") => void;
+  onClear: () => void;
+  onToggle: (f: string) => void;
+  align?: string;
+}) => {
+  const active = sortField === field;
+  const open = sortDropdown === field;
+  return (
+    <th style={{ padding:"12px 10px", textAlign: align as any, fontWeight:"800", color:"#374151", whiteSpace:"nowrap", position:"relative", userSelect:"none" }}>
+      <div style={{ display:"flex", alignItems:"center", justifyContent: align==="right" ? "flex-start" : "center", gap:"4px" }}>
+        <span style={{ fontSize:"13px" }}>{label}</span>
+        <button
+          onClick={e => { e.stopPropagation(); onToggle(field); }}
+          style={{
+            background: active ? "#4f46e5" : "#e2e8f0",
+            border:"none", borderRadius:"4px", padding:"2px 5px",
+            cursor:"pointer", fontSize:"11px", lineHeight:"1.4",
+            color: active ? "white" : "#64748b", flexShrink:0,
+          }}>
+          {active ? (sortDir === "desc" ? "↓" : "↑") : "⇅"}
+        </button>
+      </div>
+      {open && (
+        <div
+          style={{ position:"absolute", top:"100%", left:"50%", transform:"translateX(-50%)", background:"white", border:"1px solid #e2e8f0", borderRadius:"10px", boxShadow:"0 8px 24px rgba(0,0,0,0.15)", zIndex:100, minWidth:"155px", overflow:"hidden" }}
+          onClick={e => e.stopPropagation()}>
+          <button onClick={() => onSort(field, "desc")}
+            style={{ display:"flex", alignItems:"center", gap:"8px", width:"100%", padding:"10px 14px", background: active && sortDir==="desc" ? "#eef2ff" : "white", border:"none", borderBottom:"1px solid #f1f5f9", cursor:"pointer", fontSize:"13px", fontWeight:"700", color:"#1e293b", fontFamily:"inherit" }}>
+            ↓ من الأعلى للأقل
+          </button>
+          <button onClick={() => onSort(field, "asc")}
+            style={{ display:"flex", alignItems:"center", gap:"8px", width:"100%", padding:"10px 14px", background: active && sortDir==="asc" ? "#eef2ff" : "white", border:"none", borderBottom: active ? "1px solid #f1f5f9" : "none", cursor:"pointer", fontSize:"13px", fontWeight:"700", color:"#1e293b", fontFamily:"inherit" }}>
+            ↑ من الأقل للأعلى
+          </button>
+          {active && (
+            <button onClick={onClear}
+              style={{ display:"flex", alignItems:"center", gap:"8px", width:"100%", padding:"9px 14px", background:"#fff1f2", border:"none", cursor:"pointer", fontSize:"12px", fontWeight:"700", color:"#dc2626", fontFamily:"inherit" }}>
+              ✕ إلغاء الفرز
+            </button>
+          )}
+        </div>
+      )}
+    </th>
+  );
+};
+
 // ===== EmpEditModal - مودال تعديل طلب الموظف =====
 const EmpEditModal = ({ req, vacationTypes, onClose, onChange, onSave }: {
   req: any;
@@ -198,9 +248,9 @@ const VacationManagementSystem = () => {
   const [vacationTypeFilter, setVacationTypeFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [empStatusFilter, setEmpStatusFilter] = useState("all");
-  const [empSortField, setEmpSortField] = useState<"balance"|"workedDays"|"">(""); // فرز الموظفين
+  const [empSortField, setEmpSortField] = useState(""); // فرز الموظفين
   const [empSortDir, setEmpSortDir] = useState<"asc"|"desc">("desc");
-  const [empSortDropdown, setEmpSortDropdown] = useState<"balance"|"workedDays"|"">("");
+  const [empSortDropdown, setEmpSortDropdown] = useState("");
   const [reqSearch, setReqSearch] = useState(""); // بحث في طلبات الإجازة
   const [reqDateFrom, setReqDateFrom] = useState("");
   const [reqDateTo, setReqDateTo] = useState("");
@@ -1555,14 +1605,29 @@ ${JSON.stringify(summaryData)}
       const matchStatus = empStatusFilter === "all" || empStatus === empStatusFilter;
       return matchSearch && matchDept && matchStatus;
     });
-    // فرز حسب الرصيد أو أيام العمل
-    if (empSortField === "balance") {
-      result = [...result].sort((a, b) => empSortDir === "desc" ? b.balance - a.balance : a.balance - b.balance);
-    } else if (empSortField === "workedDays") {
+    // فرز حسب العمود المحدد
+    if (empSortField) {
       result = [...result].sort((a, b) => {
-        const wa = calculateWorkedDays(a.return_date);
-        const wb = calculateWorkedDays(b.return_date);
-        return empSortDir === "desc" ? wb - wa : wa - wb;
+        let va: any, vb: any;
+        if (empSortField === "balance")      { va = Number(a.balance ?? 0);      vb = Number(b.balance ?? 0); }
+        else if (empSortField === "monthly") { va = Number(a.monthly_balance ?? 0); vb = Number(b.monthly_balance ?? 0); }
+        else if (empSortField === "workedDays") {
+          va = calculateWorkedDays(a.return_date);
+          vb = calculateWorkedDays(b.return_date);
+        }
+        else if (empSortField === "name")     { va = (a.name||"").toLowerCase();   vb = (b.name||"").toLowerCase(); }
+        else if (empSortField === "code")     { va = (a.code||"");                 vb = (b.code||""); }
+        else if (empSortField === "position") { va = (a.position||"").toLowerCase(); vb = (b.position||"").toLowerCase(); }
+        else if (empSortField === "dept")     {
+          const da = departments.find((d:any)=>d.id===a.department_id);
+          const db = departments.find((d:any)=>d.id===b.department_id);
+          va = (da?.name||"").toLowerCase(); vb = (db?.name||"").toLowerCase();
+        }
+        else if (empSortField === "status")   { va = getEmployeeStatus(a); vb = getEmployeeStatus(b); }
+        else if (empSortField === "hire")     { va = a.hire_date||""; vb = b.hire_date||""; }
+        else                                  { va = 0; vb = 0; }
+        if (typeof va === "number") return empSortDir === "desc" ? vb - va : va - vb;
+        return empSortDir === "desc" ? vb.localeCompare(va, "ar") : va.localeCompare(vb, "ar");
       });
     }
     return result;
@@ -2708,69 +2773,15 @@ ${JSON.stringify(systemData)}
                       <table style={{ width:"100%", borderCollapse:"collapse", minWidth:"900px", fontSize:"13px" }}>
                         <thead>
                           <tr style={{ background:"#f8fafc", borderBottom:"2px solid #e2e8f0", position:"sticky", top:0, zIndex:5 }}>
-                            <th style={{ padding:"14px 16px", textAlign:"right", fontWeight:"800", color:"#374151", whiteSpace:"nowrap", minWidth:"180px" }}>الاسم</th>
-                            <th style={{ padding:"14px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>الكود</th>
-                            <th style={{ padding:"14px 12px", textAlign:"right", fontWeight:"800", color:"#374151", whiteSpace:"nowrap", minWidth:"140px" }}>المنصب</th>
-                            <th style={{ padding:"14px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>القسم</th>
-                            <th style={{ padding:"14px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap", position:"relative" }}>
-                              <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:"4px" }}>
-                                الرصيد
-                                <button onClick={() => setEmpSortDropdown(d => d==="balance" ? "" : "balance")}
-                                  style={{ background: empSortField==="balance" ? "#4f46e5" : "#e2e8f0", border:"none", borderRadius:"4px", padding:"1px 5px", cursor:"pointer", fontSize:"11px", color: empSortField==="balance" ? "white" : "#64748b", lineHeight:"1.4" }}>
-                                  {empSortField==="balance" ? (empSortDir==="desc"?"↓":"↑") : "⇅"}
-                                </button>
-                              </div>
-                              {empSortDropdown==="balance" && (
-                                <div style={{ position:"absolute", top:"100%", left:"50%", transform:"translateX(-50%)", background:"white", border:"1px solid #e2e8f0", borderRadius:"10px", boxShadow:"0 8px 24px rgba(0,0,0,0.12)", zIndex:50, minWidth:"160px", overflow:"hidden" }}
-                                  onClick={e => e.stopPropagation()}>
-                                  <button onClick={() => { setEmpSortField("balance"); setEmpSortDir("desc"); setEmpSortDropdown(""); }}
-                                    style={{ display:"flex", alignItems:"center", gap:"8px", width:"100%", padding:"10px 14px", background: empSortField==="balance" && empSortDir==="desc" ? "#eef2ff" : "white", border:"none", cursor:"pointer", fontSize:"13px", fontWeight:"700", color:"#1e293b", textAlign:"right" as any }}>
-                                    ↓ من الأعلى للأقل
-                                  </button>
-                                  <button onClick={() => { setEmpSortField("balance"); setEmpSortDir("asc"); setEmpSortDropdown(""); }}
-                                    style={{ display:"flex", alignItems:"center", gap:"8px", width:"100%", padding:"10px 14px", background: empSortField==="balance" && empSortDir==="asc" ? "#eef2ff" : "white", border:"none", cursor:"pointer", fontSize:"13px", fontWeight:"700", color:"#1e293b", textAlign:"right" as any }}>
-                                    ↑ من الأقل للأعلى
-                                  </button>
-                                  {empSortField==="balance" && (
-                                    <button onClick={() => { setEmpSortField(""); setEmpSortDropdown(""); }}
-                                      style={{ display:"flex", alignItems:"center", gap:"8px", width:"100%", padding:"10px 14px", background:"#fff1f2", border:"none", borderTop:"1px solid #fee2e2", cursor:"pointer", fontSize:"12px", fontWeight:"700", color:"#dc2626", textAlign:"right" as any }}>
-                                      ✕ إلغاء الفرز
-                                    </button>
-                                  )}
-                                </div>
-                              )}
-                            </th>
-                            <th style={{ padding:"14px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>شهري</th>
-                            <th style={{ padding:"14px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap", position:"relative" }}>
-                              <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:"4px" }}>
-                                أيام العمل
-                                <button onClick={() => setEmpSortDropdown(d => d==="workedDays" ? "" : "workedDays")}
-                                  style={{ background: empSortField==="workedDays" ? "#4f46e5" : "#e2e8f0", border:"none", borderRadius:"4px", padding:"1px 5px", cursor:"pointer", fontSize:"11px", color: empSortField==="workedDays" ? "white" : "#64748b", lineHeight:"1.4" }}>
-                                  {empSortField==="workedDays" ? (empSortDir==="desc"?"↓":"↑") : "⇅"}
-                                </button>
-                              </div>
-                              {empSortDropdown==="workedDays" && (
-                                <div style={{ position:"absolute", top:"100%", left:"50%", transform:"translateX(-50%)", background:"white", border:"1px solid #e2e8f0", borderRadius:"10px", boxShadow:"0 8px 24px rgba(0,0,0,0.12)", zIndex:50, minWidth:"160px", overflow:"hidden" }}
-                                  onClick={e => e.stopPropagation()}>
-                                  <button onClick={() => { setEmpSortField("workedDays"); setEmpSortDir("desc"); setEmpSortDropdown(""); }}
-                                    style={{ display:"flex", alignItems:"center", gap:"8px", width:"100%", padding:"10px 14px", background: empSortField==="workedDays" && empSortDir==="desc" ? "#eef2ff" : "white", border:"none", cursor:"pointer", fontSize:"13px", fontWeight:"700", color:"#1e293b", textAlign:"right" as any }}>
-                                    ↓ من الأعلى للأقل
-                                  </button>
-                                  <button onClick={() => { setEmpSortField("workedDays"); setEmpSortDir("asc"); setEmpSortDropdown(""); }}
-                                    style={{ display:"flex", alignItems:"center", gap:"8px", width:"100%", padding:"10px 14px", background: empSortField==="workedDays" && empSortDir==="asc" ? "#eef2ff" : "white", border:"none", cursor:"pointer", fontSize:"13px", fontWeight:"700", color:"#1e293b", textAlign:"right" as any }}>
-                                    ↑ من الأقل للأعلى
-                                  </button>
-                                  {empSortField==="workedDays" && (
-                                    <button onClick={() => { setEmpSortField(""); setEmpSortDropdown(""); }}
-                                      style={{ display:"flex", alignItems:"center", gap:"8px", width:"100%", padding:"10px 14px", background:"#fff1f2", border:"none", borderTop:"1px solid #fee2e2", cursor:"pointer", fontSize:"12px", fontWeight:"700", color:"#dc2626", textAlign:"right" as any }}>
-                                      ✕ إلغاء الفرز
-                                    </button>
-                                  )}
-                                </div>
-                              )}
-                            </th>
-                            <th style={{ padding:"14px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>الحالة</th>
-                            <th style={{ padding:"14px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>إجراءات</th>
+                            <SortTh label="الاسم"      field="name"       align="right"  sortField={empSortField} sortDir={empSortDir} sortDropdown={empSortDropdown} onSort={(f,d)=>{setEmpSortField(f);setEmpSortDir(d);setEmpSortDropdown("");}} onClear={()=>{setEmpSortField("");setEmpSortDropdown("");}} onToggle={f=>setEmpSortDropdown(d=>d===f?"":f)} />
+                            <SortTh label="الكود"      field="code"       align="center" sortField={empSortField} sortDir={empSortDir} sortDropdown={empSortDropdown} onSort={(f,d)=>{setEmpSortField(f);setEmpSortDir(d);setEmpSortDropdown("");}} onClear={()=>{setEmpSortField("");setEmpSortDropdown("");}} onToggle={f=>setEmpSortDropdown(d=>d===f?"":f)} />
+                            <SortTh label="المنصب"     field="position"   align="right"  sortField={empSortField} sortDir={empSortDir} sortDropdown={empSortDropdown} onSort={(f,d)=>{setEmpSortField(f);setEmpSortDir(d);setEmpSortDropdown("");}} onClear={()=>{setEmpSortField("");setEmpSortDropdown("");}} onToggle={f=>setEmpSortDropdown(d=>d===f?"":f)} />
+                            <SortTh label="القسم"      field="dept"       align="center" sortField={empSortField} sortDir={empSortDir} sortDropdown={empSortDropdown} onSort={(f,d)=>{setEmpSortField(f);setEmpSortDir(d);setEmpSortDropdown("");}} onClear={()=>{setEmpSortField("");setEmpSortDropdown("");}} onToggle={f=>setEmpSortDropdown(d=>d===f?"":f)} />
+                            <SortTh label="الرصيد"     field="balance"    align="center" sortField={empSortField} sortDir={empSortDir} sortDropdown={empSortDropdown} onSort={(f,d)=>{setEmpSortField(f);setEmpSortDir(d);setEmpSortDropdown("");}} onClear={()=>{setEmpSortField("");setEmpSortDropdown("");}} onToggle={f=>setEmpSortDropdown(d=>d===f?"":f)} />
+                            <SortTh label="شهري"       field="monthly"    align="center" sortField={empSortField} sortDir={empSortDir} sortDropdown={empSortDropdown} onSort={(f,d)=>{setEmpSortField(f);setEmpSortDir(d);setEmpSortDropdown("");}} onClear={()=>{setEmpSortField("");setEmpSortDropdown("");}} onToggle={f=>setEmpSortDropdown(d=>d===f?"":f)} />
+                            <SortTh label="أيام العمل" field="workedDays" align="center" sortField={empSortField} sortDir={empSortDir} sortDropdown={empSortDropdown} onSort={(f,d)=>{setEmpSortField(f);setEmpSortDir(d);setEmpSortDropdown("");}} onClear={()=>{setEmpSortField("");setEmpSortDropdown("");}} onToggle={f=>setEmpSortDropdown(d=>d===f?"":f)} />
+                            <SortTh label="الحالة"     field="status"     align="center" sortField={empSortField} sortDir={empSortDir} sortDropdown={empSortDropdown} onSort={(f,d)=>{setEmpSortField(f);setEmpSortDir(d);setEmpSortDropdown("");}} onClear={()=>{setEmpSortField("");setEmpSortDropdown("");}} onToggle={f=>setEmpSortDropdown(d=>d===f?"":f)} />
+                            <th style={{ padding:"12px 10px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>إجراءات</th>
                           </tr>
                         </thead>
                         <tbody>
