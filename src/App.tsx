@@ -3054,7 +3054,7 @@ ${JSON.stringify(systemData)}
                                     style={{ padding:"6px 14px", background:"#fee2e2", color:"#dc2626", border:"none", borderRadius:"8px", fontWeight:"800", cursor:"pointer", fontSize:"12px", fontFamily:"inherit", whiteSpace:"nowrap" }}>
                                     ✗ رفض
                                   </button>
-                                  <button onClick={() => { setMgrEditForm({ id:req.id, empName:req.employee_name, start_date:req.start_date, days:req.days, reason:req.notes||"", oldDays:req.days }); setShowMgrEdit(true); }}
+                                  <button onClick={() => { setMgrEditForm({ id:req.id, empName:req.employee_name, start_date:req.start_date, days:req.days, notes:req.notes||"", vacation_type_id:req.vacation_type_id }); setShowMgrEdit(true); }}
                                     style={{ padding:"6px 10px", background:"#f5f3ff", border:"1px solid #e0e7ff", borderRadius:"8px", cursor:"pointer", fontSize:"11px", color:"#6d28d9", fontFamily:"inherit" }}>
                                     ✏️
                                   </button>
