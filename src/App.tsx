@@ -302,6 +302,8 @@ const VacationManagementSystem = () => {
   const [showDirectVacModal, setShowDirectVacModal] = useState(false);
   const [directVacForm, setDirectVacForm] = useState({ employee_id: "", days: 1, start_date: "", notes: "", vacation_type_id: "" });
   const [vacSearch2, setVacSearch2] = useState("");
+  const [vacTypeFilter2, setVacTypeFilter2] = useState("all");
+  const [allReqStatusFilter, setAllReqStatusFilter] = useState("all");
   const [vacDeptFilter2, setVacDeptFilter2] = useState("all");
   const [empSearchDirect, setEmpSearchDirect] = useState("");
   const [selectedCalendarDay, setSelectedCalendarDay] = useState<string | null>(null);
@@ -527,7 +529,10 @@ ${JSON.stringify(summaryData)}
   }, []);
 
   // ========== FETCH DATA ==========
+  const scrollRef = React.useRef(0);
+
   const fetchData = useCallback(async () => {
+    scrollRef.current = window.scrollY;
     setLoading(true);
     try {
       const [
@@ -566,10 +571,9 @@ ${JSON.stringify(summaryData)}
       console.error("Fetch Error:", err);
     }
     setLoading(false);
+    // استعادة موضع التمرير بعد التحديث
+    requestAnimationFrame(() => { window.scrollTo({ top: scrollRef.current, behavior: "instant" }); });
   }, [currentUser, currentView]);
-
-  useEffect(() => { fetchData(); }, [fetchData]);
-
   // ========== تذكير العودة التلقائي ==========
   useEffect(() => {
     if (currentView !== "admin" || requests.length === 0) return;
@@ -692,13 +696,9 @@ ${JSON.stringify(summaryData)}
       const now = new Date();
       return r.status === "approved" && reqDate.getMonth() === now.getMonth() && reqDate.getFullYear() === now.getFullYear();
     }).length;
-    const today = new Date().toISOString().split("T")[0];
-    const onVacationNow = requests.filter(r => {
-      if (r.status !== "approved") return false;
-      const { back } = getCalculatedDates(r.start_date, r.days);
-      return r.start_date <= today && back > today;
-    }).length;
-    const atWorkNow = totalEmployees - onVacationNow;
+    // الحالة مباشرة من DB
+    const onVacationNow = employees.filter(e => e.status === "إجازة").length;
+    const atWorkNow = employees.filter(e => e.status !== "إجازة").length;
     const avgBalance = employees.length > 0
       ? (employees.reduce((sum, e) => sum + Number(e.balance), 0) / employees.length).toFixed(1) : 0;
     const totalVacationDays = requests.filter(r => r.status === "approved").reduce((sum, r) => sum + Number(r.days), 0);
@@ -2204,12 +2204,8 @@ ${JSON.stringify(systemData)}
                   {isDeptMgr && (() => {
                     const today = new Date().toISOString().split("T")[0];
                     const deptEmps = employees.filter(e => e.department_id === myDeptId);
-                    const onVacNow = deptEmps.filter(emp =>
-                      requests.some(r => r.employee_id === emp.id && r.status === "approved" &&
-                        (() => { const { back } = getCalculatedDates(r.start_date, r.days); return r.start_date <= today && back > today; })()
-                      )
-                    );
-                    const atWork = deptEmps.length - onVacNow.length;
+                    const onVacNow = deptEmps.filter(emp => emp.status === "إجازة");
+                    const atWork = deptEmps.filter(emp => emp.status !== "إجازة").length;
                     const pendingDept = requests.filter(r => r.status === "pending" && deptEmps.some(e => e.id === r.employee_id));
                     const deptRequests = requests.filter(r => deptEmps.some(e => e.id === r.employee_id) && r.status === "approved");
                     const vacPct = deptEmps.length > 0 ? Math.round((onVacNow.length / deptEmps.length) * 100) : 0;
@@ -2993,49 +2989,87 @@ ${JSON.stringify(systemData)}
                       <h3 className="font-black text-lg text-emerald-600">
                         طلبات تحتاج موافقتك ({filteredRequests.filter(r => r.status === "pending" || r.status === "dept_approved").length})
                       </h3>
-                      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(300px, 1fr))", gap:"16px" }}>
-                        {filteredRequests.filter(r => r.status === "pending" || r.status === "dept_approved").map(req => {
-                          const vacType = vacationTypes.find(vt => vt.id === req.vacation_type_id);
-                          const emp = employees.find(e => e.id === req.employee_id);
-                          const dept = departments.find(d => d.id === emp?.department_id);
+                       <div style={{ background:"white", borderRadius:"20px", border:"1px solid #e2e8f0", overflow:"hidden" }}>
+                        <table style={{ width:"100%", borderCollapse:"collapse", fontSize:"13px" }}>
+                          <thead>
+                            <tr style={{ background:"linear-gradient(135deg,#f0fdf4,#dcfce7)", borderBottom:"2px solid #bbf7d0" }}>
+                              <th style={{ padding:"12px 16px", textAlign:"right", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>الموظف</th>
+                              <th style={{ padding:"12px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>النوع</th>
+                              <th style={{ padding:"12px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>القسم</th>
+                              <th style={{ padding:"12px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>البداية</th>
+                              <th style={{ padding:"12px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>العودة</th>
+                              <th style={{ padding:"12px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>الأيام</th>
+                              <th style={{ padding:"12px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>الحالة</th>
+                              <th style={{ padding:"12px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>الإجراءات</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                        {filteredRequests.filter(r => r.status === "pending" || r.status === "dept_approved").map((req, idx) => {
+                          const vacType = vacationTypes.find((vt:any) => vt.id === req.vacation_type_id);
+                          const emp = employees.find((e:any) => e.id === req.employee_id);
+                          const dept = departments.find((d:any) => d.id === emp?.department_id);
+                          const { back } = getCalculatedDates(req.start_date, req.days);
+                          const isDeptApp = req.status === "dept_approved";
                           return (
-                            <div key={req.id} className="bg-white p-8 rounded-[2.5rem] border-2 border-emerald-200 shadow-sm">
-                              <div className="flex justify-between items-start mb-4">
-                                <div>
-                                  <button onClick={() => { setEmpInfoTarget({...emp, req}); setShowEmpInfoModal(true); }}
-                                    style={{ background:"none", border:"none", padding:0, cursor:"pointer", textAlign:"right" }}>
-                                    <h4 className="font-black text-xl text-slate-800 hover:text-indigo-600">{req.employee_name}</h4>
-                                    <p style={{ fontSize:"11px", color:"#4f46e5", fontWeight:"700", marginTop:"2px" }}>👁 اضغط لرؤية البيانات</p>
+                            <tr key={req.id}
+                              style={{ borderBottom:"1px solid #f1f5f9", background: isDeptApp ? "#faf5ff" : (idx%2===0 ? "white" : "#fafafa") }}
+                              onMouseEnter={e=>(e.currentTarget.style.background="#f0fdf4")}
+                              onMouseLeave={e=>(e.currentTarget.style.background= isDeptApp ? "#faf5ff" : (idx%2===0 ? "white" : "#fafafa"))}>
+                              {/* الموظف */}
+                              <td style={{ padding:"12px 16px" }}>
+                                <button onClick={() => { setEmpInfoTarget({...emp, req}); setShowEmpInfoModal(true); }}
+                                  style={{ background:"none", border:"none", padding:0, cursor:"pointer", textAlign:"right" }}>
+                                  <div style={{ fontWeight:"800", color:"#1e293b", fontSize:"13px" }}>{req.employee_name}</div>
+                                  {isDeptApp && <div style={{ fontSize:"10px", color:"#7c3aed", fontWeight:"700", marginTop:"2px" }}>◑ موافقة قسم</div>}
+                                  {emp?.email && <div style={{ fontSize:"10px", color:"#94a3b8" }}>{emp.email}</div>}
+                                </button>
+                              </td>
+                              {/* النوع */}
+                              <td style={{ padding:"12px", textAlign:"center" }}>
+                                {vacType && <span style={{ padding:"3px 10px", borderRadius:"20px", fontSize:"11px", fontWeight:"700", background: (vacType as any).color+"22", color:(vacType as any).color }}>{(vacType as any).name}</span>}
+                              </td>
+                              {/* القسم */}
+                              <td style={{ padding:"12px", textAlign:"center", fontSize:"12px", color:"#475569", fontWeight:"600" }}>{dept?.name||"-"}</td>
+                              {/* البداية */}
+                              <td style={{ padding:"12px", textAlign:"center", fontSize:"12px", color:"#374151", fontWeight:"700" }}>{formatDate(req.start_date)}</td>
+                              {/* العودة */}
+                              <td style={{ padding:"12px", textAlign:"center", fontSize:"12px", color:"#4f46e5", fontWeight:"700" }}>{formatDate(back)}</td>
+                              {/* الأيام */}
+                              <td style={{ padding:"12px", textAlign:"center" }}>
+                                <span style={{ fontWeight:"900", color:"#059669", fontSize:"14px" }}>{req.days}</span>
+                                <span style={{ fontSize:"10px", color:"#94a3b8" }}> يوم</span>
+                              </td>
+                              {/* الحالة / ملاحظات */}
+                              <td style={{ padding:"12px", textAlign:"center", maxWidth:"120px" }}>
+                                {req.notes && <div style={{ fontSize:"11px", color:"#64748b", fontStyle:"italic", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", maxWidth:"100px" }} title={req.notes}>"{req.notes}"</div>}
+                              </td>
+                              {/* الإجراءات */}
+                              <td style={{ padding:"10px 12px", textAlign:"center" }}>
+                                <div style={{ display:"flex", gap:"6px", justifyContent:"center", flexWrap:"nowrap" }}>
+                                  <button onClick={() => openApprovalModal(req, "approved")}
+                                    style={{ padding:"6px 14px", background:"linear-gradient(135deg,#059669,#16a34a)", color:"white", border:"none", borderRadius:"8px", fontWeight:"800", cursor:"pointer", fontSize:"12px", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+                                    ✓ موافقة
                                   </button>
-                                  <p className="text-xs text-slate-400 font-bold mt-1">{dept?.name || ""}</p>
-                                  {req.status === "dept_approved" && (
-                                    <p className="text-xs text-indigo-600 font-bold mt-1">وافق عليها مدير القسم: {req.dept_approved_by}</p>
-                                  )}
+                                  <button onClick={() => openApprovalModal(req, "rejected")}
+                                    style={{ padding:"6px 14px", background:"#fee2e2", color:"#dc2626", border:"none", borderRadius:"8px", fontWeight:"800", cursor:"pointer", fontSize:"12px", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+                                    ✗ رفض
+                                  </button>
+                                  <button onClick={() => { setMgrEditForm({ id:req.id, empName:req.employee_name, start_date:req.start_date, days:req.days, notes:req.notes||"", vacation_type_id:req.vacation_type_id }); setShowMgrEdit(true); }}
+                                    style={{ padding:"6px 10px", background:"#f5f3ff", border:"1px solid #e0e7ff", borderRadius:"8px", cursor:"pointer", fontSize:"11px", color:"#6d28d9", fontFamily:"inherit" }}>
+                                    ✏️
+                                  </button>
+                                  <button onClick={() => handleDeleteVacation(req.id)}
+                                    style={{ padding:"6px 10px", background:"#fff1f2", border:"none", borderRadius:"8px", cursor:"pointer", fontSize:"11px", color:"#dc2626" }}>
+                                    🗑️
+                                  </button>
                                 </div>
-                                <div className="flex gap-2 items-center">
-                                  {vacType && <span className="px-3 py-1 rounded-full text-xs font-bold" style={{ backgroundColor: vacType.color+'20', color: vacType.color }}>{vacType.name}</span>}
-                                  <button onClick={() => handleDeleteVacation(req.id)} className="p-2 text-red-400 hover:bg-red-50 rounded-xl"><Trash2 size={16} /></button>
-                                </div>
-                              </div>
-                              <div className="bg-slate-50 p-4 rounded-2xl text-sm space-y-2 mb-4">
-                                <div className="flex justify-between font-bold"><span className="text-slate-400">البداية</span><span>{formatDate(req.start_date)}</span></div>
-                                <div className="flex justify-between font-bold"><span className="text-slate-400">المدة</span><span>{req.days} يوم</span></div>
-                                <div className="flex justify-between font-bold pt-2 border-t"><span className="text-indigo-600">العودة</span><span className="text-indigo-600 font-black">{formatDate(getCalculatedDates(req.start_date, req.days).back)}</span></div>
-                              </div>
-                              {req.notes && <p className="text-sm text-slate-500 italic mb-4">"{req.notes}"</p>}
-                              {emp?.email && <p className="text-xs text-slate-400 mb-4 flex items-center gap-1"><Mail size={12}/> {emp.email}</p>}
-                              <div className="flex gap-3 mb-2">
-                                <button onClick={() => openApprovalModal(req, "approved")} className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-4 rounded-2xl font-black">موافقة</button>
-                                <button onClick={() => openApprovalModal(req, "rejected")} className="flex-1 bg-red-50 text-red-600 hover:bg-red-100 py-4 rounded-2xl font-black">رفض</button>
-                              </div>
-                              <button onClick={() => { setMgrEditForm({ id:req.id, empName:req.employee_name, days:req.days, start_date:req.start_date, reason:"", oldDays:req.days }); setShowManagerEditModal(true); }}
-                                style={{ width:"100%", padding:"10px", background:"#f5f3ff", border:"1px solid #ddd6fe", borderRadius:"14px", color:"#7c3aed", cursor:"pointer", fontWeight:"700", fontSize:"12px" }}>
-                                تعديل الاجازة
-                              </button>
-                            </div>
+                              </td>
+                            </tr>
                           );
                         })}
-                      </div>
+                          </tbody>
+                        </table>
+                       </div>
                     </>
                   )}
                 </div>
@@ -3150,75 +3184,155 @@ ${JSON.stringify(systemData)}
               {/* ===== MANAGERS ===== */}
               {/* ===== ACTIVE VACATIONS ===== */}
               {activeTab === "active_vacations" && (() => {
-                const today = new Date().toISOString().split("T")[0];
-                // الموظفين في إجازة دلوقتي فعلاً
-                const activeVacRequests = requests.filter(r => {
-                  if (r.status !== "approved") return false;
-                  const { back } = getCalculatedDates(r.start_date, r.days);
-                  return r.start_date <= today && back > today;
+                // ===== بناء قائمة الإجازات الفعلية من مصدرين =====
+                // 1. موظفون حالتهم "إجازة" في DB (سواء يدوي أو بطلب)
+                const empOnVac = (isDeptMgr
+                  ? employees.filter(e => e.department_id === myDeptId)
+                  : employees
+                ).filter(e => e.status === "إجازة");
+
+                // 2. لكل موظف في إجازة، نجيب آخر طلب approved له لو وجد
+                const vacRows = empOnVac.map(emp => {
+                  const lastReq = requests
+                    .filter(r => r.employee_id === emp.id && r.status === "approved")
+                    .sort((a, b) => b.start_date.localeCompare(a.start_date))[0];
+                  const dept = departments.find(d => d.id === emp.department_id);
+                  const vacType = lastReq ? vacationTypes.find(vt => vt.id === lastReq.vacation_type_id) : null;
+                  const back = lastReq ? getCalculatedDates(lastReq.start_date, lastReq.days).back : (emp.return_date || "");
+                  const today = new Date().toISOString().split("T")[0];
+                  const daysLeft = back ? Math.ceil((new Date(back).getTime() - new Date(today).getTime()) / 86400000) : null;
+                  return { emp, lastReq, dept, vacType, back, daysLeft, source: lastReq ? "طلب" : "يدوي" };
                 });
-                // فلترة حسب القسم لمدير القسم
-                const scopedActive = isDeptMgr
-                  ? activeVacRequests.filter(r => employees.find(e => e.id === r.employee_id)?.department_id === myDeptId)
-                  : activeVacRequests;
-                // بحث وفلترة
-                const filtered = scopedActive.filter(r => {
+
+                // فلترة بحث وقسم
+                const filtered = vacRows.filter(row => {
+                  const matchSearch = !vacSearch2 || row.emp.name?.includes(vacSearch2) || (row.emp.code||"").includes(vacSearch2);
+                  const matchDept = vacDeptFilter2 === "all" || row.emp.department_id === vacDeptFilter2;
+                  const matchType = !vacTypeFilter2 || vacTypeFilter2 === "all" || row.lastReq?.vacation_type_id === vacTypeFilter2;
+                  return matchSearch && matchDept && matchType;
+                });
+
+                // ===== بناء قائمة الطلبات لتصدير Excel =====
+                const allRequestsForExport = (isDeptMgr
+                  ? requests.filter(r => employees.find(e => e.id === r.employee_id)?.department_id === myDeptId)
+                  : requests
+                ).filter(r => {
                   const matchSearch = !vacSearch2 || r.employee_name?.includes(vacSearch2);
-                  const emp = employees.find(e => e.id === r.employee_id);
-                  const matchDept = vacDeptFilter2 === "all" || emp?.department_id === vacDeptFilter2;
-                  return matchSearch && matchDept;
+                  const matchType = !vacTypeFilter2 || vacTypeFilter2 === "all" || r.vacation_type_id === vacTypeFilter2;
+                  return matchSearch && matchType;
                 });
+
+                const exportActiveToExcel = () => {
+                  const data = filtered.map(row => {
+                    return {
+                      "اسم الموظف": row.emp.name,
+                      "الكود الوظيفي": row.emp.code || "",
+                      "القسم": row.dept?.name || "",
+                      "نوع الإجازة": (row.vacType as any)?.name || "غير محدد",
+                      "تاريخ البداية": row.lastReq?.start_date || "",
+                      "عدد الأيام": row.lastReq?.days || "",
+                      "تاريخ العودة المتوقع": row.back || "",
+                      "الرصيد المتبقي": row.emp.balance,
+                      "المصدر": row.source,
+                      "ملاحظات": row.lastReq?.notes || "",
+                    };
+                  });
+                  const ws = XLSX.utils.json_to_sheet(data);
+                  ws["!cols"] = [{ wch:22 },{ wch:12 },{ wch:18 },{ wch:16 },{ wch:14 },{ wch:10 },{ wch:16 },{ wch:12 },{ wch:10 },{ wch:24 }];
+                  const wb = XLSX.utils.book_new();
+                  XLSX.utils.book_append_sheet(wb, ws, "الإجازات الفعلية");
+                  XLSX.writeFile(wb, `الإجازات-الفعلية-${new Date().toISOString().split("T")[0]}.xlsx`);
+                };
+
+                const exportAllRequestsToExcel = () => {
+                  const data = allRequestsForExport.map(r => {
+                    const emp = employees.find(e => e.id === r.employee_id);
+                    const dept = departments.find(d => d.id === emp?.department_id);
+                    const vt = vacationTypes.find(v => v.id === r.vacation_type_id);
+                    const { back } = getCalculatedDates(r.start_date, r.days);
+                    const statusMap: any = { pending:"معلق", dept_approved:"موافقة مبدئية", approved:"مقبول", rejected:"مرفوض" };
+                    return {
+                      "اسم الموظف": r.employee_name,
+                      "الكود الوظيفي": emp?.code || "",
+                      "القسم": dept?.name || "",
+                      "نوع الإجازة": (vt as any)?.name || "",
+                      "تاريخ التقديم": r.created_at ? r.created_at.split("T")[0] : "",
+                      "تاريخ البداية": r.start_date,
+                      "عدد الأيام": r.days,
+                      "تاريخ العودة": back,
+                      "الحالة": statusMap[r.status] || r.status,
+                      "تمت الموافقة بواسطة": r.owner_approved_by || "",
+                      "تاريخ الموافقة": r.owner_approved_at ? r.owner_approved_at.split("T")[0] : "",
+                      "ملاحظات الموظف": r.notes || "",
+                      "ملاحظات الإدارة": r.admin_notes || "",
+                    };
+                  });
+                  const ws = XLSX.utils.json_to_sheet(data);
+                  ws["!cols"] = Array(13).fill({ wch:18 });
+                  const wb = XLSX.utils.book_new();
+                  XLSX.utils.book_append_sheet(wb, ws, "جميع الطلبات");
+                  XLSX.writeFile(wb, `جميع-الطلبات-${new Date().toISOString().split("T")[0]}.xlsx`);
+                };
+
                 return (
                   <div className="space-y-5">
                     {/* Header */}
                     <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:"12px" }}>
                       <div>
                         <h2 style={{ margin:0, fontSize:"22px", fontWeight:"900" }}>🏖️ الإجازات الفعلية</h2>
-                        <p style={{ margin:"4px 0 0", color:"#64748b", fontSize:"13px" }}>الموظفون في إجازة الآن — يُشالون تلقائياً عند العودة</p>
+                        <p style={{ margin:"4px 0 0", color:"#64748b", fontSize:"13px" }}>
+                          الموظفون في إجازة حالياً — من طلبات أو تغيير يدوي
+                        </p>
                       </div>
-                      {!isDeptMgr && (
-                        <button onClick={() => setShowDirectVacModal(true)} style={{ display:"flex", alignItems:"center", gap:"8px", background:"#4f46e5", color:"white", border:"none", borderRadius:"12px", padding:"10px 20px", fontWeight:"700", cursor:"pointer", fontSize:"14px", fontFamily:"inherit" }}>
+                      <div style={{ display:"flex", gap:"10px", flexWrap:"wrap" }}>
+                        <button onClick={exportActiveToExcel}
+                          style={{ display:"flex", alignItems:"center", gap:"6px", padding:"10px 16px", background:"linear-gradient(135deg,#059669,#16a34a)", color:"white", border:"none", borderRadius:"12px", fontWeight:"700", cursor:"pointer", fontSize:"13px", fontFamily:"inherit" }}>
+                          <FileDown size={16}/> تصدير الإجازات الحالية
+                        </button>
+                        <button onClick={exportAllRequestsToExcel}
+                          style={{ display:"flex", alignItems:"center", gap:"6px", padding:"10px 16px", background:"linear-gradient(135deg,#4f46e5,#7c3aed)", color:"white", border:"none", borderRadius:"12px", fontWeight:"700", cursor:"pointer", fontSize:"13px", fontFamily:"inherit" }}>
+                          <FileDown size={16}/> تصدير جميع الطلبات
+                        </button>
+                        <button onClick={() => setShowDirectVacModal(true)}
+                          style={{ display:"flex", alignItems:"center", gap:"6px", padding:"10px 16px", background:"linear-gradient(135deg,#f59e0b,#d97706)", color:"white", border:"none", borderRadius:"12px", fontWeight:"700", cursor:"pointer", fontSize:"13px", fontFamily:"inherit" }}>
                           <Plus size={16}/> إضافة إجازة مباشرة
                         </button>
-                      )}
-                      {isDeptMgr && (
-                        <button onClick={() => setShowDirectVacModal(true)} style={{ display:"flex", alignItems:"center", gap:"8px", background:"#4f46e5", color:"white", border:"none", borderRadius:"12px", padding:"10px 20px", fontWeight:"700", cursor:"pointer", fontSize:"14px", fontFamily:"inherit" }}>
-                          <Plus size={16}/> إضافة إجازة مباشرة
-                        </button>
-                      )}
+                      </div>
                     </div>
 
-                    {/* بحث وفلترة */}
-                    <div style={{ background:"white", borderRadius:"16px", padding:"14px 18px", border:"1px solid #e2e8f0", display:"flex", gap:"12px", flexWrap:"wrap", alignItems:"center" }}>
-                      <div style={{ position:"relative", flex:1, minWidth:"200px" }}>
-                        <Search style={{ position:"absolute", right:"12px", top:"50%", transform:"translateY(-50%)", color:"#94a3b8" }} size={15}/>
+                    {/* شريط الفلاتر */}
+                    <div style={{ background:"white", borderRadius:"16px", padding:"14px 18px", border:"1px solid #e2e8f0", display:"flex", gap:"10px", flexWrap:"wrap", alignItems:"center" }}>
+                      <div style={{ position:"relative", flex:1, minWidth:"180px" }}>
+                        <Search style={{ position:"absolute", right:"12px", top:"50%", transform:"translateY(-50%)", color:"#94a3b8" }} size={16}/>
                         <input
-                          style={{ width:"100%", paddingRight:"36px", paddingLeft:"12px", padding:"10px 36px 10px 12px", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:"10px", fontSize:"13px", outline:"none", boxSizing:"border-box" }}
-                          placeholder="ابحث باسم الموظف..."
+                          style={{ width:"100%", paddingRight:"36px", paddingLeft:"12px", padding:"10px 36px 10px 12px", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:"10px", outline:"none", fontSize:"13px", boxSizing:"border-box" as any }}
+                          placeholder="ابحث بالاسم أو الكود..."
                           value={vacSearch2}
                           onChange={e => setVacSearch2(e.target.value)}
                         />
                       </div>
                       {!isDeptMgr && (
-                        <select
-                          style={{ padding:"10px 14px", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:"10px", fontSize:"13px", outline:"none" }}
-                          value={vacDeptFilter2}
-                          onChange={e => setVacDeptFilter2(e.target.value)}
-                        >
+                        <select style={{ padding:"10px 14px", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:"10px", outline:"none", fontSize:"13px", fontFamily:"inherit" }}
+                          value={vacDeptFilter2} onChange={e => setVacDeptFilter2(e.target.value)}>
                           <option value="all">كل الأقسام</option>
                           {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
                         </select>
                       )}
-                      <div style={{ background:"#eef2ff", color:"#4f46e5", borderRadius:"10px", padding:"10px 16px", fontWeight:"700", fontSize:"13px" }}>
+                      <select style={{ padding:"10px 14px", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:"10px", outline:"none", fontSize:"13px", fontFamily:"inherit" }}
+                        value={vacTypeFilter2 || "all"} onChange={e => setVacTypeFilter2(e.target.value)}>
+                        <option value="all">كل أنواع الإجازات</option>
+                        {vacationTypes.map(vt => <option key={vt.id} value={vt.id}>{vt.name}</option>)}
+                      </select>
+                      <div style={{ background:"#eef2ff", color:"#4f46e5", borderRadius:"10px", padding:"10px 16px", fontWeight:"800", fontSize:"13px", whiteSpace:"nowrap" }}>
                         {filtered.length} موظف في إجازة
                       </div>
                     </div>
 
-                    {/* الجدول */}
+                    {/* جدول الإجازات الفعلية */}
                     <div style={{ background:"white", borderRadius:"16px", border:"1px solid #e2e8f0", overflow:"hidden" }}>
                       {filtered.length === 0 ? (
                         <div style={{ padding:"60px", textAlign:"center", color:"#94a3b8" }}>
-                          <CheckCircle size={48} style={{ margin:"0 auto 12px", opacity:0.3 }}/>
+                          <CheckCircle size={48} style={{ margin:"0 auto 12px", opacity:0.3, display:"block" }}/>
                           <p style={{ fontWeight:"700", fontSize:"16px" }}>لا يوجد موظفون في إجازة الآن ✅</p>
                         </div>
                       ) : (
@@ -3226,43 +3340,75 @@ ${JSON.stringify(systemData)}
                           <table style={{ width:"100%", borderCollapse:"collapse", fontSize:"13px" }}>
                             <thead style={{ background:"#f8fafc", borderBottom:"2px solid #e2e8f0" }}>
                               <tr>
-                                {["الموظف", "القسم", "نوع الإجازة", "تاريخ البداية", "المدة", "تاريخ العودة", "الرصيد المتبقي", "إجراءات"].map(h => (
-                                  <th key={h} style={{ padding:"12px 14px", textAlign:"right", fontWeight:"800", color:"#475569", whiteSpace:"nowrap" }}>{h}</th>
+                                {["الموظف", "القسم", "نوع الإجازة", "تاريخ البداية", "المدة", "تاريخ العودة", "الرصيد", "المصدر", "الإجراءات"].map(h => (
+                                  <th key={h} style={{ padding:"12px 14px", textAlign:"right", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>{h}</th>
                                 ))}
                               </tr>
                             </thead>
                             <tbody>
-                              {filtered.map(req => {
-                                const { back } = getCalculatedDates(req.start_date, req.days);
-                                const emp = employees.find(e => e.id === req.employee_id);
-                                const dept = departments.find(d => d.id === emp?.department_id);
-                                const vacType = vacationTypes.find(vt => vt.id === req.vacation_type_id);
-                                const daysLeft = Math.ceil((new Date(back).getTime() - new Date(today).getTime()) / 86400000);
+                              {filtered.map(row => {
+                                const { emp, lastReq, dept, vacType, back, daysLeft, source } = row;
+                                const today = new Date().toISOString().split("T")[0];
                                 return (
-                                  <tr key={req.id} style={{ borderBottom:"1px solid #f1f5f9" }}>
+                                  <tr key={emp.id} style={{ borderBottom:"1px solid #f1f5f9" }}
+                                    onMouseEnter={e => (e.currentTarget.style.background="#f8fafc")}
+                                    onMouseLeave={e => (e.currentTarget.style.background="white")}>
                                     <td style={{ padding:"12px 14px" }}>
-                                      <div style={{ fontWeight:"700" }}>{req.employee_name}</div>
-                                      <div style={{ fontSize:"11px", color:"#94a3b8" }}>{emp?.code}</div>
+                                      <div style={{ fontWeight:"700", color:"#1e293b" }}>{emp.name}</div>
+                                      <div style={{ fontSize:"11px", color:"#94a3b8" }}>{emp.code}</div>
                                     </td>
-                                    <td style={{ padding:"12px 14px", color:"#64748b" }}>{dept?.name || "-"}</td>
+                                    <td style={{ padding:"12px 14px", color:"#64748b", fontSize:"12px" }}>{dept?.name || "-"}</td>
                                     <td style={{ padding:"12px 14px" }}>
-                                      {vacType && <span style={{ padding:"3px 10px", borderRadius:"20px", fontSize:"11px", fontWeight:"700", backgroundColor: vacType.color+"20", color: vacType.color }}>{vacType.name}</span>}
+                                      {vacType
+                                        ? <span style={{ padding:"3px 10px", borderRadius:"20px", fontSize:"11px", fontWeight:"700", background:(vacType as any).color+"22", color:(vacType as any).color }}>{(vacType as any).name}</span>
+                                        : <span style={{ color:"#94a3b8", fontSize:"11px" }}>غير محدد</span>}
                                     </td>
-                                    <td style={{ padding:"12px 14px", textAlign:"center" }}>{formatDate(req.start_date)}</td>
-                                    <td style={{ padding:"12px 14px", textAlign:"center", fontWeight:"700" }}>{req.days} يوم</td>
-                                    <td style={{ padding:"12px 14px", textAlign:"center" }}>
-                                      <div style={{ fontWeight:"700", color:"#4f46e5" }}>{formatDate(back)}</div>
-                                      <div style={{ fontSize:"11px", color: daysLeft <= 2 ? "#ef4444" : "#94a3b8" }}>
-                                        {daysLeft <= 0 ? "اليوم" : `بعد ${daysLeft} يوم`}
-                                      </div>
+                                    <td style={{ padding:"12px 14px", textAlign:"center", fontSize:"12px" }}>
+                                      {lastReq ? formatDate(lastReq.start_date) : "-"}
                                     </td>
-                                    <td style={{ padding:"12px 14px", textAlign:"center" }}>
-                                      <span style={{ fontWeight:"700", color: (emp?.balance || 0) < 5 ? "#ef4444" : "#10b981" }}>{emp?.balance || 0} يوم</span>
+                                    <td style={{ padding:"12px 14px", textAlign:"center", fontWeight:"700" }}>
+                                      {lastReq ? `${lastReq.days} يوم` : "-"}
                                     </td>
                                     <td style={{ padding:"12px 14px", textAlign:"center" }}>
+                                      {back ? (
+                                        <>
+                                          <div style={{ fontWeight:"700", color:"#4f46e5" }}>{formatDate(back)}</div>
+                                          {daysLeft !== null && (
+                                            <div style={{ fontSize:"11px", color: daysLeft <= 0 ? "#ef4444" : daysLeft <= 2 ? "#f59e0b" : "#94a3b8" }}>
+                                              {daysLeft <= 0 ? "اليوم" : `بعد ${daysLeft} يوم`}
+                                            </div>
+                                          )}
+                                        </>
+                                      ) : <span style={{ color:"#94a3b8" }}>-</span>}
+                                    </td>
+                                    <td style={{ padding:"12px 14px", textAlign:"center" }}>
+                                      <span style={{ fontWeight:"700", color: (emp.balance || 0) < 5 ? "#ef4444" : "#374151" }}>{emp.balance}</span>
+                                    </td>
+                                    <td style={{ padding:"12px 14px", textAlign:"center" }}>
+                                      <span style={{
+                                        padding:"3px 10px", borderRadius:"20px", fontSize:"11px", fontWeight:"700",
+                                        background: source === "طلب" ? "#eef2ff" : "#fef3c7",
+                                        color: source === "طلب" ? "#4f46e5" : "#d97706"
+                                      }}>{source}</span>
+                                    </td>
+                                    <td style={{ padding:"10px 14px", textAlign:"center" }}>
                                       <div style={{ display:"flex", gap:"6px", justifyContent:"center" }}>
-                                        <button onClick={() => openReturnModal(req)} style={{ background:"#dcfce7", color:"#16a34a", border:"none", borderRadius:"8px", padding:"6px 12px", fontSize:"12px", fontWeight:"700", cursor:"pointer" }}>تسجيل عودة</button>
-                                        <button onClick={() => handleDeleteVacation(req.id)} style={{ background:"#fee2e2", color:"#dc2626", border:"none", borderRadius:"8px", padding:"6px 10px", fontSize:"12px", cursor:"pointer" }}><Trash2 size={13}/></button>
+                                        {lastReq && (
+                                          <button onClick={() => openReturnModal(lastReq)}
+                                            style={{ padding:"6px 10px", background:"#dcfce7", color:"#16a34a", border:"none", borderRadius:"8px", fontWeight:"700", cursor:"pointer", fontSize:"12px", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+                                            ✅ عودة
+                                          </button>
+                                        )}
+                                        {!lastReq && (
+                                          <button onClick={async () => {
+                                            if (!window.confirm(`تسجيل عودة ${emp.name} إلى العمل؟`)) return;
+                                            await supabase.from("employees").update({ status:"عمل", return_date: new Date().toISOString().split("T")[0] }).eq("id", emp.id);
+                                            fetchData();
+                                          }}
+                                            style={{ padding:"6px 10px", background:"#dcfce7", color:"#16a34a", border:"none", borderRadius:"8px", fontWeight:"700", cursor:"pointer", fontSize:"12px", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+                                            ✅ عودة
+                                          </button>
+                                        )}
                                       </div>
                                     </td>
                                   </tr>
@@ -3273,6 +3419,81 @@ ${JSON.stringify(systemData)}
                         </div>
                       )}
                     </div>
+
+                    {/* ===== قسم جميع الطلبات المقدمة ===== */}
+                    <div style={{ marginTop:"8px" }}>
+                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"14px", flexWrap:"wrap", gap:"10px" }}>
+                        <h3 style={{ margin:0, fontWeight:"900", fontSize:"17px" }}>📋 جميع الطلبات المقدمة</h3>
+                        <div style={{ display:"flex", alignItems:"center", gap:"10px" }}>
+                          <select style={{ padding:"9px 14px", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:"10px", outline:"none", fontSize:"13px", fontFamily:"inherit" }}
+                            value={allReqStatusFilter || "all"} onChange={e => setAllReqStatusFilter(e.target.value)}>
+                            <option value="all">كل الحالات</option>
+                            <option value="pending">⏳ معلق</option>
+                            <option value="dept_approved">◑ موافقة مبدئية</option>
+                            <option value="approved">✓ مقبول</option>
+                            <option value="rejected">✗ مرفوض</option>
+                          </select>
+                          <span style={{ fontSize:"12px", color:"#64748b" }}>
+                            {allRequestsForExport.filter(r => allReqStatusFilter === "all" || r.status === allReqStatusFilter).length} طلب
+                          </span>
+                        </div>
+                      </div>
+                      <div style={{ background:"white", borderRadius:"16px", border:"1px solid #e2e8f0", overflow:"hidden" }}>
+                        <div style={{ overflowX:"auto" }}>
+                          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:"13px" }}>
+                            <thead style={{ background:"#f8fafc", borderBottom:"2px solid #e2e8f0" }}>
+                              <tr>
+                                {["الموظف","القسم","النوع","تاريخ التقديم","البداية","الأيام","العودة","الحالة","موافق بواسطة","ملاحظات"].map(h => (
+                                  <th key={h} style={{ padding:"11px 12px", textAlign:"right", fontWeight:"800", color:"#374151", whiteSpace:"nowrap", fontSize:"12px" }}>{h}</th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {allRequestsForExport
+                                .filter(r => allReqStatusFilter === "all" || r.status === allReqStatusFilter)
+                                .sort((a,b) => b.created_at?.localeCompare(a.created_at||"")||0)
+                                .map((req, idx) => {
+                                  const emp = employees.find(e => e.id === req.employee_id);
+                                  const dept = departments.find(d => d.id === emp?.department_id);
+                                  const vt = vacationTypes.find(v => v.id === req.vacation_type_id);
+                                  const { back } = getCalculatedDates(req.start_date, req.days);
+                                  const statusConfig: any = {
+                                    pending:       { label:"معلق",           bg:"#fef3c7", color:"#d97706" },
+                                    dept_approved: { label:"موافقة مبدئية", bg:"#ede9fe", color:"#7c3aed" },
+                                    approved:      { label:"مقبول",          bg:"#dcfce7", color:"#16a34a" },
+                                    rejected:      { label:"مرفوض",          bg:"#fee2e2", color:"#dc2626" },
+                                  };
+                                  const sc = statusConfig[req.status] || { label:req.status, bg:"#f1f5f9", color:"#64748b" };
+                                  return (
+                                    <tr key={req.id} style={{ borderBottom:"1px solid #f1f5f9", background: idx%2===0?"white":"#fafafa" }}
+                                      onMouseEnter={e=>(e.currentTarget.style.background="#f0f4ff")}
+                                      onMouseLeave={e=>(e.currentTarget.style.background=idx%2===0?"white":"#fafafa")}>
+                                      <td style={{ padding:"10px 12px" }}>
+                                        <div style={{ fontWeight:"700", color:"#1e293b", fontSize:"13px" }}>{req.employee_name}</div>
+                                        <div style={{ fontSize:"10px", color:"#94a3b8" }}>{emp?.code}</div>
+                                      </td>
+                                      <td style={{ padding:"10px 12px", fontSize:"12px", color:"#64748b" }}>{dept?.name||"-"}</td>
+                                      <td style={{ padding:"10px 12px" }}>
+                                        {vt && <span style={{ padding:"2px 8px", borderRadius:"20px", fontSize:"11px", fontWeight:"700", background:(vt as any).color+"22", color:(vt as any).color }}>{(vt as any).name}</span>}
+                                      </td>
+                                      <td style={{ padding:"10px 12px", fontSize:"11px", color:"#94a3b8" }}>{req.created_at ? req.created_at.split("T")[0] : "-"}</td>
+                                      <td style={{ padding:"10px 12px", fontSize:"12px", fontWeight:"600" }}>{formatDate(req.start_date)}</td>
+                                      <td style={{ padding:"10px 12px", textAlign:"center", fontWeight:"800", color:"#059669" }}>{req.days}</td>
+                                      <td style={{ padding:"10px 12px", fontSize:"12px", color:"#4f46e5", fontWeight:"600" }}>{formatDate(back)}</td>
+                                      <td style={{ padding:"10px 12px" }}>
+                                        <span style={{ padding:"3px 10px", borderRadius:"20px", fontSize:"11px", fontWeight:"700", background:sc.bg, color:sc.color }}>{sc.label}</span>
+                                      </td>
+                                      <td style={{ padding:"10px 12px", fontSize:"11px", color:"#64748b" }}>{req.owner_approved_by||"-"}</td>
+                                      <td style={{ padding:"10px 12px", fontSize:"11px", color:"#94a3b8", maxWidth:"120px", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }} title={req.notes||""}>{req.notes||"-"}</td>
+                                    </tr>
+                                  );
+                                })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </div>
+
                   </div>
                 );
               })()}
@@ -3983,19 +4204,37 @@ ${JSON.stringify(systemData)}
                 <button disabled={!printSelected.length}
                   onClick={async () => {
                     const sel = requests.filter(r => printSelected.includes(r.id));
-                    const text = ["📋 تقرير الإجازات المقبولة", "الفترة: " + (printFrom||"الكل") + " - " + (printTo||"الكل"), "━━━━━━━━━━━━━━━━",
-                      ...sel.map((r,i) => {
-                        const vt = vacationTypes.find(v => v.id === r.vacation_type_id);
-                        const { back } = getCalculatedDates(r.start_date, r.days);
-                        return (i+1) + ". " + r.employee_name + "\n   " + (vt?.name||"-") + " | " + r.days + " يوم\n   📅 " + formatDate(r.start_date) + " ← " + formatDate(back);
-                      })].join("\n");
+                    const rows = sel.map((r:any,i:number) => {
+                      const vt = vacationTypes.find((v:any) => v.id === r.vacation_type_id);
+                      const { back } = getCalculatedDates(r.start_date, r.days);
+                      const bg = i%2 ? "#f8fafc" : "white";
+                      return `<tr style="background:${bg}"><td style="padding:10px 14px;font-weight:800;color:#1e293b;border-bottom:1px solid #f1f5f9">${i+1}</td><td style="padding:10px 14px;font-weight:700;color:#1e293b;border-bottom:1px solid #f1f5f9">${r.employee_name}</td><td style="padding:10px 14px;color:#4f46e5;font-weight:700;border-bottom:1px solid #f1f5f9">${(vt as any)?.name||"-"}</td><td style="padding:10px 14px;color:#374151;border-bottom:1px solid #f1f5f9">${formatDate(r.start_date)}</td><td style="padding:10px 14px;color:#374151;border-bottom:1px solid #f1f5f9">${formatDate(back)}</td><td style="padding:10px 14px;font-weight:900;color:#059669;border-bottom:1px solid #f1f5f9">${r.days} يوم</td></tr>`;
+                    }).join("");
+                    const html = `<div style="font-family:Arial,sans-serif;direction:rtl;background:white;padding:28px;min-width:640px"><div style="display:flex;align-items:center;gap:12px;margin-bottom:18px;padding-bottom:14px;border-bottom:3px solid #4f46e5"><div style="background:linear-gradient(135deg,#4f46e5,#7c3aed);padding:10px 18px;border-radius:10px;color:white;font-weight:900;font-size:17px">📋 تقرير الإجازات المقبولة</div><div style="color:#64748b;font-size:12px">${printFrom||"الكل"} ← ${printTo||"الكل"} | ${sel.length} طلب</div></div><table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="background:linear-gradient(135deg,#4f46e5,#7c3aed);color:white"><th style="padding:10px 14px;text-align:right">#</th><th style="padding:10px 14px;text-align:right">الموظف</th><th style="padding:10px 14px;text-align:right">نوع الإجازة</th><th style="padding:10px 14px;text-align:right">تاريخ البداية</th><th style="padding:10px 14px;text-align:right">تاريخ العودة</th><th style="padding:10px 14px;text-align:right">الأيام</th></tr></thead><tbody>${rows}</tbody></table><div style="margin-top:14px;font-size:11px;color:#94a3b8;text-align:center">تم الإنشاء: ${new Date().toLocaleDateString("ar-EG")}</div></div>`;
                     try {
-                      if (navigator.share) { await navigator.share({ title:"تقرير الإجازات", text }); }
-                      else { await navigator.clipboard.writeText(text); alert("✅ تم نسخ التقرير — الصقه في واتساب أو أي تطبيق"); }
-                    } catch { alert("حدث خطأ في المشاركة"); }
+                      const wrap = document.createElement("div");
+                      wrap.style.cssText = "position:fixed;top:-9999px;left:-9999px";
+                      wrap.innerHTML = html;
+                      document.body.appendChild(wrap);
+                      const el = wrap.firstElementChild as HTMLElement;
+                      if ((window as any).html2canvas) {
+                        const canvas = await (window as any).html2canvas(el, { scale:2, useCORS:true, backgroundColor:"#ffffff" });
+                        document.body.removeChild(wrap);
+                        canvas.toBlob(async (blob:Blob|null) => {
+                          if (!blob) return;
+                          const file = new File([blob], "تقرير-الإجازات.png", { type:"image/png" });
+                          if (navigator.canShare?.({ files:[file] })) { await navigator.share({ files:[file], title:"تقرير الإجازات" }); }
+                          else { const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href=url; a.download="تقرير-الإجازات.png"; a.click(); URL.revokeObjectURL(url); }
+                        }, "image/png");
+                      } else {
+                        document.body.removeChild(wrap);
+                        const w = window.open("","_blank");
+                        if (w) { w.document.write(`<html dir="rtl"><head><title>تقرير الإجازات</title></head><body style="margin:20px">${html}<script>window.onload=()=>{window.print()}<\/script></body></html>`); w.document.close(); }
+                      }
+                    } catch(e:any) { alert("خطأ: " + e?.message); }
                   }}
-                  style={{ padding:"13px", background:!printSelected.length?"#f1f5f9":"linear-gradient(135deg,#059669,#10b981)", color:!printSelected.length?"#94a3b8":"white", border:"none", borderRadius:"12px", fontWeight:"800", cursor:!printSelected.length?"not-allowed":"pointer", fontSize:"14px" }}>
-                  📤 مشاركة ({printSelected.length})
+                  style={{ padding:"13px", background:!printSelected.length?"#f1f5f9":"linear-gradient(135deg,#8b5cf6,#6366f1)", color:!printSelected.length?"#94a3b8":"white", border:"none", borderRadius:"12px", fontWeight:"900", cursor:!printSelected.length?"not-allowed":"pointer", fontSize:"14px", fontFamily:"inherit" }}>
+                  📤 مشاركة صورة ({printSelected.length})
                 </button>
               </div>
             </div>
