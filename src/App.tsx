@@ -958,14 +958,13 @@ ${JSON.stringify(summaryData)}
       }
 
       const summary = [
-        \`✅ تمت المعالجة!\`,
-        \`• موظفون جدد مُضافون: \${addedCount}\`,
-        \`• موظفون مُحدَّثون: \${updatedCount}\`,
-        rowsWithoutCode > 0 ? \`• صفوف بدون كود (تم تجاهلها): \${rowsWithoutCode}\` : "",
-        skippedRows.length > 0 ? \`• موظفون جدد بدون اسم (تجاهل): \${skippedRows.join(", ")}\` : "",
+        `✅ تمت المعالجة!`,
+        `• موظفون جدد مُضافون: ${addedCount}`,
+        `• موظفون مُحدَّثون: ${updatedCount}`,
+        rowsWithoutCode > 0 ? `• صفوف بدون كود (تم تجاهلها): ${rowsWithoutCode}` : "",
+        skippedRows.length > 0 ? `• موظفون جدد بدون اسم (تجاهل): ${skippedRows.join(", ")}` : "",
         errorMsg || "",
       ].filter(Boolean).join("\n");
-
       alert(summary);
       if (!errorMsg) setShowImportModal(false);
       fetchData();
