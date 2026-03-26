@@ -18,8 +18,8 @@ const supabaseKey = process.env.REACT_APP_SUPABASE_ANON_KEY || "sb_publishable_n
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 // ==================== EMAILJS CONFIG ====================
-const EMAILJS_SERVICE_ID  = "service_1fmr5dt";
-const EMAILJS_PUBLIC_KEY  = "huxXo8btK5U4v1zQd";
+const EMAILJS_SERVICE_ID  = process.env.REACT_APP_EMAILJS_SERVICE_ID  || "service_1fmr5dt";
+const EMAILJS_PUBLIC_KEY  = process.env.REACT_APP_EMAILJS_PUBLIC_KEY  || "huxXo8btK5U4v1zQd";
 const EMAILJS_TEMPLATES = {
   approved:          "template_s3qqrew",
   rejected:          "template_aigwzle",
@@ -676,7 +676,32 @@ useEffect(() => {
       return;
     }
 
-    // 2️⃣ مدير قسم
+    // 2️⃣ أدمن
+    if (loginData.email && loginData.password) {
+      const { data: admin } = await supabase
+        .from("users")
+        .select("*")
+        .eq("email", loginData.email.trim())
+        .eq("password", loginData.password)
+        .eq("role", "admin")
+        .single();
+      if (admin) {
+        const adminUser = {
+          role: "admin",
+          id: admin.id,
+          name: admin.name,
+          email: admin.email,
+        };
+        setCurrentUser(adminUser);
+        setCurrentView("admin");
+        localStorage.setItem("vms_currentUser", JSON.stringify(adminUser));
+        localStorage.setItem("vms_currentView", "admin");
+        await logAction("login", "users", admin.id, null, { role: "admin" });
+        return;
+      }
+    }
+
+    // 3️⃣ مدير قسم
     if (loginData.email && loginData.password) {
       const { data: mgr } = await supabase
         .from("department_managers")
