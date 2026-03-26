@@ -321,14 +321,14 @@ const VacationManagementSystem = () => {
   const [showEmpInfoModal, setShowEmpInfoModal] = useState(false);
   const [empInfoTarget, setEmpInfoTarget] = useState<any>(null);
   const [backupLoading, setBackupLoading] = useState(false);
+  const [lastBackup, setLastBackup] = useState<string>(() => localStorage.getItem("lastBackup") || "");
+  const GOOGLE_SCRIPT_URL = process.env.REACT_APP_GOOGLE_SCRIPT_URL || "";
   // ===== NEW FEATURES STATES =====
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [pushEnabled, setPushEnabled] = useState(() => {
     try { return typeof Notification !== "undefined" && Notification.permission === "granted"; } catch { return false; }
   });
   const [showPWAGuide, setShowPWAGuide] = useState(false);
-  const [lastBackup, setLastBackup] = useState<string>("");
-  const GOOGLE_SCRIPT_URL = process.env.REACT_APP_GOOGLE_SCRIPT_URL || "";
   const [currentTime, setCurrentTime] = useState(new Date());
 
   // إغلاق dropdown الفرز عند الضغط خارجه
@@ -1643,14 +1643,12 @@ useEffect(() => {
           إجمالي_أيام_الإجازة: stats.totalVacationDays,
         }
       };
-
       await fetch(GOOGLE_SCRIPT_URL, {
         method: "POST",
         mode: "no-cors",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(backupData),
       });
-
       const now = new Date().toLocaleString("ar-EG");
       setLastBackup(now);
       localStorage.setItem("lastBackup", now);
@@ -1660,7 +1658,6 @@ useEffect(() => {
     }
     setBackupLoading(false);
   };
-
 
   // ==================== LOGIN VIEW ====================
   if (currentView === "login") {
