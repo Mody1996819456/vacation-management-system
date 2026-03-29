@@ -1221,16 +1221,26 @@ useEffect(() => {
     const newBalance = emp.balance - latenessPenalty;
     
     // تسجيل تاريخ العودة الفعلي + حالة الموظف = عمل + خصم الأيام
-    await supabase.from("employees").update({
+    const { error: empUpdateError } = await supabase.from("employees").update({
       return_date: returnData.actual_return_date,
       status: "عمل",
       balance: newBalance,
     }).eq("id", emp.id);
     
-    await supabase.from("vacation_requests").update({ 
+    if (empUpdateError) {
+      alert("خطأ في تحديث بيانات الموظف: " + empUpdateError.message);
+      return;
+    }
+    
+    const { error: reqUpdateError } = await supabase.from("vacation_requests").update({ 
       actual_return_date: returnData.actual_return_date,
       lateness_days: latenessPenalty,
     }).eq("id", returnData.id);
+    
+    if (reqUpdateError) {
+      alert("خطأ في تحديث الطلب: " + reqUpdateError.message);
+      return;
+    }
 
     // تسجيل العملية في السجل إذا كان هناك تأخير
     if (latenessPenalty > 0) {
@@ -4285,46 +4295,178 @@ useEffect(() => {
     const empStatus = getEmployeeStatus(currentUser);
     return (
       <>
-      <div className="min-h-screen bg-slate-50 p-6" dir="rtl">
-        <header className="max-w-4xl mx-auto flex justify-between items-center mb-10">
+      <div style={{
+        minHeight: "100vh",
+        background: "linear-gradient(135deg, #667eea 0%, #764ba2 25%, #f093fb 50%, #4facfe 75%, #00f2fe 100%)",
+        backgroundSize: "400% 400%",
+        animation: "gradient 15s ease infinite",
+        padding: "24px"
+      }} dir="rtl">
+        <style>{`
+          @keyframes gradient {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+          }
+          @keyframes slideDown {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+          }
+          @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+          }
+        `}</style>
+        
+        <header className="max-w-4xl mx-auto mb-10" style={{
+          animation: "slideDown 0.8s ease",
+          background: "rgba(255, 255, 255, 0.95)",
+          backdropFilter: "blur(20px)",
+          borderRadius: "28px",
+          padding: "32px",
+          border: "1px solid rgba(255, 255, 255, 0.2)",
+          boxShadow: "0 20px 60px rgba(0, 0, 0, 0.15)",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center"
+        }}>
           <div>
-            <h2 className="text-3xl font-black text-slate-800">أهلاً {currentUser.name} 👋</h2>
-            <p className="text-slate-500">
-              رصيدك: <span className="font-black text-indigo-600">{currentUser.balance} يوم</span>
-              {currentUser.monthly_balance > 0 && <span className="mr-2 text-emerald-600 text-sm">(+{currentUser.monthly_balance} شهرياً)</span>}
-            </p>
-            {currentUser.hire_date && <p className="text-slate-400 text-sm">تاريخ التعيين: {formatDate(currentUser.hire_date)}</p>}
-            {currentUser.return_date && (
-              <p className="text-slate-400 text-sm">
-                أيام العمل منذ العودة: <span className="font-bold text-purple-600">{calculateWorkedDays(currentUser.return_date, empStatus === "إجازة")} يوم</span>
-              </p>
-            )}
-            <span className={`inline-block mt-1 px-3 py-1 rounded-full text-xs font-black ${empStatus === "عمل" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
-              {empStatus === "عمل" ? "🟢 في العمل" : "🟡 في إجازة"}
-            </span>
+            <h2 style={{ margin: "0", fontSize: "32px", fontWeight: "900", background: "linear-gradient(135deg, #667eea, #764ba2)", backgroundClip: "text", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", color: "#667eea" }}>
+              أهلاً {currentUser.name} 👋
+            </h2>
           </div>
-          <button onClick={() => { localStorage.removeItem("vms_currentUser"); localStorage.removeItem("vms_currentView"); setCurrentView("login"); setCurrentUser(null); setLoginData({ email: "", password: "" }); setEmpCodeInput(""); }} className="text-red-500 font-bold flex items-center gap-2 hover:bg-red-50 px-4 py-2 rounded-xl">
-            <LogOut size={20} /> خروج
+          <button onClick={() => { localStorage.removeItem("vms_currentUser"); localStorage.removeItem("vms_currentView"); setCurrentView("login"); setCurrentUser(null); setLoginData({ email: "", password: "" }); setEmpCodeInput(""); }} style={{
+            background: "linear-gradient(135deg, #ef4444, #dc2626)",
+            color: "white",
+            border: "none",
+            padding: "12px 20px",
+            borderRadius: "14px",
+            fontWeight: "700",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            transition: "all 0.3s ease",
+            boxShadow: "0 10px 25px rgba(239, 68, 68, 0.3)"
+          }} onMouseEnter={(e) => e.currentTarget.style.transform = "translateY(-2px)"} onMouseLeave={(e) => e.currentTarget.style.transform = "translateY(0)"}>
+            <LogOut size={18} /> خروج
           </button>
         </header>
 
+        {/* جدول معلومات الموظف الاحترافي */}
+        <div className="max-w-4xl mx-auto mb-8" style={{
+          animation: "slideDown 1s ease",
+          background: "rgba(255, 255, 255, 0.95)",
+          backdropFilter: "blur(20px)",
+          borderRadius: "24px",
+          border: "1px solid rgba(255, 255, 255, 0.2)",
+          boxShadow: "0 20px 60px rgba(102, 126, 234, 0.2)",
+          overflow: "hidden"
+        }}>
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+            gap: "0"
+          }}>
+            {/* الرصيد المتاح */}
+            <div style={{
+              padding: "24px",
+              textAlign: "center",
+              borderLeft: "1px solid #e2e8f0",
+              borderBottom: "1px solid #e2e8f0"
+            }}>
+              <div style={{ fontSize: "32px", marginBottom: "12px" }}>💰</div>
+              <p style={{ fontSize: "11px", color: "#94a3b8", marginBottom: "8px", fontWeight: "600" }}>الرصيد المتاح</p>
+              <p style={{ fontSize: "28px", fontWeight: "900", background: "linear-gradient(135deg, #10b981, #059669)", backgroundClip: "text", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", color: "#10b981" }}>{currentUser.balance}</p>
+              <p style={{ fontSize: "10px", color: "#64748b", marginTop: "4px" }}>يوم</p>
+            </div>
+
+            {/* الرصيد الشهري */}
+            {currentUser.monthly_balance > 0 && (
+              <div style={{
+                padding: "24px",
+                textAlign: "center",
+                borderLeft: "1px solid #e2e8f0",
+                borderBottom: "1px solid #e2e8f0"
+              }}>
+                <div style={{ fontSize: "32px", marginBottom: "12px" }}>📅</div>
+                <p style={{ fontSize: "11px", color: "#94a3b8", marginBottom: "8px", fontWeight: "600" }}>الرصيد الشهري</p>
+                <p style={{ fontSize: "28px", fontWeight: "900", color: "#10b981" }}>+{currentUser.monthly_balance}</p>
+                <p style={{ fontSize: "10px", color: "#64748b", marginTop: "4px" }}>يوم</p>
+              </div>
+            )}
+
+            {/* الحالة الحالية */}
+            <div style={{
+              padding: "24px",
+              textAlign: "center",
+              borderLeft: "1px solid #e2e8f0",
+              borderBottom: "1px solid #e2e8f0"
+            }}>
+              <div style={{ fontSize: "32px", marginBottom: "12px" }}>{empStatus === "عمل" ? "✅" : "🏖️"}</div>
+              <p style={{ fontSize: "11px", color: "#94a3b8", marginBottom: "8px", fontWeight: "600" }}>الحالة الحالية</p>
+              <p style={{ fontSize: "16px", fontWeight: "900", color: empStatus === "عمل" ? "#065f46" : "#92400e" }}>
+                {empStatus === "عمل" ? "في العمل" : "في إجازة"}
+              </p>
+            </div>
+
+            {/* أيام العمل منذ العودة */}
+            {currentUser.return_date && (
+              <div style={{
+                padding: "24px",
+                textAlign: "center",
+                borderLeft: "1px solid #e2e8f0",
+                borderBottom: "1px solid #e2e8f0"
+              }}>
+                <div style={{ fontSize: "32px", marginBottom: "12px" }}>📆</div>
+                <p style={{ fontSize: "11px", color: "#94a3b8", marginBottom: "8px", fontWeight: "600" }}>أيام العمل</p>
+                <p style={{ fontSize: "28px", fontWeight: "900", color: "#a855f7" }}>{calculateWorkedDays(currentUser.return_date, empStatus === "إجازة")}</p>
+                <p style={{ fontSize: "10px", color: "#64748b", marginTop: "4px" }}>منذ العودة</p>
+              </div>
+            )}
+
+            {/* تاريخ التعيين */}
+            {currentUser.hire_date && (
+              <div style={{
+                padding: "24px",
+                textAlign: "center",
+                borderLeft: "1px solid #e2e8f0",
+                borderBottom: "1px solid #e2e8f0"
+              }}>
+                <div style={{ fontSize: "32px", marginBottom: "12px" }}>👤</div>
+                <p style={{ fontSize: "11px", color: "#94a3b8", marginBottom: "8px", fontWeight: "600" }}>تاريخ التعيين</p>
+                <p style={{ fontSize: "14px", fontWeight: "900", color: "#667eea" }}>{formatDate(currentUser.hire_date)}</p>
+              </div>
+            )}
+          </div>
+        </div>
+
         <div className="max-w-4xl mx-auto grid md:grid-cols-2 gap-8">
-          <section className="bg-white p-8 rounded-[2.5rem] shadow-sm border">
+          <section style={{
+            animation: "fadeIn 1s ease",
+            background: "rgba(255, 255, 255, 0.95)",
+            backdropFilter: "blur(20px)",
+            padding: "32px",
+            borderRadius: "28px",
+            border: "1px solid rgba(255, 255, 255, 0.2)",
+            boxShadow: "0 20px 60px rgba(0, 0, 0, 0.15)",
+            transition: "all 0.3s ease"
+          }} onMouseEnter={(e) => e.currentTarget.style.boxShadow = "0 30px 80px rgba(102, 126, 234, 0.25)"} onMouseLeave={(e) => e.currentTarget.style.boxShadow = "0 20px 60px rgba(0, 0, 0, 0.15)"}>
             <h3 className="text-xl font-black mb-6 flex items-center gap-3"><Plus className="text-indigo-600" /> طلب إجازة جديد</h3>
             <div className="space-y-5">
               <div>
-                <label className="text-sm font-bold text-slate-400 mb-2 block">نوع الإجازة</label>
-                <select className="w-full p-4 bg-slate-50 border-none rounded-2xl outline-none" value={newRequest.vacation_type_id} onChange={(e) => setNewRequest({...newRequest, vacation_type_id: e.target.value})}>
+                <label style={{ fontSize: "13px", fontWeight: "700", color: "#667eea", marginBottom: "8px", display: "block" }}>نوع الإجازة</label>
+                <select style={{ width: "100%", padding: "14px 16px", background: "rgba(102, 126, 234, 0.05)", border: "2px solid #e2e8f0", borderRadius: "16px", outline: "none", fontSize: "14px", fontWeight: "600", color: "#1e293b", transition: "all 0.3s", cursor: "pointer" }} onFocus={(e) => { e.currentTarget.style.borderColor = "#667eea"; e.currentTarget.style.background = "rgba(102, 126, 234, 0.08)"; }} onBlur={(e) => { e.currentTarget.style.borderColor = "#e2e8f0"; e.currentTarget.style.background = "rgba(102, 126, 234, 0.05)"; }} value={newRequest.vacation_type_id} onChange={(e) => setNewRequest({...newRequest, vacation_type_id: e.target.value})}>
                   <option value="">اختر النوع</option>
                   {vacationTypes.map(vt => <option key={vt.id} value={vt.id}>{vt.name}</option>)}
                 </select>
               </div>
               <div>
-                <label className="text-sm font-bold text-slate-400 mb-2 block">تاريخ النزول</label>
-                <input type="date" className="w-full p-4 bg-slate-50 border-none rounded-2xl outline-none" value={newRequest.start_date} onChange={(e) => setNewRequest({...newRequest, start_date: e.target.value})} />
+                <label style={{ fontSize: "13px", fontWeight: "700", color: "#667eea", marginBottom: "8px", display: "block" }}>تاريخ النزول</label>
+                <input type="date" style={{ width: "100%", padding: "14px 16px", background: "rgba(102, 126, 234, 0.05)", border: "2px solid #e2e8f0", borderRadius: "16px", outline: "none", fontSize: "14px", fontWeight: "600", color: "#1e293b", transition: "all 0.3s" }} onFocus={(e) => { e.currentTarget.style.borderColor = "#667eea"; e.currentTarget.style.background = "rgba(102, 126, 234, 0.08)"; }} onBlur={(e) => { e.currentTarget.style.borderColor = "#e2e8f0"; e.currentTarget.style.background = "rgba(102, 126, 234, 0.05)"; }} value={newRequest.start_date} onChange={(e) => setNewRequest({...newRequest, start_date: e.target.value})} />
               </div>
               <div>
-                <label className="text-sm font-bold text-slate-400 mb-2 block">موعد النزول</label>
+                <label style={{ fontSize: "13px", fontWeight: "700", color: "#667eea", marginBottom: "8px", display: "block" }}>موعد النزول</label>
                 <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:"10px" }}>
                   {[
                     { value:"after_work", icon:"🌆", label:"بعد العمل",           desc:"يوم التاريخ عمل\nثاني يوم سفر\nثالث يوم إجازة" },
@@ -4374,25 +4516,50 @@ useEffect(() => {
                 )}
               </div>
               <div>
-                <label className="text-sm font-bold text-slate-400 mb-2 block">عدد الأيام</label>
-                <input type="number" step="0.5" min="0.5" className="w-full p-4 bg-slate-50 border-none rounded-2xl outline-none" value={newRequest.days} onChange={(e) => setNewRequest({...newRequest, days: Number(e.target.value)})} />
+                <label style={{ fontSize: "13px", fontWeight: "700", color: "#667eea", marginBottom: "8px", display: "block" }}>عدد الأيام</label>
+                <input type="number" step="0.5" min="0.5" style={{ width: "100%", padding: "14px 16px", background: "rgba(102, 126, 234, 0.05)", border: "2px solid #e2e8f0", borderRadius: "16px", outline: "none", fontSize: "14px", fontWeight: "600", color: "#1e293b", transition: "all 0.3s" }} onFocus={(e) => { e.currentTarget.style.borderColor = "#667eea"; e.currentTarget.style.background = "rgba(102, 126, 234, 0.08)"; }} onBlur={(e) => { e.currentTarget.style.borderColor = "#e2e8f0"; e.currentTarget.style.background = "rgba(102, 126, 234, 0.05)"; }} value={newRequest.days} onChange={(e) => setNewRequest({...newRequest, days: Number(e.target.value)})} />
               </div>
               <div>
-                <label className="text-sm font-bold text-slate-400 mb-2 block">ملاحظات</label>
-                <textarea className="w-full p-4 bg-slate-50 border-none rounded-2xl outline-none h-24" placeholder="سبب الإجازة..." value={newRequest.notes} onChange={(e) => setNewRequest({...newRequest, notes: e.target.value})} />
+                <label style={{ fontSize: "13px", fontWeight: "700", color: "#667eea", marginBottom: "8px", display: "block" }}>ملاحظات</label>
+                <textarea style={{ width: "100%", padding: "14px 16px", background: "rgba(102, 126, 234, 0.05)", border: "2px solid #e2e8f0", borderRadius: "16px", outline: "none", fontSize: "14px", fontWeight: "600", color: "#1e293b", transition: "all 0.3s", height: "96px", resize: "none", fontFamily: "inherit" }} placeholder="سبب الإجازة..." onFocus={(e) => { e.currentTarget.style.borderColor = "#667eea"; e.currentTarget.style.background = "rgba(102, 126, 234, 0.08)"; }} onBlur={(e) => { e.currentTarget.style.borderColor = "#e2e8f0"; e.currentTarget.style.background = "rgba(102, 126, 234, 0.05)"; }} value={newRequest.notes} onChange={(e) => setNewRequest({...newRequest, notes: e.target.value})} />
               </div>
-              <button onClick={submitVacationRequest} disabled={isSubmitting} className="w-full bg-indigo-600 text-white p-5 rounded-2xl font-black text-lg disabled:opacity-50">
+              <button onClick={submitVacationRequest} disabled={isSubmitting} style={{
+                width: "100%",
+                background: "linear-gradient(135deg, #667eea, #764ba2)",
+                color: "white",
+                border: "none",
+                padding: "16px 20px",
+                borderRadius: "16px",
+                fontWeight: "900",
+                fontSize: "16px",
+                cursor: isSubmitting ? "not-allowed" : "pointer",
+                opacity: isSubmitting ? 0.5 : 1,
+                transition: "all 0.3s ease",
+                boxShadow: "0 15px 35px rgba(102, 126, 234, 0.4)"
+              }} onMouseEnter={(e) => !isSubmitting && (e.currentTarget.style.transform = "translateY(-2px)")} onMouseLeave={(e) => !isSubmitting && (e.currentTarget.style.transform = "translateY(0)")}>
                 {isSubmitting ? <Loader2 className="animate-spin mx-auto" /> : "إرسال الطلب"}
               </button>
             </div>
           </section>
 
-          <section className="space-y-6">
-            <h3 className="text-xl font-black flex items-center gap-3"><Clock className="text-amber-500" /> طلباتي</h3>
-            {requests.filter(r => r.employee_id === currentUser.id).map(req => {
+          <section style={{ animation: "fadeIn 1.2s ease" }}>
+            <h3 style={{ fontSize: "20px", fontWeight: "900", marginBottom: "24px", display: "flex", alignItems: "center", gap: "12px", color: "#1e293b" }}>
+              <Clock className="text-amber-500" /> طلباتي
+            </h3>
+            {requests.filter(r => r.employee_id === currentUser.id).map((req, idx) => {
               const vacType = vacationTypes.find(vt => vt.id === req.vacation_type_id);
               return (
-                <div key={req.id} className="bg-white p-6 rounded-[2rem] shadow-sm border">
+                <div key={req.id} style={{
+                  animation: `fadeIn 1.${3 + idx}s ease`,
+                  background: "rgba(255, 255, 255, 0.95)",
+                  backdropFilter: "blur(20px)",
+                  padding: "20px",
+                  borderRadius: "20px",
+                  border: "1px solid rgba(255, 255, 255, 0.2)",
+                  boxShadow: "0 15px 40px rgba(0, 0, 0, 0.08)",
+                  transition: "all 0.3s ease",
+                  marginBottom: "16px"
+                }} onMouseEnter={(e) => { e.currentTarget.style.boxShadow = "0 25px 60px rgba(102, 126, 234, 0.2)"; e.currentTarget.style.transform = "translateY(-4px)"; }} onMouseLeave={(e) => { e.currentTarget.style.boxShadow = "0 15px 40px rgba(0, 0, 0, 0.08)"; e.currentTarget.style.transform = "translateY(0)"; }}>
                   <div className="flex justify-between items-start mb-4">
                     <div>
                       <p className="font-bold text-slate-800">{formatDate(req.start_date)}</p>
