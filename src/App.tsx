@@ -582,8 +582,19 @@ useEffect(() => {
 
       // Bulk update — كل الموظفين دفعة واحدة بدل واحد واحد
       await Promise.all(toUpdate.map(async (emp) => {
-        const newBalance = parseFloat((emp.balance + emp.monthly_balance).toFixed(2));
-        const description = `تم إضافة ${emp.monthly_balance} يوم للموظف ${emp.name} - رصيد دوري لشهر ${currentMonthName}`;
+        // حساب الرصيد الجديد مع الأخذ بعين الاعتبار الديون
+        let newBalance = emp.balance + emp.monthly_balance;
+        let description = `تم إضافة ${emp.monthly_balance} يوم للموظف ${emp.name} - رصيد دوري لشهر ${currentMonthName}`;
+        
+        // إذا كان الموظف عنده ديون (رصيد سالب)
+        if (emp.balance < 0) {
+          const debt = Math.abs(emp.balance);
+          const debtPayment = Math.min(debt, emp.monthly_balance);
+          newBalance = emp.balance + emp.monthly_balance;
+          description = `تم إضافة ${emp.monthly_balance} يوم - منها ${debtPayment} يوم لسداد دين سابق والباقي ${emp.monthly_balance - debtPayment} يوم رصيد جديد`;
+        }
+        
+        newBalance = parseFloat(newBalance.toFixed(2));
 
         const { error: updateError } = await supabase
           .from("employees")
@@ -1193,16 +1204,54 @@ useEffect(() => {
     if (!returnData) return;
     const emp = employees.find(e => e.id === returnData.employee_id);
     if (!emp) return;
-    // تسجيل تاريخ العودة الفعلي + حالة الموظف = عمل
+
+    // حساب موعد العودة المخطط (back_date)
+    const backDate = getCalculatedDates(returnData.start_date, returnData.days).back;
+    const actualReturn = new Date(returnData.actual_return_date).toISOString().split("T")[0];
+    
+    // حساب الفرق إذا كانت العودة متأخرة
+    let latenessPenalty = 0;
+    if (actualReturn > backDate) {
+      const backDateObj = new Date(backDate);
+      const actualReturnObj = new Date(actualReturn);
+      latenessPenalty = Math.ceil((actualReturnObj.getTime() - backDateObj.getTime()) / (1000 * 60 * 60 * 24));
+    }
+
+    // حساب الرصيد الجديد بعد الخصم (يمكن أن يكون سالباً)
+    const newBalance = emp.balance - latenessPenalty;
+    
+    // تسجيل تاريخ العودة الفعلي + حالة الموظف = عمل + خصم الأيام
     await supabase.from("employees").update({
       return_date: returnData.actual_return_date,
       status: "عمل",
+      balance: newBalance,
     }).eq("id", emp.id);
-    await supabase.from("vacation_requests").update({ actual_return_date: returnData.actual_return_date }).eq("id", returnData.id);
+    
+    await supabase.from("vacation_requests").update({ 
+      actual_return_date: returnData.actual_return_date,
+      lateness_days: latenessPenalty,
+    }).eq("id", returnData.id);
+
+    // تسجيل العملية في السجل إذا كان هناك تأخير
+    if (latenessPenalty > 0) {
+      const description = `خصم ${latenessPenalty} يوم تأخير عن موعد العودة - الرصيد: ${emp.balance} → ${newBalance}`;
+      await supabase.from("balance_updates").insert([{
+        employee_id: emp.id,
+        amount: -latenessPenalty,
+        update_date: actualReturn,
+        description,
+      }]);
+      await logAction("lateness_penalty", "vacation_requests", returnData.id, { penalty_days: latenessPenalty, new_balance: newBalance });
+    }
+
     setShowReturnModal(false);
     setReturnData(null);
     fetchData();
-    alert("تم تسجيل العودة وتحديث تاريخ العودة ✅");
+    
+    const msg = latenessPenalty > 0 
+      ? `تم تسجيل العودة ✅\n⚠️ تأخير ${latenessPenalty} يوم - تم خصمها من الرصيد\nالرصيد الجديد: ${newBalance} يوم`
+      : "تم تسجيل العودة وتحديث تاريخ العودة ✅";
+    alert(msg);
     await logAction("return_from_vacation", "vacation_requests", returnData.id);
   };
 
