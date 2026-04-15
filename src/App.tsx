@@ -330,6 +330,15 @@ const VacationManagementSystem = () => {
   });
   const [showPWAGuide, setShowPWAGuide] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
+  // ===== States للاشعارات =====
+  const [notifSearch, setNotifSearch] = useState("");
+  const [notifDateFilter, setNotifDateFilter] = useState("");
+  const [notifSortDir, setNotifSortDir] = useState<"asc"|"desc">("desc");
+  // ===== States للإجازات الفعلية (فلترة + ترتيب) =====
+  const [activeVacDateFrom, setActiveVacDateFrom] = useState("");
+  const [activeVacDateTo, setActiveVacDateTo] = useState("");
+  const [activeVacSortField, setActiveVacSortField] = useState("back");
+  const [activeVacSortDir, setActiveVacSortDir] = useState<"asc"|"desc">("asc");
 
   // إغلاق dropdown الفرز عند الضغط خارجه
   useEffect(() => {
@@ -531,6 +540,28 @@ useEffect(() => {
       }
     });
   }, [requests, employees, currentView]);
+
+  // ========== تحديث حالة الموظف تلقائياً بناءً على موعد النزول ==========
+  useEffect(() => {
+    const autoUpdateStatuses = async () => {
+      const today = new Date().toISOString().split("T")[0];
+      for (const emp of employees) {
+        if (emp.status === "إجازة") continue;
+        const activeReq = requests.find(r => {
+          if (r.employee_id !== emp.id || r.status !== "approved") return false;
+          const actualStart = getActualStartDate(r.start_date, r.departure_time || "actual");
+          const { back } = getCalculatedDates(r.start_date, r.days);
+          return today >= actualStart && today < back;
+        });
+        if (activeReq) {
+          await supabase.from("employees").update({ status: "إجازة" }).eq("id", emp.id);
+        }
+      }
+    };
+    if (employees.length > 0 && requests.length > 0 && currentView === "admin") {
+      autoUpdateStatuses();
+    }
+  }, [employees, requests, currentView]);
 
   // ========== حالة الموظف تلقائياً ==========
   const getEmployeeStatus = (emp: any) => {
@@ -1123,11 +1154,16 @@ useEffect(() => {
         setShowApprovalModal(false); return;
       }
       const { back: backDate } = getCalculatedDates(currentRequest.start_date, days);
-      await supabase.from("employees").update({
+      const todayStr = new Date().toISOString().split("T")[0];
+      const actualStart = getActualStartDate(currentRequest.start_date, currentRequest.departure_time || "actual");
+      const empUpdatePayload: any = {
         balance: Number(emp.balance) - Number(days),
-        status: "إجازة",
         return_date: backDate,
-      }).eq("id", emp.id);
+      };
+      if (todayStr >= actualStart) {
+        empUpdatePayload.status = "إجازة";
+      }
+      await supabase.from("employees").update(empUpdatePayload).eq("id", emp.id);
       if (emp.email) {
         const { back } = getCalculatedDates(currentRequest.start_date, days);
         sendEmail(EMAILJS_TEMPLATES.approved, emp.email, {
@@ -1678,16 +1714,18 @@ useEffect(() => {
   const filteredRequests = useMemo(() => {
     return scopedRequests.filter(req => {
       const searchTerm = (vacSearch || reqSearch).trim();
+      const emp = employees.find(e => e.id === req.employee_id);
       const matchSearch = !searchTerm ||
         req.employee_name?.includes(searchTerm) ||
-        req.notes?.includes(searchTerm);
+        req.notes?.includes(searchTerm) ||
+        (emp?.code || "").includes(searchTerm);
       const matchType = vacationTypeFilter === "all" || req.vacation_type_id === vacationTypeFilter;
       const matchStatus = statusFilter === "all" || req.status === statusFilter;
       const matchDateFrom = !reqDateFrom || req.start_date >= reqDateFrom;
       const matchDateTo = !reqDateTo || req.start_date <= reqDateTo;
       return matchSearch && matchType && matchStatus && matchDateFrom && matchDateTo;
     });
-  }, [scopedRequests, vacSearch, reqSearch, vacationTypeFilter, statusFilter, reqDateFrom, reqDateTo]);
+  }, [scopedRequests, vacSearch, reqSearch, vacationTypeFilter, statusFilter, reqDateFrom, reqDateTo, employees]);
 
   // ==================== GOOGLE SHEETS BACKUP ====================
   const handleBackup = async () => {
@@ -1913,6 +1951,7 @@ useEffect(() => {
               { id: "holidays",    label: "العطلات",          icon: CalendarDays,    ownerOnly: true  },
               { id: "history",     label: "السجل",            icon: History,         ownerOnly: false },
               { id: "active_vacations", label: "الإجازات الفعلية", icon: CheckCircle, ownerOnly: false },
+              { id: "notifications_center", label: "الاشعارات",   icon: Bell,            ownerOnly: false },
             ] as {id:string,label:string,icon:any,ownerOnly:boolean}[])
               .filter(item => !item.ownerOnly || isOwner)
               .map((item) => (
@@ -1934,6 +1973,12 @@ useEffect(() => {
                 {item.id === "requests" && notifications.length > 0 && (
                   <span style={{ marginRight:"auto", background:"#ef4444", color:"white", fontSize:"10px", padding:"1px 6px", borderRadius:"10px", fontWeight:"900" }}>{notifications.length}</span>
                 )}
+                {item.id === "notifications_center" && (() => {
+                  const approvedOrRejected = requests.filter(r => (r.status === "approved" || r.status === "rejected") && r.admin_notes);
+                  return approvedOrRejected.length > 0 ? (
+                    <span style={{ marginRight:"auto", background:"#f59e0b", color:"white", fontSize:"10px", padding:"1px 6px", borderRadius:"10px", fontWeight:"900" }}>{approvedOrRejected.length}</span>
+                  ) : null;
+                })()}
               </button>
             ))}
           </nav>
@@ -3033,7 +3078,17 @@ useEffect(() => {
                   const matchSearch = !vacSearch2 || row.emp.name?.includes(vacSearch2) || (row.emp.code||"").includes(vacSearch2);
                   const matchDept = vacDeptFilter2 === "all" || row.emp.department_id === vacDeptFilter2;
                   const matchType = !vacTypeFilter2 || vacTypeFilter2 === "all" || row.lastReq?.vacation_type_id === vacTypeFilter2;
-                  return matchSearch && matchDept && matchType;
+                  const matchDateFrom = !activeVacDateFrom || (row.lastReq?.start_date || "") >= activeVacDateFrom;
+                  const matchDateTo = !activeVacDateTo || (row.lastReq?.start_date || "") <= activeVacDateTo;
+                  return matchSearch && matchDept && matchType && matchDateFrom && matchDateTo;
+                }).sort((a, b) => {
+                  let va: any = "", vb: any = "";
+                  if (activeVacSortField === "back") { va = a.back || ""; vb = b.back || ""; }
+                  else if (activeVacSortField === "start") { va = a.lastReq?.start_date || ""; vb = b.lastReq?.start_date || ""; }
+                  else if (activeVacSortField === "name") { va = a.emp.name || ""; vb = b.emp.name || ""; }
+                  else if (activeVacSortField === "days") { va = Number(a.lastReq?.days || 0); vb = Number(b.lastReq?.days || 0); }
+                  if (typeof va === "number") return activeVacSortDir === "desc" ? vb - va : va - vb;
+                  return activeVacSortDir === "desc" ? vb.localeCompare(va, "ar") : va.localeCompare(vb, "ar");
                 });
 
                 const exportActiveToExcel = () => {
@@ -3107,6 +3162,39 @@ useEffect(() => {
                       <div style={{ background:"#eef2ff", color:"#4f46e5", borderRadius:"10px", padding:"10px 16px", fontWeight:"800", fontSize:"13px", whiteSpace:"nowrap" }}>
                         {filtered.length} موظف في إجازة
                       </div>
+                    </div>
+                    {/* صف ثاني: فلتر تاريخ + ترتيب */}
+                    <div style={{ background:"white", borderRadius:"16px", padding:"10px 18px", border:"1px solid #e2e8f0", display:"flex", gap:"10px", flexWrap:"wrap", alignItems:"center" }}>
+                      <div style={{ display:"flex", alignItems:"center", gap:"6px" }}>
+                        <label style={{ fontSize:"12px", color:"#64748b", fontWeight:"600", whiteSpace:"nowrap" }}>من تاريخ البداية:</label>
+                        <input type="date" style={{ padding:"8px 10px", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:"10px", fontSize:"12px", outline:"none" }}
+                          value={activeVacDateFrom} onChange={e => setActiveVacDateFrom(e.target.value)} />
+                      </div>
+                      <div style={{ display:"flex", alignItems:"center", gap:"6px" }}>
+                        <label style={{ fontSize:"12px", color:"#64748b", fontWeight:"600", whiteSpace:"nowrap" }}>إلى:</label>
+                        <input type="date" style={{ padding:"8px 10px", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:"10px", fontSize:"12px", outline:"none" }}
+                          value={activeVacDateTo} onChange={e => setActiveVacDateTo(e.target.value)} />
+                      </div>
+                      <div style={{ display:"flex", alignItems:"center", gap:"6px" }}>
+                        <label style={{ fontSize:"12px", color:"#64748b", fontWeight:"600", whiteSpace:"nowrap" }}>ترتيب حسب:</label>
+                        <select style={{ padding:"8px 12px", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:"10px", fontSize:"12px", outline:"none" }}
+                          value={activeVacSortField} onChange={e => setActiveVacSortField(e.target.value)}>
+                          <option value="back">تاريخ العودة</option>
+                          <option value="start">تاريخ البداية</option>
+                          <option value="name">الاسم</option>
+                          <option value="days">المدة</option>
+                        </select>
+                        <button onClick={() => setActiveVacSortDir(d => d === "asc" ? "desc" : "asc")}
+                          style={{ padding:"8px 12px", background:"#eef2ff", border:"none", borderRadius:"10px", fontSize:"12px", fontWeight:"700", cursor:"pointer", color:"#4f46e5" }}>
+                          {activeVacSortDir === "asc" ? "↑ من الأقل" : "↓ من الأعلى"}
+                        </button>
+                      </div>
+                      {(activeVacDateFrom || activeVacDateTo) && (
+                        <button onClick={() => { setActiveVacDateFrom(""); setActiveVacDateTo(""); }}
+                          style={{ padding:"8px 14px", background:"#fee2e2", color:"#dc2626", border:"none", borderRadius:"10px", fontSize:"12px", fontWeight:"700", cursor:"pointer" }}>
+                          ✕ مسح التاريخ
+                        </button>
+                      )}
                     </div>
 
                     {/* جدول الإجازات الفعلية */}
@@ -3354,7 +3442,149 @@ useEffect(() => {
                 <AdminsTab supabase={supabase} logAction={logAction} currentUser={currentUser} />
               )}
 
-              {/* ===== HISTORY ===== */}
+              {/* ===== NOTIFICATIONS CENTER ===== */}
+              {activeTab === "notifications_center" && (() => {
+                const allNotifs = requests.filter(r => r.status === "approved" || r.status === "rejected");
+                const filtered = allNotifs
+                  .filter(r => {
+                    const emp = employees.find(e => e.id === r.employee_id);
+                    const matchSearch = !notifSearch ||
+                      r.employee_name?.includes(notifSearch) ||
+                      (emp?.code || "").includes(notifSearch) ||
+                      (r.admin_notes || "").includes(notifSearch);
+                    const matchDate = !notifDateFilter || (r.owner_approved_at || "").startsWith(notifDateFilter);
+                    return matchSearch && matchDate;
+                  })
+                  .sort((a, b) => {
+                    const da = a.owner_approved_at || a.created_at || "";
+                    const db = b.owner_approved_at || b.created_at || "";
+                    return notifSortDir === "desc" ? db.localeCompare(da) : da.localeCompare(db);
+                  });
+                return (
+                  <div className="space-y-5">
+                    {/* Header */}
+                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:"12px" }}>
+                      <div>
+                        <h2 style={{ margin:0, fontSize:"22px", fontWeight:"900" }}>🔔 الاشعارات</h2>
+                        <p style={{ margin:"4px 0 0", color:"#64748b", fontSize:"13px" }}>
+                          جميع قرارات الموافقة والرفض على طلبات الإجازة
+                        </p>
+                      </div>
+                      <div style={{ background: allNotifs.length > 0 ? "#eef2ff" : "#f1f5f9", color: allNotifs.length > 0 ? "#4f46e5" : "#94a3b8", borderRadius:"10px", padding:"10px 18px", fontWeight:"800", fontSize:"13px" }}>
+                        {filtered.length} اشعار
+                      </div>
+                    </div>
+
+                    {/* شريط الفلاتر */}
+                    <div style={{ background:"white", borderRadius:"16px", padding:"14px 18px", border:"1px solid #e2e8f0", display:"flex", gap:"10px", flexWrap:"wrap", alignItems:"center" }}>
+                      {/* بحث */}
+                      <div style={{ position:"relative", flex:"2", minWidth:"180px" }}>
+                        <Search style={{ position:"absolute", right:"12px", top:"50%", transform:"translateY(-50%)", color:"#94a3b8" }} size={15}/>
+                        <input
+                          style={{ width:"100%", padding:"10px 36px 10px 12px", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:"10px", fontSize:"13px", outline:"none", boxSizing:"border-box" as any }}
+                          placeholder="بحث بالاسم أو الكود أو الملاحظات..."
+                          value={notifSearch} onChange={e => setNotifSearch(e.target.value)} />
+                      </div>
+                      {/* فلتر تاريخ */}
+                      <div style={{ display:"flex", alignItems:"center", gap:"6px" }}>
+                        <label style={{ fontSize:"12px", color:"#64748b", fontWeight:"600", whiteSpace:"nowrap" }}>التاريخ:</label>
+                        <input type="date" style={{ padding:"9px 10px", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:"10px", fontSize:"12px", outline:"none" }}
+                          value={notifDateFilter} onChange={e => setNotifDateFilter(e.target.value)} />
+                      </div>
+                      {/* ترتيب */}
+                      <button
+                        onClick={() => setNotifSortDir(d => d === "desc" ? "asc" : "desc")}
+                        style={{ display:"flex", alignItems:"center", gap:"6px", padding:"9px 14px", background:"#eef2ff", border:"none", borderRadius:"10px", fontSize:"12px", fontWeight:"700", cursor:"pointer", color:"#4f46e5" }}>
+                        {notifSortDir === "desc" ? "↓ الأحدث أولاً" : "↑ الأقدم أولاً"}
+                      </button>
+                      {(notifSearch || notifDateFilter) && (
+                        <button onClick={() => { setNotifSearch(""); setNotifDateFilter(""); }}
+                          style={{ padding:"9px 14px", background:"#fee2e2", color:"#dc2626", border:"none", borderRadius:"10px", fontSize:"12px", fontWeight:"700", cursor:"pointer" }}>
+                          ✕ مسح
+                        </button>
+                      )}
+                    </div>
+
+                    {/* قائمة الاشعارات */}
+                    {filtered.length === 0 ? (
+                      <div style={{ background:"white", borderRadius:"20px", padding:"60px", textAlign:"center", border:"2px dashed #e2e8f0" }}>
+                        <div style={{ fontSize:"48px", marginBottom:"12px" }}>🔔</div>
+                        <p style={{ color:"#94a3b8", fontWeight:"700" }}>لا توجد اشعارات</p>
+                      </div>
+                    ) : (
+                      <div style={{ display:"flex", flexDirection:"column", gap:"10px" }}>
+                        {filtered.map(r => {
+                          const emp = employees.find(e => e.id === r.employee_id);
+                          const dept = departments.find(d => d.id === emp?.department_id);
+                          const vacType = vacationTypes.find(vt => vt.id === r.vacation_type_id);
+                          const { back } = getCalculatedDates(r.start_date, r.days);
+                          const isApproved = r.status === "approved";
+                          const approvedAt = r.owner_approved_at ? formatDateTime(r.owner_approved_at) : "-";
+                          return (
+                            <div key={r.id} style={{
+                              background:"white", borderRadius:"18px", padding:"18px 22px",
+                              border:`1.5px solid ${isApproved ? "#bbf7d0" : "#fecdd3"}`,
+                              boxShadow:"0 2px 8px rgba(0,0,0,0.04)",
+                              display:"flex", flexDirection:"column", gap:"10px",
+                            }}>
+                              {/* الصف العلوي */}
+                              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:"8px" }}>
+                                <div style={{ display:"flex", alignItems:"center", gap:"12px" }}>
+                                  <div style={{
+                                    width:"42px", height:"42px", borderRadius:"50%", flexShrink:0,
+                                    background: isApproved ? "linear-gradient(135deg,#059669,#10b981)" : "linear-gradient(135deg,#dc2626,#ef4444)",
+                                    display:"flex", alignItems:"center", justifyContent:"center",
+                                    color:"white", fontWeight:"900", fontSize:"18px",
+                                  }}>
+                                    {isApproved ? "✓" : "✗"}
+                                  </div>
+                                  <div>
+                                    <div style={{ fontWeight:"800", fontSize:"15px", color:"#1e293b" }}>{r.employee_name}</div>
+                                    <div style={{ fontSize:"11px", color:"#94a3b8" }}>
+                                      {emp?.code && `#${emp.code}`} {dept?.name && `· ${dept.name}`}
+                                    </div>
+                                  </div>
+                                </div>
+                                <span style={{
+                                  padding:"5px 14px", borderRadius:"20px", fontSize:"12px", fontWeight:"800",
+                                  background: isApproved ? "#dcfce7" : "#fee2e2",
+                                  color: isApproved ? "#16a34a" : "#dc2626",
+                                }}>
+                                  {isApproved ? "✓ مقبول" : "✗ مرفوض"}
+                                </span>
+                              </div>
+
+                              {/* تفاصيل الطلب */}
+                              <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(130px,1fr))", gap:"8px" }}>
+                                {[
+                                  { label:"تاريخ البداية", val: formatDate(r.start_date) },
+                                  { label:"المدة", val: `${r.days} يوم` },
+                                  { label:"تاريخ العودة", val: formatDate(back) },
+                                  { label:"نوع الإجازة", val: (vacType as any)?.name || "-" },
+                                  { label:"تم بواسطة", val: r.owner_approved_by || "-" },
+                                  { label:"وقت القرار", val: approvedAt },
+                                ].map(item => (
+                                  <div key={item.label} style={{ background:"#f8fafc", borderRadius:"10px", padding:"8px 12px" }}>
+                                    <div style={{ fontSize:"10px", color:"#94a3b8", marginBottom:"2px" }}>{item.label}</div>
+                                    <div style={{ fontWeight:"700", fontSize:"12px", color:"#1e293b" }}>{item.val}</div>
+                                  </div>
+                                ))}
+                              </div>
+
+                              {/* ملاحظات */}
+                              {r.admin_notes && (
+                                <div style={{ background: isApproved ? "#f0fdf4" : "#fff1f2", borderRadius:"10px", padding:"10px 14px", fontSize:"12px", color: isApproved ? "#15803d" : "#dc2626", fontWeight:"600" }}>
+                                  💬 {r.admin_notes}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()} 
               {activeTab === "history" && (
                 <div className="space-y-6">
                   <div className="flex justify-between items-center">
@@ -3402,7 +3632,7 @@ useEffect(() => {
                     <div style={{ position:"relative", flex:"2", minWidth:"180px" }}>
                       <Search style={{ position:"absolute", right:"12px", top:"50%", transform:"translateY(-50%)", color:"#94a3b8" }} size={15}/>
                       <input style={{ width:"100%", padding:"10px 36px 10px 12px", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:"10px", fontSize:"13px", outline:"none", boxSizing:"border-box" as any }}
-                        placeholder="بحث بالاسم أو الملاحظات..."
+                        placeholder="بحث بالاسم أو الملاحظات أو الكود..."
                         value={reqSearch} onChange={e => setReqSearch(e.target.value)} />
                     </div>
                     <select style={{ padding:"10px 12px", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:"10px", fontSize:"13px", outline:"none" }}
