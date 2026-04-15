@@ -9,7 +9,7 @@ import {
   FileDown, BarChart3, Building2, TrendingUp,
   AlertCircle, RefreshCw, PieChart, BarChart2,
   History, Mail, Briefcase, Smartphone, Wifi, WifiOff,
-  Award, Target, Flame, Eye,
+  Award, Target, Flame, Eye, KeyRound,
 } from "lucide-react";
 
 // ==================== SUPABASE CONFIG ====================
@@ -282,6 +282,10 @@ const VacationManagementSystem = () => {
   const [showAuditLog, setShowAuditLog] = useState(false);
   const [showBalanceLog, setShowBalanceLog] = useState(false);
   const balanceUpdatedRef = React.useRef(false);
+  const [showResetPinModal, setShowResetPinModal] = useState(false);
+  const [resetPinEmp, setResetPinEmp] = useState<any>(null);
+  const [resetPinValue, setResetPinValue] = useState("");
+  const [resetPinLoading, setResetPinLoading] = useState(false);
   const [balanceLogs, setBalanceLogs] = useState<any[]>([]);
   const [balanceLogLoading, setBalanceLogLoading] = useState(false);
 
@@ -587,6 +591,33 @@ useEffect(() => {
     } catch (err) { console.error("Audit log error:", err); }
   };
 
+  // ========== RESET EMPLOYEE PIN ==========
+  const handleResetPin = async () => {
+    if (!resetPinEmp) return;
+    if (!/^\d{4}$/.test(resetPinValue)) {
+      alert("يرجى إدخال رقم PIN مكون من 4 أرقام");
+      return;
+    }
+    setResetPinLoading(true);
+    try {
+      const { error } = await supabase
+        .from("employees")
+        .update({ pin: resetPinValue })
+        .eq("id", resetPinEmp.id);
+      if (error) throw error;
+      await logAction("reset_pin", "employees", resetPinEmp.id, null, { admin_reset: true });
+      setShowResetPinModal(false);
+      setResetPinEmp(null);
+      setResetPinValue("");
+      alert(`✅ تم إعادة تعيين الرقم السري للموظف ${resetPinEmp.name} بنجاح`);
+    } catch (err) {
+      console.error("Error resetting PIN:", err);
+      alert("حدث خطأ أثناء إعادة تعيين الرقم السري");
+    } finally {
+      setResetPinLoading(false);
+    }
+  };
+
   // ========== FETCH BALANCE LOGS ==========
   const fetchBalanceLogs = async () => {
     setBalanceLogLoading(true);
@@ -731,14 +762,11 @@ useEffect(() => {
 
     // 2️⃣ أدمن
     if (loginData.email && loginData.password) {
-      const hashedPw = await hashPassword(loginData.password);
-      const { data: admin } = await supabase
-        .from("users")
-        .select("*")
-        .eq("email", loginData.email.trim())
-        .eq("password", hashedPw)
-        .eq("role", "admin")
-        .single();
+      const hashedInput = await hashPassword(loginData.password);
+      const { data: admin } = await supabase.rpc("verify_admin_login", {
+        p_email: loginData.email.trim(),
+        p_password_hash: hashedInput,
+      });
       if (admin) {
         const adminUser = {
           role: "admin",
@@ -2767,6 +2795,7 @@ useEffect(() => {
                                       {empStatus === "إجازة" ? "🏢" : "🏖️"}
                                     </button>
                                     <button onClick={() => setEditingEmp(emp)} style={{ padding:"6px", background:"#eff6ff", border:"none", borderRadius:"8px", cursor:"pointer", color:"#3b82f6", display:"flex", alignItems:"center" }} title="تعديل"><Edit3 size={14} /></button>
+                                    <button onClick={() => { setResetPinEmp(emp); setResetPinValue(""); setShowResetPinModal(true); }} style={{ padding:"6px", background:"#fdf4ff", border:"none", borderRadius:"8px", cursor:"pointer", color:"#9333ea", display:"flex", alignItems:"center" }} title="إعادة تعيين الرقم السري"><KeyRound size={14} /></button>
                                     <button onClick={() => handleDeleteEmployee(emp.id)} style={{ padding:"6px", background:"#fff1f2", border:"none", borderRadius:"8px", cursor:"pointer", color:"#ef4444", display:"flex", alignItems:"center" }} title="حذف"><Trash2 size={14} /></button>
                                   </div>
                                 </td>
@@ -4575,6 +4604,50 @@ useEffect(() => {
         )}
         {/* ==================== AI CHATBOT ==================== */}
 
+        {/* Reset PIN Modal */}
+        {showResetPinModal && resetPinEmp && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-6 z-[100]" onClick={() => { setShowResetPinModal(false); setResetPinEmp(null); setResetPinValue(""); }}>
+            <div className="bg-white p-10 rounded-[2.5rem] w-full max-w-sm shadow-2xl" dir="rtl" onClick={(e) => e.stopPropagation()}>
+              <div className="flex justify-between items-center mb-6">
+                <div className="flex items-center gap-3">
+                  <div style={{ background:"#fdf4ff", borderRadius:"12px", padding:"10px", display:"flex" }}>
+                    <KeyRound size={22} color="#9333ea" />
+                  </div>
+                  <h3 className="text-xl font-black">إعادة تعيين الرقم السري</h3>
+                </div>
+                <button onClick={() => { setShowResetPinModal(false); setResetPinEmp(null); setResetPinValue(""); }}><X size={24} /></button>
+              </div>
+              <div className="mb-6">
+                <p className="text-sm text-slate-500 mb-1">الموظف</p>
+                <p className="font-bold text-slate-800">{resetPinEmp.name}</p>
+                <p className="text-xs text-slate-400 mt-0.5">#{resetPinEmp.code}</p>
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-2">الرقم السري الجديد (4 أرقام)</label>
+                  <input
+                    type="password"
+                    maxLength={4}
+                    pattern="\d{4}"
+                    inputMode="numeric"
+                    className="w-full p-4 border-2 border-slate-200 rounded-2xl outline-none focus:border-purple-500 text-center text-2xl font-mono tracking-widest"
+                    placeholder="••••"
+                    value={resetPinValue}
+                    onChange={(e) => setResetPinValue(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                  />
+                </div>
+                <button
+                  onClick={handleResetPin}
+                  disabled={resetPinLoading || resetPinValue.length !== 4}
+                  style={{ width:"100%", padding:"14px", background: resetPinValue.length === 4 ? "linear-gradient(135deg,#7c3aed,#9333ea)" : "#e2e8f0", color: resetPinValue.length === 4 ? "white" : "#94a3b8", border:"none", borderRadius:"16px", fontSize:"15px", fontWeight:"800", cursor: resetPinValue.length === 4 ? "pointer" : "not-allowed", display:"flex", alignItems:"center", justifyContent:"center", gap:"8px" }}>
+                  {resetPinLoading ? <Loader2 size={18} className="animate-spin" /> : <KeyRound size={18} />}
+                  {resetPinLoading ? "جاري الحفظ..." : "حفظ الرقم السري الجديد"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
       </div>
     );
   }
@@ -5100,22 +5173,29 @@ const AdminsTab = ({ supabase, logAction, currentUser }: {
 
   const fetch = async () => {
     setLoading(true);
-    const { data } = await supabase.from("users").select("*").eq("role", "admin").order("name");
+    const { data } = await supabase.from("users").select("id, name, email, role").eq("role", "admin").order("name");
     if (data) setAdmins(data);
     setLoading(false);
   };
   useEffect(() => { fetch(); }, []);
 
   const openAdd = () => { setEditingAdmin(null); setForm({ name:"", email:"", password:"" }); setShowForm(true); };
-  const openEdit = (a: any) => { setEditingAdmin(a); setForm({ name:a.name, email:a.email, password:a.password }); setShowForm(true); };
+  const openEdit = (a: any) => { setEditingAdmin(a); setForm({ name:a.name, email:a.email, password:"" }); setShowForm(true); };
 
   const save = async () => {
-    if (!form.name || !form.email || !form.password) return alert("جميع الحقول مطلوبة");
+    if (!form.name || !form.email) return alert("الاسم والبريد الإلكتروني مطلوبان");
+    if (!editingAdmin && !form.password) return alert("كلمة المرور مطلوبة عند إضافة ادمن جديد");
     setSaving(true);
     if (editingAdmin) {
-      await supabase.from("users").update(form).eq("id", editingAdmin.id);
+      const update: { name: string; email: string; password?: string } = { name: form.name, email: form.email };
+      if (form.password) {
+        update.password = await hashPassword(form.password);
+      }
+      const { error: updateError } = await supabase.from("users").update(update).eq("id", editingAdmin.id);
+      if (updateError) { alert("خطأ في التحديث: " + updateError.message); setSaving(false); return; }
     } else {
-      const { error } = await supabase.from("users").insert([{ ...form, role: "admin" }]);
+      const hashedPassword = await hashPassword(form.password);
+      const { error } = await supabase.from("users").insert([{ name: form.name, email: form.email, password: hashedPassword, role: "admin" }]);
       if (error) { alert("خطأ: " + error.message); setSaving(false); return; }
     }
     await logAction(editingAdmin ? "update" : "create", "users", editingAdmin?.id ?? null, { role: "admin" });
@@ -5168,8 +5248,7 @@ const AdminsTab = ({ supabase, logAction, currentUser }: {
                 </div>
               </div>
               <div style={{ background:"#f8fafc", borderRadius:"12px", padding:"12px 14px", fontSize:"13px" }}>
-                <div style={{ marginBottom:"6px" }}>📧 {a.email}</div>
-                <div style={{ color:"#94a3b8" }}>🔑 {"•".repeat(a.password?.length || 6)}</div>
+                <div>📧 {a.email}</div>
               </div>
               <div style={{ marginTop:"10px", background:"#f0fdf4", borderRadius:"10px", padding:"8px 12px", fontSize:"12px", color:"#16a34a", fontWeight:"700" }}>
                 ✅ صلاحية: صلاحيات المالك الكاملة
@@ -5197,7 +5276,6 @@ const AdminsTab = ({ supabase, logAction, currentUser }: {
               {[
                 { label:"الاسم الكامل *", key:"name", type:"text", ph:"مثال: أحمد محمد" },
                 { label:"البريد الإلكتروني *", key:"email", type:"email", ph:"admin@company.com" },
-                { label:"كلمة المرور *", key:"password", type:"text", ph:"اختر كلمة مرور قوية" },
               ].map(f => (
                 <div key={f.key}>
                   <label style={{ fontSize:"12px", fontWeight:"700", color:"#64748b", display:"block", marginBottom:"6px" }}>{f.label}</label>
@@ -5205,6 +5283,13 @@ const AdminsTab = ({ supabase, logAction, currentUser }: {
                     style={{ width:"100%", padding:"12px 16px", border:"1.5px solid #e2e8f0", borderRadius:"14px", fontSize:"14px", outline:"none", boxSizing:"border-box" as const, fontFamily:"inherit" }} />
                 </div>
               ))}
+              <div>
+                <label style={{ fontSize:"12px", fontWeight:"700", color:"#64748b", display:"block", marginBottom:"6px" }}>
+                  {editingAdmin ? "كلمة المرور (اتركها فارغة للإبقاء على الحالية)" : "كلمة المرور *"}
+                </label>
+                <input type="password" placeholder={editingAdmin ? "اتركها فارغة إذا لا تريد تغييرها" : "اختر كلمة مرور قوية"} value={form.password} onChange={e => setForm({...form, password: e.target.value})}
+                  style={{ width:"100%", padding:"12px 16px", border:"1.5px solid #e2e8f0", borderRadius:"14px", fontSize:"14px", outline:"none", boxSizing:"border-box" as const, fontFamily:"inherit" }} />
+              </div>
               <div style={{ background:"#fef3c7", borderRadius:"12px", padding:"12px", fontSize:"12px", color:"#92400e", fontWeight:"700" }}>
                 ⚠️ احتفظ بكلمة المرور بشكل آمن - يمكنهم إدارة كل شيء في النظام
               </div>
