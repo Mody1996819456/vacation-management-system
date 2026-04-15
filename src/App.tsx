@@ -30,9 +30,15 @@ const EMAILJS_TEMPLATES = {
 const ADMIN_EMAIL = "mohamedgamal199681945@gmail.com";
 
 // ==================== EMAIL SENDER ====================
-// ==================== EMAIL SENDER ====================
 // منع تكرار إيميلات تلقائية (return_reminder) بس - مش إيميلات الموافقة/الرفض
 const autoEmailCache = new Set<string>();
+
+const hashPassword = async (password: string): Promise<string> => {
+  const msgBuffer = new TextEncoder().encode(password);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", msgBuffer);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
+};
 
 const sendEmail = async (templateId: string, toEmail: string, params: Record<string, any>, preventDuplicate = false) => {
   if (!toEmail || !templateId) return;
@@ -741,13 +747,6 @@ useEffect(() => {
   }), [employees, departments, requests]);
 
   // ========== LOGIN ==========
-  const hashPassword = async (password: string): Promise<string> => {
-    const msgBuffer = new TextEncoder().encode(password);
-    const hashBuffer = await crypto.subtle.digest("SHA-256", msgBuffer);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
-  };
-
   const handleLogin = async () => {
     // 1️⃣ Owner
     if (loginData.email === ADMIN_EMAIL && loginData.password === process.env.REACT_APP_OWNER_PASSWORD) {
