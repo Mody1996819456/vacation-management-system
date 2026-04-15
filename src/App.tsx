@@ -3559,7 +3559,7 @@ useEffect(() => {
                                 {[
                                   { label:"تاريخ البداية", val: formatDate(r.start_date) },
                                   { label:"المدة", val: `${r.days} يوم` },
-                                  { label:"تاريخ نهاية الإجازة", val: formatDate(end) },
+                                  { label:"تاريخ نهاية الإجازة", val: formatDate(back) },
                                   { label:"نوع الإجازة", val: (vacType as any)?.name || "-" },
                                   { label:"تم بواسطة", val: r.owner_approved_by || "-" },
                                   { label:"وقت القرار", val: approvedAt },
@@ -4228,7 +4228,7 @@ useEffect(() => {
           const pendingCount = requests.filter(r => r.employee_id === e.id && (r.status==="pending"||r.status==="dept_approved")).length;
           const req = e.req;
           const vacType = req ? vacationTypes.find(vt=>vt.id===req.vacation_type_id) : null;
-          const reqBack = req ? getCalculatedDates(req.start_date, req.days).end : null;
+          const reqBack = req ? getCalculatedDates(req.start_date, req.days).back : null;
           return (
           <div style={{ position:"fixed", inset:0, background:"rgba(15,23,42,0.65)", backdropFilter:"blur(6px)", display:"flex", alignItems:"center", justifyContent:"center", padding:"16px", zIndex:300 }}
             onClick={() => { setShowEmpInfoModal(false); setEmpInfoTarget(null); }}>
