@@ -3517,7 +3517,7 @@ useEffect(() => {
                           const emp = employees.find(e => e.id === r.employee_id);
                           const dept = departments.find(d => d.id === emp?.department_id);
                           const vacType = vacationTypes.find(vt => vt.id === r.vacation_type_id);
-                          const { back } = getCalculatedDates(r.start_date, r.days);
+                          const { end, back } = getCalculatedDates(r.start_date, r.days);
                           const isApproved = r.status === "approved";
                           const approvedAt = r.owner_approved_at ? formatDateTime(r.owner_approved_at) : "-";
                           return (
