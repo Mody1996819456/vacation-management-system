@@ -3559,7 +3559,7 @@ useEffect(() => {
                                 {[
                                   { label:"تاريخ البداية", val: formatDate(r.start_date) },
                                   { label:"المدة", val: `${r.days} يوم` },
-                                  { label:"تاريخ العودة", val: formatDate(end) },
+                                  { label:"تاريخ نهاية الإجازة", val: formatDate(end) },
                                   { label:"نوع الإجازة", val: (vacType as any)?.name || "-" },
                                   { label:"تم بواسطة", val: r.owner_approved_by || "-" },
                                   { label:"وقت القرار", val: approvedAt },
