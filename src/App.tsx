@@ -30,7 +30,6 @@ const EMAILJS_TEMPLATES = {
 const ADMIN_EMAIL = "mohamedgamal199681945@gmail.com";
 
 // ==================== EMAIL SENDER ====================
-// ==================== EMAIL SENDER ====================
 // منع تكرار إيميلات تلقائية (return_reminder) بس - مش إيميلات الموافقة/الرفض
 const autoEmailCache = new Set<string>();
 
@@ -58,7 +57,15 @@ const sendEmail = async (templateId: string, toEmail: string, params: Record<str
 };
 
 // ==================== HELPER FUNCTIONS ====================
-const formatDate = (dateStr: string) => {
+  // ==================== PASSWORD HASHING ====================
+  const hashPassword = async (password: string): Promise<string> => {
+    const msgBuffer = new TextEncoder().encode(password);
+    const hashBuffer = await crypto.subtle.digest("SHA-256", msgBuffer);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
+  };
+
+  const formatDate = (dateStr: string) => {
   if (!dateStr) return "-";
   return new Date(dateStr).toLocaleDateString("ar-EG", {
     year: "numeric", month: "2-digit", day: "2-digit",
@@ -261,6 +268,7 @@ const VacationManagementSystem = () => {
   // Modals & Forms
   const [loginData, setLoginData] = useState({ email: "", password: "" });
   const [empCodeInput, setEmpCodeInput] = useState("");
+  const [empPinInput, setEmpPinInput] = useState("");
   const [showAddEmp, setShowAddEmp] = useState(false);
   const [editingEmp, setEditingEmp] = useState<any>(null);
   const [editingVac, setEditingVac] = useState<any>(null);
@@ -280,6 +288,11 @@ const VacationManagementSystem = () => {
   const balanceUpdatedRef = React.useRef(false);
   const [balanceLogs, setBalanceLogs] = useState<any[]>([]);
   const [balanceLogLoading, setBalanceLogLoading] = useState(false);
+
+  // تغيير PIN الموظف
+  const [showChangePinModal, setShowChangePinModal] = useState(false);
+  const [changePinForm, setChangePinForm] = useState({ oldPin: "", newPin: "", confirmPin: "" });
+  const [changePinLoading, setChangePinLoading] = useState(false);
 
   // Calendar
   const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -553,7 +566,7 @@ useEffect(() => {
           const { back } = getCalculatedDates(r.start_date, r.days);
           return today >= actualStart && today < back;
         });
-        if (activeReq) {
+        if (activeReq && emp.status !== "إجازة") {
           await supabase.from("employees").update({ status: "إجازة" }).eq("id", emp.id);
         }
       }
@@ -704,8 +717,7 @@ useEffect(() => {
   }), [employees, departments, requests]);
 
   // ========== LOGIN ==========
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleLogin = async () => {
 
     // 1️⃣ Owner
     if (loginData.email === ADMIN_EMAIL && loginData.password === process.env.REACT_APP_OWNER_PASSWORD) {
@@ -720,11 +732,12 @@ useEffect(() => {
 
     // 2️⃣ أدمن
     if (loginData.email && loginData.password) {
+      const hashedInput = await hashPassword(loginData.password);
       const { data: admin } = await supabase
         .from("users")
         .select("*")
         .eq("email", loginData.email.trim())
-        .eq("password", loginData.password)
+        .eq("password", hashedInput)
         .eq("role", "admin")
         .single();
       if (admin) {
@@ -749,7 +762,7 @@ useEffect(() => {
         .from("department_managers")
         .select("*, departments(name)")
         .eq("email", loginData.email.trim())
-        .eq("password", loginData.password)
+        .eq("password", await hashPassword(loginData.password))
         .single();
       if (mgr) {
         const mgrUser = {
@@ -771,7 +784,20 @@ useEffect(() => {
 
     // 3️⃣ موظف بالكود
     if (empCodeInput.trim()) {
-      const { data: emp } = await supabase.from("employees").select("*").eq("code", empCodeInput.trim()).single();
+      if (!empPinInput.trim()) {
+          alert("أدخل رقم PIN الخاص بك ❌");
+          return;
+        }
+        if (!/^\d{4}$/.test(empPinInput.trim())) {
+          alert("PIN يجب أن يكون 4 أرقام بالضبط ❌");
+          return;
+        }
+        const { data: emp } = await supabase
+          .from("employees")
+          .select("*")
+          .eq("code", empCodeInput.trim())
+          .eq("pin", empPinInput.trim())
+          .single();
       if (emp) {
         const empUser = { ...emp, role: "employee" };
         setCurrentUser(empUser);
@@ -784,6 +810,63 @@ useEffect(() => {
     }
 
     alert("بيانات الدخول غير صحيحة ❌");
+  };
+
+  // ========== تغيير PIN الموظف ==========
+  const handleChangePin = async () => {
+    const { oldPin, newPin, confirmPin } = changePinForm;
+    if (!oldPin.trim() || !newPin.trim() || !confirmPin.trim()) {
+      alert("يرجى تعبئة جميع الحقول ❌");
+      return;
+    }
+    if (!/^\d{4}$/.test(oldPin.trim())) {
+      alert("PIN القديم يجب أن يكون 4 أرقام ❌");
+      return;
+    }
+    if (!/^\d{4}$/.test(newPin.trim())) {
+      alert("PIN الجديد يجب أن يكون 4 أرقام ❌");
+      return;
+    }
+    if (newPin.trim() !== confirmPin.trim()) {
+      alert("PIN الجديد وتأكيده غير متطابقين ❌");
+      return;
+    }
+    if (oldPin.trim() === newPin.trim()) {
+      alert("PIN الجديد يجب أن يختلف عن القديم ❌");
+      return;
+    }
+    setChangePinLoading(true);
+    try {
+      const { data: emp } = await supabase
+        .from("employees")
+        .select("id, pin")
+        .eq("id", currentUser.id)
+        .eq("pin", oldPin.trim())
+        .single();
+      if (!emp) {
+        alert("PIN القديم غير صحيح ❌");
+        setChangePinLoading(false);
+        return;
+      }
+      const { error } = await supabase
+        .from("employees")
+        .update({ pin: newPin.trim() })
+        .eq("id", currentUser.id);
+      if (error) {
+        alert("حدث خطأ أثناء تحديث PIN ❌");
+        setChangePinLoading(false);
+        return;
+      }
+      alert("تم تغيير PIN بنجاح ✅");
+      const updatedUser = { ...currentUser, pin: newPin.trim() };
+      setCurrentUser(updatedUser);
+      localStorage.setItem("vms_currentUser", JSON.stringify(updatedUser));
+      setShowChangePinModal(false);
+      setChangePinForm({ oldPin: "", newPin: "", confirmPin: "" });
+    } catch (err) {
+      alert("حدث خطأ غير متوقع ❌");
+    }
+    setChangePinLoading(false);
   };
 
   // ========== EXCEL OPERATIONS ==========
@@ -1836,7 +1919,19 @@ useEffect(() => {
                 placeholder="الكود الوظيفي"
                 value={empCodeInput}
                 onChange={(e) => setEmpCodeInput(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleLogin(e as any)}
+                onKeyDown={(e) => e.key === "Enter" && handleLogin()}
+              />
+            </div>
+            <div style={{ position:"relative", marginBottom:"16px" }}>
+              <input
+                className="login-input"
+                type="password"
+                maxLength={4}
+                style={{ width:"100%", background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.12)", borderRadius:"14px", padding:"14px 18px", color:"white", fontSize:"15px", boxSizing:"border-box", fontFamily:"Cairo, sans-serif", letterSpacing:"4px", textAlign:"center" }}
+                placeholder="PIN (مثال: 0000)"
+                value={empPinInput}
+                onChange={(e) => setEmpPinInput(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                onKeyDown={(e) => e.key === "Enter" && handleLogin()}
               />
             </div>
             <button className="login-btn" onClick={handleLogin} style={{ width:"100%", background:"linear-gradient(135deg, #6366f1, #8b5cf6)", border:"none", borderRadius:"14px", padding:"15px", color:"white", fontSize:"16px", fontWeight:"700", cursor:"pointer", fontFamily:"Cairo, sans-serif" }}>
@@ -1865,7 +1960,7 @@ useEffect(() => {
               placeholder="كلمة المرور"
               value={loginData.password}
               onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
-              onKeyDown={(e) => e.key === "Enter" && handleLogin(e as any)}
+              onKeyDown={(e) => e.key === "Enter" && handleLogin()}
             />
             <button className="login-btn" onClick={handleLogin} style={{ width:"100%", background:"linear-gradient(135deg, #10b981, #059669)", border:"none", borderRadius:"14px", padding:"15px", color:"white", fontSize:"16px", fontWeight:"700", cursor:"pointer", fontFamily:"Cairo, sans-serif" }}>
               دخول
@@ -1994,7 +2089,7 @@ useEffect(() => {
             }}>
               <Smartphone size={17}/><span>تثبيت التطبيق 📱</span>
             </button>
-            <button onClick={() => { localStorage.removeItem("vms_currentUser"); localStorage.removeItem("vms_currentView"); setCurrentView("login"); setCurrentUser(null); setLoginData({ email: "", password: "" }); setEmpCodeInput(""); }} style={{
+            <button onClick={() => { localStorage.removeItem("vms_currentUser"); localStorage.removeItem("vms_currentView"); setCurrentView("login"); setCurrentUser(null); setLoginData({ email: "", password: "" }); setEmpCodeInput(""); setEmpPinInput(""); }} style={{
               width:"100%", display:"flex", alignItems:"center", gap:"10px",
               padding:"10px 12px", borderRadius:"10px", border:"1px solid rgba(239,68,68,0.2)",
               background:"rgba(239,68,68,0.05)", color:"#f87171", cursor:"pointer",
@@ -4565,22 +4660,40 @@ useEffect(() => {
               أهلاً {currentUser.name} 👋
             </h2>
           </div>
-          <button onClick={() => { localStorage.removeItem("vms_currentUser"); localStorage.removeItem("vms_currentView"); setCurrentView("login"); setCurrentUser(null); setLoginData({ email: "", password: "" }); setEmpCodeInput(""); }} style={{
-            background: "linear-gradient(135deg, #ef4444, #dc2626)",
-            color: "white",
-            border: "none",
-            padding: "12px 20px",
-            borderRadius: "14px",
-            fontWeight: "700",
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            gap: "8px",
-            transition: "all 0.3s ease",
-            boxShadow: "0 10px 25px rgba(239, 68, 68, 0.3)"
-          }} onMouseEnter={(e) => e.currentTarget.style.transform = "translateY(-2px)"} onMouseLeave={(e) => e.currentTarget.style.transform = "translateY(0)"}>
-            <LogOut size={18} /> خروج
-          </button>
+          <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+            <button onClick={() => { setChangePinForm({ oldPin: "", newPin: "", confirmPin: "" }); setShowChangePinModal(true); }} style={{
+              background: "linear-gradient(135deg, #667eea, #764ba2)",
+              color: "white",
+              border: "none",
+              padding: "12px 20px",
+              borderRadius: "14px",
+              fontWeight: "700",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              transition: "all 0.3s ease",
+              boxShadow: "0 10px 25px rgba(102, 126, 234, 0.3)"
+            }} onMouseEnter={(e) => e.currentTarget.style.transform = "translateY(-2px)"} onMouseLeave={(e) => e.currentTarget.style.transform = "translateY(0)"}>
+              🔑 تغيير PIN
+            </button>
+            <button onClick={() => { localStorage.removeItem("vms_currentUser"); localStorage.removeItem("vms_currentView"); setCurrentView("login"); setCurrentUser(null); setLoginData({ email: "", password: "" }); setEmpCodeInput(""); setEmpPinInput(""); }} style={{
+              background: "linear-gradient(135deg, #ef4444, #dc2626)",
+              color: "white",
+              border: "none",
+              padding: "12px 20px",
+              borderRadius: "14px",
+              fontWeight: "700",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              transition: "all 0.3s ease",
+              boxShadow: "0 10px 25px rgba(239, 68, 68, 0.3)"
+            }} onMouseEnter={(e) => e.currentTarget.style.transform = "translateY(-2px)"} onMouseLeave={(e) => e.currentTarget.style.transform = "translateY(0)"}>
+              <LogOut size={18} /> خروج
+            </button>
+          </div>
         </header>
 
         {/* جدول معلومات الموظف الاحترافي */}
@@ -4843,6 +4956,92 @@ useEffect(() => {
           onChange={(updated: any) => setEmpEditReq(updated)}
           onSave={handleEmpEditRequest}
         />
+      )}
+
+      {/* Modal تغيير PIN */}
+      {showChangePinModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-6 z-[100]" onClick={() => setShowChangePinModal(false)}>
+          <div style={{
+            background: "white",
+            borderRadius: "28px",
+            padding: "40px",
+            width: "100%",
+            maxWidth: "420px",
+            boxShadow: "0 30px 80px rgba(0,0,0,0.2)"
+          }} dir="rtl" onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "28px" }}>
+              <div>
+                <h3 style={{ fontSize: "22px", fontWeight: "900", margin: "0", background: "linear-gradient(135deg, #667eea, #764ba2)", backgroundClip: "text", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>🔑 تغيير PIN</h3>
+                <p style={{ fontSize: "13px", color: "#94a3b8", margin: "6px 0 0 0" }}>أدخل PIN الحالي ثم PIN الجديد</p>
+              </div>
+              <button onClick={() => setShowChangePinModal(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "22px", lineHeight: "1" }}>✕</button>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column" as const, gap: "16px" }}>
+              <div>
+                <label style={{ fontSize: "13px", fontWeight: "700", color: "#667eea", marginBottom: "8px", display: "block" }}>PIN الحالي</label>
+                <input
+                  type="password"
+                  inputMode="numeric"
+                  maxLength={4}
+                  placeholder="••••"
+                  value={changePinForm.oldPin}
+                  onChange={(e) => setChangePinForm({ ...changePinForm, oldPin: e.target.value.replace(/\D/g, "").slice(0, 4) })}
+                  style={{ width: "100%", padding: "14px 16px", border: "2px solid #e2e8f0", borderRadius: "16px", outline: "none", fontSize: "18px", fontWeight: "700", letterSpacing: "8px", textAlign: "center" as const, boxSizing: "border-box" as const, transition: "border-color 0.2s" }}
+                  onFocus={(e) => e.currentTarget.style.borderColor = "#667eea"}
+                  onBlur={(e) => e.currentTarget.style.borderColor = "#e2e8f0"}
+                />
+              </div>
+              <div>
+                <label style={{ fontSize: "13px", fontWeight: "700", color: "#667eea", marginBottom: "8px", display: "block" }}>PIN الجديد</label>
+                <input
+                  type="password"
+                  inputMode="numeric"
+                  maxLength={4}
+                  placeholder="••••"
+                  value={changePinForm.newPin}
+                  onChange={(e) => setChangePinForm({ ...changePinForm, newPin: e.target.value.replace(/\D/g, "").slice(0, 4) })}
+                  style={{ width: "100%", padding: "14px 16px", border: "2px solid #e2e8f0", borderRadius: "16px", outline: "none", fontSize: "18px", fontWeight: "700", letterSpacing: "8px", textAlign: "center" as const, boxSizing: "border-box" as const, transition: "border-color 0.2s" }}
+                  onFocus={(e) => e.currentTarget.style.borderColor = "#667eea"}
+                  onBlur={(e) => e.currentTarget.style.borderColor = "#e2e8f0"}
+                />
+              </div>
+              <div>
+                <label style={{ fontSize: "13px", fontWeight: "700", color: "#667eea", marginBottom: "8px", display: "block" }}>تأكيد PIN الجديد</label>
+                <input
+                  type="password"
+                  inputMode="numeric"
+                  maxLength={4}
+                  placeholder="••••"
+                  value={changePinForm.confirmPin}
+                  onChange={(e) => setChangePinForm({ ...changePinForm, confirmPin: e.target.value.replace(/\D/g, "").slice(0, 4) })}
+                  style={{ width: "100%", padding: "14px 16px", border: "2px solid #e2e8f0", borderRadius: "16px", outline: "none", fontSize: "18px", fontWeight: "700", letterSpacing: "8px", textAlign: "center" as const, boxSizing: "border-box" as const, transition: "border-color 0.2s" }}
+                  onFocus={(e) => e.currentTarget.style.borderColor = "#667eea"}
+                  onBlur={(e) => e.currentTarget.style.borderColor = "#e2e8f0"}
+                />
+              </div>
+              <button
+                onClick={handleChangePin}
+                disabled={changePinLoading}
+                style={{
+                  width: "100%",
+                  background: changePinLoading ? "#c7d2fe" : "linear-gradient(135deg, #667eea, #764ba2)",
+                  color: "white",
+                  border: "none",
+                  padding: "16px 20px",
+                  borderRadius: "16px",
+                  fontWeight: "900",
+                  fontSize: "16px",
+                  cursor: changePinLoading ? "not-allowed" : "pointer",
+                  marginTop: "8px",
+                  boxShadow: "0 10px 30px rgba(102, 126, 234, 0.4)",
+                  transition: "all 0.3s ease"
+                }}
+              >
+                {changePinLoading ? "جاري التحديث..." : "تحديث PIN"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
       </>
     );
