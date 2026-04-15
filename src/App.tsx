@@ -708,7 +708,7 @@ useEffect(() => {
     e.preventDefault();
 
     // 1️⃣ Owner
-    if (loginData.email === ADMIN_EMAIL && loginData.password === "Mg1996819456") {
+    if (loginData.email === ADMIN_EMAIL && loginData.password === process.env.REACT_APP_OWNER_PASSWORD) {
       const ownerUser = { role: "owner", name: "محمد جمال" };
       setCurrentUser(ownerUser);
       setCurrentView("admin");
