@@ -4228,7 +4228,7 @@ useEffect(() => {
           const pendingCount = requests.filter(r => r.employee_id === e.id && (r.status==="pending"||r.status==="dept_approved")).length;
           const req = e.req;
           const vacType = req ? vacationTypes.find(vt=>vt.id===req.vacation_type_id) : null;
-          const reqBack = req ? getCalculatedDates(req.start_date, req.days).back : null;
+          const reqBack = req ? getCalculatedDates(req.start_date, req.days).end : null;
           return (
           <div style={{ position:"fixed", inset:0, background:"rgba(15,23,42,0.65)", backdropFilter:"blur(6px)", display:"flex", alignItems:"center", justifyContent:"center", padding:"16px", zIndex:300 }}
             onClick={() => { setShowEmpInfoModal(false); setEmpInfoTarget(null); }}>
@@ -4312,7 +4312,7 @@ useEffect(() => {
                     </div>
                     {reqBack && (
                       <div style={{ background:"white", borderRadius:"10px", padding:"10px", border:"1px solid #e0e7ff" }}>
-                        <div style={{ fontSize:"10px", color:"#94a3b8", marginBottom:"2px" }}>تاريخ العودة</div>
+                        <div style={{ fontSize:"10px", color:"#94a3b8", marginBottom:"2px" }}> تاريخ نهاية الإجازة</div>
                         <div style={{ fontWeight:"800", fontSize:"13px", color:"#059669" }}>{reqBack}</div>
                       </div>
                     )}
