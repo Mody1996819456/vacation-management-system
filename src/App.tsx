@@ -2874,7 +2874,7 @@ useEffect(() => {
                               <th style={{ padding:"12px 16px", textAlign:"right", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>الموظف</th>
                               <th style={{ padding:"12px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>النوع</th>
                               <th style={{ padding:"12px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>البداية</th>
-                              <th style={{ padding:"12px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>العودة</th>
+                              <th style={{ padding:"12px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>نهاية الإجازة</th>
                               <th style={{ padding:"12px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>الأيام</th>
                               <th style={{ padding:"12px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>الحالة</th>
                               <th style={{ padding:"12px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>الإجراءات</th>
@@ -2884,7 +2884,7 @@ useEffect(() => {
                             {filteredRequests.filter(r => r.status === "pending").map((req, idx) => {
                               const vacType = vacationTypes.find((vt: any) => vt.id === req.vacation_type_id);
                               const emp = employees.find((e: any) => e.id === req.employee_id);
-                              const { back } = getCalculatedDates(req.start_date, req.days);
+                              const { end: vacEnd } = getCalculatedDates(req.start_date, req.days);
                               return (
                                 <tr key={req.id}
                                   style={{ borderBottom:"1px solid #f1f5f9", background: idx % 2 === 0 ? "white" : "#fafafa" }}
@@ -2901,7 +2901,7 @@ useEffect(() => {
                                     {vacType && <span style={{ padding:"3px 10px", borderRadius:"20px", fontSize:"11px", fontWeight:"700", background:(vacType as any).color+"22", color:(vacType as any).color }}>{(vacType as any).name}</span>}
                                   </td>
                                   <td style={{ padding:"12px", textAlign:"center", fontSize:"12px", color:"#374151", fontWeight:"700" }}>{formatDate(req.start_date)}</td>
-                                  <td style={{ padding:"12px", textAlign:"center", fontSize:"12px", color:"#4f46e5", fontWeight:"700" }}>{formatDate(back)}</td>
+                                  <td style={{ padding:"12px", textAlign:"center", fontSize:"12px", color:"#4f46e5", fontWeight:"700" }}>{formatDate(vacEnd)}</td>
                                   <td style={{ padding:"12px", textAlign:"center" }}>
                                     <span style={{ fontWeight:"900", color:"#059669", fontSize:"14px" }}>{req.days}</span>
                                     <span style={{ fontSize:"10px", color:"#94a3b8" }}> يوم</span>
@@ -2953,7 +2953,7 @@ useEffect(() => {
                               <th style={{ padding:"12px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>النوع</th>
                               <th style={{ padding:"12px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>القسم</th>
                               <th style={{ padding:"12px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>البداية</th>
-                              <th style={{ padding:"12px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>العودة</th>
+                              <th style={{ padding:"12px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>نهاية الإجازة</th>
                               <th style={{ padding:"12px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>الأيام</th>
                               <th style={{ padding:"12px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>الحالة</th>
                               <th style={{ padding:"12px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>الإجراءات</th>
@@ -2964,7 +2964,7 @@ useEffect(() => {
                           const vacType = vacationTypes.find((vt:any) => vt.id === req.vacation_type_id);
                           const emp = employees.find((e:any) => e.id === req.employee_id);
                           const dept = departments.find((d:any) => d.id === emp?.department_id);
-                          const { back } = getCalculatedDates(req.start_date, req.days);
+                          const { end: vacEnd2 } = getCalculatedDates(req.start_date, req.days);
                           const isDeptApp = req.status === "dept_approved";
                           return (
                             <tr key={req.id}
@@ -2988,8 +2988,8 @@ useEffect(() => {
                               <td style={{ padding:"12px", textAlign:"center", fontSize:"12px", color:"#475569", fontWeight:"600" }}>{dept?.name||"-"}</td>
                               {/* البداية */}
                               <td style={{ padding:"12px", textAlign:"center", fontSize:"12px", color:"#374151", fontWeight:"700" }}>{formatDate(req.start_date)}</td>
-                              {/* العودة */}
-                              <td style={{ padding:"12px", textAlign:"center", fontSize:"12px", color:"#4f46e5", fontWeight:"700" }}>{formatDate(back)}</td>
+                              {/* نهاية الإجازة */}
+                              <td style={{ padding:"12px", textAlign:"center", fontSize:"12px", color:"#4f46e5", fontWeight:"700" }}>{formatDate(vacEnd2)}</td>
                               {/* الأيام */}
                               <td style={{ padding:"12px", textAlign:"center" }}>
                                 <span style={{ fontWeight:"900", color:"#059669", fontSize:"14px" }}>{req.days}</span>
@@ -3646,7 +3646,7 @@ useEffect(() => {
                                 {[
                                   { label:"تاريخ البداية", val: formatDate(r.start_date) },
                                   { label:"المدة", val: `${r.days} يوم` },
-                                  { label:"تاريخ نهاية الإجازة", val: formatDate(back) },
+                                  { label:"تاريخ نهاية الإجازة", val: formatDate(end) },
                                   { label:"نوع الإجازة", val: (vacType as any)?.name || "-" },
                                   { label:"تم بواسطة", val: r.owner_approved_by || "-" },
                                   { label:"وقت القرار", val: approvedAt },
