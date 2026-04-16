@@ -25,6 +25,7 @@ const EMAILJS_TEMPLATES = {
   rejected:          "template_aigwzle",
   return_reminder:   "template_return_reminder",
   new_request_admin: "template_new_request",
+  pin_reset:         "template_pin_reset",
 };
 
 const ADMIN_EMAIL = "mohamedgamal199681945@gmail.com";
@@ -59,27 +60,30 @@ const hashPin = async (pin: string): Promise<string> => {
 };
 
 const verifyPin = async (inputPin: string, storedValue: string): Promise<boolean> => {
-  if (!storedValue || !storedValue.startsWith(PBKDF2_PREFIX)) return false;
-  const parts = storedValue.slice(PBKDF2_PREFIX.length).split(":");
-  if (parts.length !== 2) return false;
-  const [saltHex, expectedHex] = parts;
-  if (!/^[0-9a-f]{32}$/i.test(saltHex) || !/^[0-9a-f]{64}$/i.test(expectedHex)) return false;
-  const saltBytes = saltHex.match(/.{2}/g)!.map(b => parseInt(b, 16));
-  const salt = new Uint8Array(saltBytes);
-  try {
-    const keyMaterial = await crypto.subtle.importKey(
-      "raw", new TextEncoder().encode(inputPin), "PBKDF2", false, ["deriveBits"]
-    );
-    const derived = await crypto.subtle.deriveBits(
-      { name: "PBKDF2", salt, iterations: PBKDF2_ITERATIONS, hash: "SHA-256" },
-      keyMaterial, 256
-    );
-    const actualHex = Array.from(new Uint8Array(derived))
-      .map(b => b.toString(16).padStart(2, "0")).join("");
-    return actualHex === expectedHex;
-  } catch {
-    return false;
+  if (!storedValue) return false;
+  if (storedValue.startsWith(PBKDF2_PREFIX)) {
+    const parts = storedValue.slice(PBKDF2_PREFIX.length).split(":");
+    if (parts.length !== 2) return false;
+    const [saltHex, expectedHex] = parts;
+    if (!/^[0-9a-f]{32}$/i.test(saltHex) || !/^[0-9a-f]{64}$/i.test(expectedHex)) return false;
+    const saltBytes = saltHex.match(/.{2}/g)!.map(b => parseInt(b, 16));
+    const salt = new Uint8Array(saltBytes);
+    try {
+      const keyMaterial = await crypto.subtle.importKey(
+        "raw", new TextEncoder().encode(inputPin), "PBKDF2", false, ["deriveBits"]
+      );
+      const derived = await crypto.subtle.deriveBits(
+        { name: "PBKDF2", salt, iterations: PBKDF2_ITERATIONS, hash: "SHA-256" },
+        keyMaterial, 256
+      );
+      const actualHex = Array.from(new Uint8Array(derived))
+        .map(b => b.toString(16).padStart(2, "0")).join("");
+      return actualHex === expectedHex;
+    } catch {
+      return false;
+    }
   }
+  return inputPin === storedValue;
 };
 
 const sendEmail = async (templateId: string, toEmail: string, params: Record<string, any>, preventDuplicate = false) => {
@@ -666,6 +670,19 @@ useEffect(() => {
         .eq("id", resetPinEmp.id);
       if (error) throw error;
       await logAction("reset_pin", "employees", resetPinEmp.id, null, { admin_reset: true });
+
+      if (resetPinEmp.email) {
+        const resetTimestamp = new Date().toLocaleString("ar-EG", {
+          year: "numeric", month: "long", day: "numeric",
+          hour: "2-digit", minute: "2-digit",
+        });
+        sendEmail(EMAILJS_TEMPLATES.pin_reset, resetPinEmp.email, {
+          employee_name: resetPinEmp.name,
+          admin_name: currentUser?.name || "المدير",
+          reset_time: resetTimestamp,
+        });
+      }
+
       setShowResetPinModal(false);
       setResetPinEmp(null);
       setResetPinValue("");
@@ -879,6 +896,10 @@ useEffect(() => {
         if (!pinValid) {
           alert("الكود أو PIN غير صحيح ❌");
           return;
+        }
+        if (!emp.pin.startsWith(PBKDF2_PREFIX)) {
+          const upgraded = await hashPin(empPinInput);
+          await supabase.from("employees").update({ pin: upgraded }).eq("id", emp.id);
         }
         const { pin: _pin, ...empWithoutPin } = emp;
         const empUser = { ...empWithoutPin, role: "employee" };
@@ -4602,7 +4623,7 @@ useEffect(() => {
                     <div className="flex justify-between items-start mb-2">
                       <div>
                         <span className="font-bold text-slate-800">{log.user_name}</span>
-                        <span className="text-sm text-slate-500 mr-2">{log.action === "monthly_balance_update" ? "💰 تحديث رصيد شهري" : log.action}</span>
+                        <span className="text-sm text-slate-500 mr-2">{log.action === "monthly_balance_update" ? "💰 تحديث رصيد شهري" : log.action === "password_change" ? "🔑 تغيير كلمة المرور" : log.action}</span>
                       </div>
                       <span className="text-xs text-slate-400">{formatDateTime(log.created_at)}</span>
                     </div>
@@ -5262,6 +5283,9 @@ const AdminsTab = ({ supabase, logAction, currentUser }: {
       }
       const { error: updateError } = await supabase.from("users").update(update).eq("id", editingAdmin.id);
       if (updateError) { alert("خطأ في التحديث: " + updateError.message); setSaving(false); return; }
+      if (form.password) {
+        await logAction("password_change", "users", editingAdmin.id, null, { admin_name: editingAdmin.name, changed_by: currentUser?.name || "غير معروف", description: `تم تغيير كلمة مرور الادمن "${editingAdmin.name}"` });
+      }
     } else {
       const hashedPassword = await hashPassword(form.password);
       const { error } = await supabase.from("users").insert([{ name: form.name, email: form.email, password: hashedPassword, role: "admin" }]);
