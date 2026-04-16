@@ -856,12 +856,27 @@ useEffect(() => {
     // 3️⃣ مدير قسم
     if (loginData.email && loginData.password) {
       const hashedPw2 = await hashPassword(loginData.password);
-      const { data: mgr } = await supabase
+      // جرّب SHA256 أولاً (الكلمات المخزنة بشكل آمن)
+      let { data: mgr } = await supabase
         .from("department_managers")
         .select("*, departments(name)")
         .eq("email", loginData.email.trim())
         .eq("password", hashedPw2)
         .single();
+      // fallback: plain text (حسابات قديمة لم تُهاش بعد)
+      if (!mgr) {
+        const { data: mgrPlain } = await supabase
+          .from("department_managers")
+          .select("*, departments(name)")
+          .eq("email", loginData.email.trim())
+          .eq("password", loginData.password)
+          .single();
+        if (mgrPlain) {
+          mgr = mgrPlain;
+          // auto-upgrade: احفظ الكلمة مهاشة
+          await supabase.from("department_managers").update({ password: hashedPw2 }).eq("id", mgrPlain.id);
+        }
+      }
       if (mgr) {
         const mgrUser = {
           role: "dept_manager",
