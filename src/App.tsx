@@ -40,6 +40,48 @@ const hashPassword = async (password: string): Promise<string> => {
   return hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
 };
 
+const PBKDF2_ITERATIONS = 100_000;
+const PBKDF2_PREFIX = "pbkdf2:";
+
+const hashPin = async (pin: string): Promise<string> => {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const keyMaterial = await crypto.subtle.importKey(
+    "raw", new TextEncoder().encode(pin), "PBKDF2", false, ["deriveBits"]
+  );
+  const derived = await crypto.subtle.deriveBits(
+    { name: "PBKDF2", salt, iterations: PBKDF2_ITERATIONS, hash: "SHA-256" },
+    keyMaterial, 256
+  );
+  const toHex = (buf: ArrayBuffer) =>
+    Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("");
+  const saltHex = Array.from(salt).map(b => b.toString(16).padStart(2, "0")).join("");
+  return `${PBKDF2_PREFIX}${saltHex}:${toHex(derived)}`;
+};
+
+const verifyPin = async (inputPin: string, storedValue: string): Promise<boolean> => {
+  if (!storedValue || !storedValue.startsWith(PBKDF2_PREFIX)) return false;
+  const parts = storedValue.slice(PBKDF2_PREFIX.length).split(":");
+  if (parts.length !== 2) return false;
+  const [saltHex, expectedHex] = parts;
+  if (!/^[0-9a-f]{32}$/i.test(saltHex) || !/^[0-9a-f]{64}$/i.test(expectedHex)) return false;
+  const saltBytes = saltHex.match(/.{2}/g)!.map(b => parseInt(b, 16));
+  const salt = new Uint8Array(saltBytes);
+  try {
+    const keyMaterial = await crypto.subtle.importKey(
+      "raw", new TextEncoder().encode(inputPin), "PBKDF2", false, ["deriveBits"]
+    );
+    const derived = await crypto.subtle.deriveBits(
+      { name: "PBKDF2", salt, iterations: PBKDF2_ITERATIONS, hash: "SHA-256" },
+      keyMaterial, 256
+    );
+    const actualHex = Array.from(new Uint8Array(derived))
+      .map(b => b.toString(16).padStart(2, "0")).join("");
+    return actualHex === expectedHex;
+  } catch {
+    return false;
+  }
+};
+
 const sendEmail = async (templateId: string, toEmail: string, params: Record<string, any>, preventDuplicate = false) => {
   if (!toEmail || !templateId) return;
 
@@ -321,7 +363,18 @@ const VacationManagementSystem = () => {
   const [empSearchDirect, setEmpSearchDirect] = useState("");
   const [selectedCalendarDay, setSelectedCalendarDay] = useState<string | null>(null);
   const [showEmpDropdown, setShowEmpDropdown] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(() => typeof window !== "undefined" ? window.innerWidth >= 1024 : true);
+  const [isMobile, setIsMobile] = useState(() => typeof window !== "undefined" ? window.innerWidth < 1024 : false);
+
+  useEffect(() => {
+    const handleResize = () => {
+      const mobile = window.innerWidth < 1024;
+      setIsMobile(mobile);
+      if (mobile) setSidebarOpen(false);
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
   // ===== States للميزات الجديدة =====
   const [showEditRequestModal, setShowEditRequestModal] = useState(false);
   const [empEditReq, setEmpEditReq] = useState<any>(null);
@@ -606,9 +659,10 @@ useEffect(() => {
     }
     setResetPinLoading(true);
     try {
+      const hashedResetPin = await hashPin(resetPinValue);
       const { error } = await supabase
         .from("employees")
-        .update({ pin: resetPinValue })
+        .update({ pin: hashedResetPin })
         .eq("id", resetPinEmp.id);
       if (error) throw error;
       await logAction("reset_pin", "employees", resetPinEmp.id, null, { admin_reset: true });
@@ -817,11 +871,17 @@ useEffect(() => {
       }
       const { data: emp } = await supabase.from("employees").select("*").eq("code", empCodeInput.trim()).single();
       if (emp) {
-        if ((emp.pin || "0000") !== empPinInput) {
+        if (!emp.pin) {
+          alert("لم يتم تعيين رقم PIN لهذا الحساب. يرجى التواصل مع الإدارة ❌");
+          return;
+        }
+        const pinValid = await verifyPin(empPinInput, emp.pin);
+        if (!pinValid) {
           alert("الكود أو PIN غير صحيح ❌");
           return;
         }
-        const empUser = { ...emp, role: "employee" };
+        const { pin: _pin, ...empWithoutPin } = emp;
+        const empUser = { ...empWithoutPin, role: "employee" };
         setCurrentUser(empUser);
         setCurrentView("employee");
         localStorage.setItem("vms_currentUser", JSON.stringify(empUser));
@@ -845,17 +905,21 @@ useEffect(() => {
     if (newPin === oldPin) { alert("PIN الجديد يجب أن يختلف عن القديم ❌"); return; }
     setChangePinLoading(true);
     const { data: emp } = await supabase.from("employees").select("pin").eq("id", currentUser.id).single();
-    if (!emp || (emp.pin || "0000") !== oldPin) {
+    if (!emp?.pin) {
+      alert("لم يتم تعيين رقم PIN لهذا الحساب. يرجى التواصل مع الإدارة ❌");
+      setChangePinLoading(false);
+      return;
+    }
+    const oldPinValid = await verifyPin(oldPin, emp.pin);
+    if (!oldPinValid) {
       alert("PIN الحالي غير صحيح ❌");
       setChangePinLoading(false);
       return;
     }
-    const { error } = await supabase.from("employees").update({ pin: newPin }).eq("id", currentUser.id);
+    const hashedNewPin = await hashPin(newPin);
+    const { error } = await supabase.from("employees").update({ pin: hashedNewPin }).eq("id", currentUser.id);
     setChangePinLoading(false);
     if (error) { alert("حدث خطأ أثناء التحديث ❌"); return; }
-    const updated = { ...currentUser, pin: newPin };
-    setCurrentUser(updated);
-    localStorage.setItem("vms_currentUser", JSON.stringify(updated));
     setShowChangePinModal(false);
     setChangePinForm({ oldPin: "", newPin: "", confirmPin: "" });
     alert("تم تغيير PIN بنجاح ✅");
@@ -1884,6 +1948,10 @@ useEffect(() => {
           .login-btn { transition: all 0.2s ease; }
           .login-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0,0,0,0.3); }
           .login-input:focus { outline: none; }
+          @media (max-width: 768px) {
+            .login-main-grid { grid-template-columns: 1fr !important; }
+            .login-card { padding: 32px 24px !important; }
+          }
         `}</style>
 
         {/* كرات ضوئية في الخلفية */}
@@ -1895,7 +1963,7 @@ useEffect(() => {
         <div style={{ position:"absolute", inset:0, backgroundImage:"radial-gradient(rgba(255,255,255,0.05) 1px, transparent 1px)", backgroundSize:"40px 40px", pointerEvents:"none" }} />
 
         {/* الكارت الرئيسي */}
-        <div style={{ width:"100%", maxWidth:"900px", display:"grid", gridTemplateColumns:"1fr 1fr", borderRadius:"32px", overflow:"hidden", boxShadow:"0 30px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.05)", position:"relative", zIndex:10 }}>
+        <div className="login-main-grid" style={{ width:"100%", maxWidth:"900px", display:"grid", gridTemplateColumns:"1fr 1fr", borderRadius:"32px", overflow:"hidden", boxShadow:"0 30px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.05)", position:"relative", zIndex:10 }}>
           
           {/* قسم الموظفين - يمين */}
           <div className="login-card" style={{ padding:"52px 40px", background:"rgba(255,255,255,0.04)", borderLeft:"1px solid rgba(255,255,255,0.08)" }}>
@@ -2132,10 +2200,10 @@ useEffect(() => {
 
         {/* Main Content */}
         <main style={{ 
-          marginRight: sidebarOpen ? "220px" : "0", 
-          width: sidebarOpen ? "calc(100% - 220px)" : "100%",
+          marginRight: (!isMobile && sidebarOpen) ? "220px" : "0", 
+          width: (!isMobile && sidebarOpen) ? "calc(100% - 220px)" : "100%",
           transition:"all 0.3s ease", 
-          padding:"16px 24px", 
+          padding: isMobile ? "12px 12px" : "16px 24px", 
           minHeight:"100vh", 
           paddingTop:"60px",
           boxSizing:"border-box",
@@ -2867,8 +2935,8 @@ useEffect(() => {
                   {isDeptMgr && filteredRequests.filter(r => r.status === "pending").length > 0 && (
                     <>
                       <h3 className="font-black text-lg text-amber-600">⏳ بانتظار موافقتك ({filteredRequests.filter(r => r.status === "pending").length})</h3>
-                      <div style={{ background:"white", borderRadius:"20px", border:"1px solid #e2e8f0", overflow:"hidden" }}>
-                        <table style={{ width:"100%", borderCollapse:"collapse", fontSize:"13px" }}>
+                      <div style={{ background:"white", borderRadius:"20px", border:"1px solid #e2e8f0", overflowX:"auto" }}>
+                        <table style={{ width:"100%", borderCollapse:"collapse", fontSize:"13px", minWidth:"620px" }}>
                           <thead>
                             <tr style={{ background:"linear-gradient(135deg,#fffbeb,#fef3c7)", borderBottom:"2px solid #fde68a" }}>
                               <th style={{ padding:"12px 16px", textAlign:"right", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>الموظف</th>
@@ -2945,8 +3013,8 @@ useEffect(() => {
                       <h3 className="font-black text-lg text-emerald-600">
                         طلبات تحتاج موافقتك ({filteredRequests.filter(r => r.status === "pending" || r.status === "dept_approved").length})
                       </h3>
-                       <div style={{ background:"white", borderRadius:"20px", border:"1px solid #e2e8f0", overflow:"hidden" }}>
-                        <table style={{ width:"100%", borderCollapse:"collapse", fontSize:"13px" }}>
+                       <div style={{ background:"white", borderRadius:"20px", border:"1px solid #e2e8f0", overflowX:"auto" }}>
+                        <table style={{ width:"100%", borderCollapse:"collapse", fontSize:"13px", minWidth:"680px" }}>
                           <thead>
                             <tr style={{ background:"linear-gradient(135deg,#f0fdf4,#dcfce7)", borderBottom:"2px solid #bbf7d0" }}>
                               <th style={{ padding:"12px 16px", textAlign:"right", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>الموظف</th>
@@ -3112,8 +3180,8 @@ useEffect(() => {
                     <h2 className="text-2xl font-black">العطلات الرسمية</h2>
                     <button onClick={() => setShowAddHoliday(true)} className="bg-indigo-600 text-white px-6 py-3 rounded-2xl flex items-center gap-2 font-bold"><Plus size={20} /> إضافة عطلة</button>
                   </div>
-                  <div className="bg-white rounded-[2rem] shadow-sm border overflow-hidden">
-                    <table className="w-full">
+                  <div className="bg-white rounded-[2rem] shadow-sm border overflow-x-auto">
+                    <table className="w-full" style={{ minWidth:"360px" }}>
                       <thead className="bg-slate-50 border-b">
                         <tr>
                           <th className="p-4 text-right">اسم العطلة</th>
@@ -3755,8 +3823,8 @@ useEffect(() => {
                       {filteredRequests.length} طلب
                     </span>
                   </div>
-                  <div className="bg-white rounded-[2rem] shadow-sm border overflow-hidden">
-                    <table className="w-full text-sm">
+                  <div className="bg-white rounded-[2rem] shadow-sm border overflow-x-auto">
+                    <table className="w-full text-sm" style={{ minWidth:"700px" }}>
                       <thead className="bg-slate-50 border-b text-xs">
                         <tr>
                           <th className="p-4 text-right">الموظف</th>
@@ -4684,19 +4752,21 @@ useEffect(() => {
           background: "rgba(255, 255, 255, 0.95)",
           backdropFilter: "blur(20px)",
           borderRadius: "28px",
-          padding: "32px",
+          padding: "20px 24px",
           border: "1px solid rgba(255, 255, 255, 0.2)",
           boxShadow: "0 20px 60px rgba(0, 0, 0, 0.15)",
           display: "flex",
           justifyContent: "space-between",
-          alignItems: "center"
+          alignItems: "center",
+          flexWrap: "wrap",
+          gap: "12px",
         }}>
           <div>
-            <h2 style={{ margin: "0", fontSize: "32px", fontWeight: "900", background: "linear-gradient(135deg, #667eea, #764ba2)", backgroundClip: "text", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", color: "#667eea" }}>
+            <h2 style={{ margin: "0", fontSize: "clamp(20px, 5vw, 32px)", fontWeight: "900", background: "linear-gradient(135deg, #667eea, #764ba2)", backgroundClip: "text", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", color: "#667eea" }}>
               أهلاً {currentUser.name} 👋
             </h2>
           </div>
-          <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+          <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
             <button onClick={() => { setChangePinForm({ oldPin:"", newPin:"", confirmPin:"" }); setShowChangePinModal(true); }} style={{
               background: "linear-gradient(135deg, #7c3aed, #6d28d9)",
               color: "white", border: "none", padding: "12px 20px", borderRadius: "14px",
