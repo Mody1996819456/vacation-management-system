@@ -334,6 +334,14 @@ const VacationManagementSystem = () => {
   const [showAuditLog, setShowAuditLog] = useState(false);
   const [showBalanceLog, setShowBalanceLog] = useState(false);
   const balanceUpdatedRef = React.useRef(false);
+  // ===== Extension Modal States =====
+  const [showExtensionModal, setShowExtensionModal] = useState(false);
+  const [extensionForm, setExtensionForm] = useState({
+    original_request_id: "",
+    additional_days: 1,
+    notes: "",
+  });
+
   const [showResetPinModal, setShowResetPinModal] = useState(false);
   const [resetPinEmp, setResetPinEmp] = useState<any>(null);
   const [resetPinValue, setResetPinValue] = useState("");
@@ -553,7 +561,7 @@ const VacationManagementSystem = () => {
         { data: depts }, { data: holidays }, { data: logs }
       ] = await Promise.all([
         supabase.from("employees").select("*").order("name"),
-        supabase.from("vacation_requests").select("*").order("created_at", { ascending: false }),
+        supabase.from("vacation_requests").select("*, original_request:original_request_id(*)").order("created_at", { ascending: false }),
         supabase.from("vacation_types").select("*"),
         supabase.from("departments").select("*"),
         supabase.from("public_holidays").select("*").order("date"),
@@ -1555,6 +1563,59 @@ useEffect(() => {
       return;
     }
     alert("❌ حصل خطأ في إرسال الطلب — حاول تاني");
+    setIsSubmitting(false);
+  };
+
+
+  // ========== SUBMIT EXTENSION REQUEST ==========
+  const submitExtensionRequest = async () => {
+    if (!extensionForm.original_request_id) return alert("اختر الإجازة الأصلية ❌");
+    if (!extensionForm.additional_days || extensionForm.additional_days < 0.5) return alert("حدد عدد أيام صحيح");
+
+    const addDays = Number(extensionForm.additional_days);
+    const currentBalance = Number(currentUser.balance || 0);
+
+    const originalReq = requests.find(r => r.id === extensionForm.original_request_id);
+    if (!originalReq) return alert("الإجازة الأصلية غير موجودة");
+
+    if (currentBalance < addDays) {
+      return alert(`رصيدك الحالي ${currentBalance} يوم غير كافٍ للامتداد (${addDays} يوم)`);
+    }
+
+    setIsSubmitting(true);
+
+    const { error } = await supabase.from("vacation_requests").insert([{
+      employee_id: currentUser.id,
+      employee_name: currentUser.name,
+      start_date: originalReq.start_date,
+      days: addDays,
+      notes: `امتداد لإجازة سابقة: ${extensionForm.notes || ""}`,
+      vacation_type_id: vacationTypes.find(vt => vt.name === "امتداد")?.id,
+      status: "pending",
+      is_extension: true,
+      original_request_id: extensionForm.original_request_id,
+    }]);
+
+    if (!error) {
+      setExtensionForm({ original_request_id: "", additional_days: 1, notes: "" });
+      setShowExtensionModal(false);
+      setIsSubmitting(false);
+      fetchData();
+      alert("✅ تم إرسال طلب الامتداد بنجاح!");
+      sendEmail(EMAILJS_TEMPLATES.new_request_admin, ADMIN_EMAIL, {
+        employee_name: currentUser.name,
+        start_date: formatDate(originalReq.start_date),
+        days: addDays,
+        notes: `امتداد - ${extensionForm.notes || "لا توجد ملاحظات"}`,
+      });
+      sendLocalNotification(
+        "🔔 طلب امتداد إجازة جديد",
+        `${currentUser.name} طلب امتداد ${addDays} يوم على إجازة سابقة`
+      );
+      logAction("create", "vacation_requests", null, null, { is_extension: true, original_request_id: extensionForm.original_request_id, days: addDays });
+      return;
+    }
+    alert("❌ حصل خطأ: " + error.message);
     setIsSubmitting(false);
   };
 
@@ -3614,6 +3675,7 @@ useEffect(() => {
                               </div>
                               <div style={{ textAlign:"left" }}>
                                 {vacType && <div style={{ padding:"2px 8px", borderRadius:"20px", fontSize:"10px", fontWeight:"700", backgroundColor:vacType.color+"20", color:vacType.color, marginBottom:"3px" }}>{vacType.name}</div>}
+                                {req.is_extension && <div style={{ padding:"2px 8px", borderRadius:"20px", fontSize:"10px", fontWeight:"700", background:"#ede9fe", color:"#7c3aed", marginBottom:"3px" }}>🔗 امتداد</div>}
                                 <div style={{ fontSize:"10px", color:"#94a3b8" }}>عودة: {formatDate(back)}</div>
                               </div>
                             </div>
@@ -3889,7 +3951,7 @@ useEffect(() => {
                                   <span style={{ display:"block", fontSize:"10px", color:"#4f46e5", fontWeight:"700" }}>👁 عرض البيانات</span>
                                 </button>
                               </td>
-                              <td className="p-4">{vacType && <span className="px-2 py-1 rounded-full text-xs font-bold" style={{ backgroundColor: vacType.color+'20', color: vacType.color }}>{vacType.name}</span>}</td>
+                              <td className="p-4">{vacType && <span className="px-2 py-1 rounded-full text-xs font-bold" style={{ backgroundColor: vacType.color+'20', color: vacType.color }}>{vacType.name}</span>}{req.is_extension && <span className="mr-1 px-2 py-1 rounded-full text-xs font-bold" style={{ background: "#ede9fe", color: "#7c3aed" }}>🔗 امتداد</span>}</td>
                               <td className="p-4 text-center">{formatDate(req.start_date)}</td>
                               <td className="p-4 text-center font-bold">{req.days}</td>
                               <td className="p-4 text-center text-indigo-600 font-bold">{formatDate(back)}</td>
@@ -4992,22 +5054,50 @@ useEffect(() => {
                 <label style={{ fontSize: "13px", fontWeight: "700", color: "#667eea", marginBottom: "8px", display: "block" }}>ملاحظات</label>
                 <textarea style={{ width: "100%", padding: "14px 16px", background: "rgba(102, 126, 234, 0.05)", border: "2px solid #e2e8f0", borderRadius: "16px", outline: "none", fontSize: "14px", fontWeight: "600", color: "#1e293b", transition: "all 0.3s", height: "96px", resize: "none", fontFamily: "inherit" }} placeholder="سبب الإجازة..." onFocus={(e) => { e.currentTarget.style.borderColor = "#667eea"; e.currentTarget.style.background = "rgba(102, 126, 234, 0.08)"; }} onBlur={(e) => { e.currentTarget.style.borderColor = "#e2e8f0"; e.currentTarget.style.background = "rgba(102, 126, 234, 0.05)"; }} value={newRequest.notes} onChange={(e) => setNewRequest({...newRequest, notes: e.target.value})} />
               </div>
-              <button onClick={submitVacationRequest} disabled={isSubmitting} style={{
-                width: "100%",
-                background: "linear-gradient(135deg, #667eea, #764ba2)",
-                color: "white",
-                border: "none",
-                padding: "16px 20px",
-                borderRadius: "16px",
-                fontWeight: "900",
-                fontSize: "16px",
-                cursor: isSubmitting ? "not-allowed" : "pointer",
-                opacity: isSubmitting ? 0.5 : 1,
-                transition: "all 0.3s ease",
-                boxShadow: "0 15px 35px rgba(102, 126, 234, 0.4)"
-              }} onMouseEnter={(e) => !isSubmitting && (e.currentTarget.style.transform = "translateY(-2px)")} onMouseLeave={(e) => !isSubmitting && (e.currentTarget.style.transform = "translateY(0)")}>
-                {isSubmitting ? <Loader2 className="animate-spin mx-auto" /> : "إرسال الطلب"}
-              </button>
+              <div style={{ display: "flex", gap: "10px" }}>
+                <button onClick={submitVacationRequest} disabled={isSubmitting} style={{
+                  flex: 1,
+                  background: "linear-gradient(135deg, #667eea, #764ba2)",
+                  color: "white",
+                  border: "none",
+                  padding: "16px 20px",
+                  borderRadius: "16px",
+                  fontWeight: "900",
+                  fontSize: "16px",
+                  cursor: isSubmitting ? "not-allowed" : "pointer",
+                  opacity: isSubmitting ? 0.5 : 1,
+                  transition: "all 0.3s ease",
+                  boxShadow: "0 15px 35px rgba(102, 126, 234, 0.4)"
+                }} onMouseEnter={(e) => !isSubmitting && (e.currentTarget.style.transform = "translateY(-2px)")} onMouseLeave={(e) => !isSubmitting && (e.currentTarget.style.transform = "translateY(0)")}>
+                  {isSubmitting ? <Loader2 className="animate-spin mx-auto" /> : "إرسال الطلب"}
+                </button>
+                <button onClick={() => {
+                    const myApproved = requests.filter(r => 
+                      r.employee_id === currentUser.id && 
+                      r.status === "approved" &&
+                      !r.is_extension
+                    );
+                    if (myApproved.length === 0) {
+                      alert("لا توجد إجازات مقبولة لطلب امتداد ❌");
+                      return;
+                    }
+                    setShowExtensionModal(true);
+                  }} style={{
+                  background: "linear-gradient(135deg, #7c3aed, #a855f7)",
+                  color: "white",
+                  border: "none",
+                  padding: "16px 20px",
+                  borderRadius: "16px",
+                  fontWeight: "900",
+                  fontSize: "14px",
+                  cursor: "pointer",
+                  transition: "all 0.3s ease",
+                  boxShadow: "0 10px 25px rgba(124, 58, 237, 0.35)",
+                  whiteSpace: "nowrap"
+                }} onMouseEnter={(e) => { e.currentTarget.style.transform = "translateY(-2px)"; }} onMouseLeave={(e) => { e.currentTarget.style.transform = "translateY(0)"; }}>
+                  🔗 امتداد
+                </button>
+              </div>
             </div>
           </section>
 
@@ -5040,6 +5130,11 @@ useEffect(() => {
                         </p>
                       )}
                       {vacType && <span className="inline-block mt-2 px-2 py-1 rounded-full text-xs font-bold" style={{ backgroundColor: vacType.color+'20', color: vacType.color }}>{vacType.name}</span>}
+                      {req.is_extension && (
+                        <span className="inline-block mt-2 mr-1 px-2 py-1 rounded-full text-xs font-bold" style={{ background: "#ede9fe", color: "#7c3aed" }}>
+                          🔗 امتداد
+                        </span>
+                      )}
                     </div>
                     <span className={`px-4 py-1.5 rounded-full text-xs font-black ${req.status === 'approved' ? 'bg-emerald-100 text-emerald-700' : req.status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
                       {req.status === 'approved' ? '✓ مقبول' : req.status === 'rejected' ? '✗ مرفوض' : req.status === 'dept_approved' ? '◑ موافقة مبدئية' : '⏳ معلق'}
@@ -5072,6 +5167,105 @@ useEffect(() => {
           </section>
         </div>
       </div>
+
+      {/* Modal طلب امتداد إجازة */}
+      {showExtensionModal && (() => {
+        const myApproved = requests.filter(r => 
+          r.employee_id === currentUser.id && 
+          r.status === "approved" &&
+          !r.is_extension
+        );
+        const selectedReq = requests.find(r => r.id === extensionForm.original_request_id);
+        const vacType = selectedReq ? vacationTypes.find(vt => vt.id === selectedReq.vacation_type_id) : null;
+
+        return (
+          <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", backdropFilter: "blur(6px)", display: "flex", alignItems: "center", justifyContent: "center", padding: "16px", zIndex: 9999 }} onClick={() => setShowExtensionModal(false)}>
+            <div style={{ background: "white", borderRadius: "24px", width: "100%", maxWidth: "460px", padding: "24px", boxShadow: "0 32px 80px rgba(0,0,0,0.3)" }} dir="rtl" onClick={e => e.stopPropagation()}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "18px" }}>
+                <h3 style={{ margin: 0, fontWeight: "900", fontSize: "17px" }}>🔗 طلب امتداد إجازة</h3>
+                <button onClick={() => setShowExtensionModal(false)} style={{ border: "1px solid #e2e8f0", borderRadius: "8px", padding: "6px 12px", cursor: "pointer", background: "white", fontSize: "16px", fontWeight: "700" }}>✕</button>
+              </div>
+
+              <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+                {/* اختيار الإجازة الأصلية */}
+                <div>
+                  <label style={{ fontSize: "12px", color: "#64748b", fontWeight: "700", display: "block", marginBottom: "5px" }}>الإجازة الأصلية *</label>
+                  <select 
+                    style={{ width: "100%", padding: "11px 14px", border: "1px solid #e2e8f0", borderRadius: "12px", outline: "none", boxSizing: "border-box", fontSize: "13px", background: "white", direction: "rtl" }}
+                    value={extensionForm.original_request_id}
+                    onChange={e => setExtensionForm({...extensionForm, original_request_id: e.target.value})}
+                  >
+                    <option value="">اختر الإجازة...</option>
+                    {myApproved.map(req => {
+                      const vt = vacationTypes.find(v => v.id === req.vacation_type_id);
+                      const { back } = getCalculatedDates(req.start_date, req.days);
+                      return (
+                        <option key={req.id} value={req.id}>
+                          {formatDate(req.start_date)} إلى {formatDate(back)} ({req.days} يوم) - {vt?.name || ""}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+
+                {/* تفاصيل الإجازة المختارة */}
+                {selectedReq && (
+                  <div style={{ background: "#f8fafc", borderRadius: "12px", padding: "12px 14px", border: "1px solid #e2e8f0" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
+                      <span style={{ fontSize: "11px", color: "#94a3b8" }}>النوع</span>
+                      <span style={{ fontSize: "12px", fontWeight: "700", color: vacType?.color || "#374151" }}>{vacType?.name || "-"}</span>
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between" }}>
+                      <span style={{ fontSize: "11px", color: "#94a3b8" }}>الأيام الأصلية</span>
+                      <span style={{ fontSize: "12px", fontWeight: "700" }}>{selectedReq.days} يوم</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* عدد الأيام الإضافية */}
+                <div>
+                  <label style={{ fontSize: "12px", color: "#64748b", fontWeight: "700", display: "block", marginBottom: "5px" }}>عدد الأيام الإضافية *</label>
+                  <input 
+                    type="number" 
+                    step="0.5" 
+                    min="0.5" 
+                    style={{ width: "100%", padding: "11px 14px", border: "1px solid #e2e8f0", borderRadius: "12px", outline: "none", boxSizing: "border-box", fontSize: "13px", background: "white", direction: "rtl" }}
+                    value={extensionForm.additional_days}
+                    onChange={e => setExtensionForm({...extensionForm, additional_days: Number(e.target.value)})}
+                  />
+                </div>
+
+                {/* ملاحظات */}
+                <div>
+                  <label style={{ fontSize: "12px", color: "#64748b", fontWeight: "700", display: "block", marginBottom: "5px" }}>ملاحظات الامتداد</label>
+                  <textarea 
+                    style={{ width: "100%", padding: "11px 14px", border: "1px solid #e2e8f0", borderRadius: "12px", outline: "none", boxSizing: "border-box", fontSize: "13px", background: "white", resize: "none", direction: "rtl" }}
+                    rows={2}
+                    value={extensionForm.notes}
+                    onChange={e => setExtensionForm({...extensionForm, notes: e.target.value})}
+                    placeholder="سبب الامتداد..."
+                  />
+                </div>
+
+                {/* عرض الإجمالي */}
+                {selectedReq && (
+                  <div style={{ background: "#eef2ff", borderRadius: "10px", padding: "10px 14px", fontSize: "13px", color: "#4f46e5", fontWeight: "700" }}>
+                    الإجمالي بعد الامتداد: {Number(selectedReq.days) + Number(extensionForm.additional_days)} يوم
+                  </div>
+                )}
+
+                <button 
+                  onClick={submitExtensionRequest} 
+                  disabled={isSubmitting}
+                  style={{ padding: "13px", background: "linear-gradient(135deg,#7c3aed,#a855f7)", color: "white", border: "none", borderRadius: "12px", fontWeight: "900", cursor: "pointer", fontSize: "14px", opacity: isSubmitting ? 0.7 : 1 }}
+                >
+                  {isSubmitting ? "جاري الإرسال..." : "📤 إرسال طلب الامتداد"}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Modal تعديل طلب الموظف */}
       {showEditRequestModal && empEditReq && (
