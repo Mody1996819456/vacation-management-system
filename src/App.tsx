@@ -561,7 +561,7 @@ const VacationManagementSystem = () => {
         { data: depts }, { data: holidays }, { data: logs }
       ] = await Promise.all([
         supabase.from("employees").select("*").order("name"),
-        supabase.from("vacation_requests").select("*, original_request:original_request_id(*)").order("created_at", { ascending: false }),
+        supabase.from("vacation_requests").select("*").order("created_at", { ascending: false }),
         supabase.from("vacation_types").select("*"),
         supabase.from("departments").select("*"),
         supabase.from("public_holidays").select("*").order("date"),
