@@ -166,6 +166,27 @@ const calculateWorkedDays = (returnDate: string, isOnVacation: boolean = false) 
   return Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
 };
 
+// أيام العمل بين تاريخين (من تاريخ العودة حتى تاريخ النزول) — يستبعد الجمعة والسبت والأعياد
+const calculateWorkDaysBetween = (fromDate: string, toDate: string, holidays: string[] = []) => {
+  if (!fromDate || !toDate) return 0;
+  const start = new Date(fromDate);
+  const end = new Date(toDate);
+  start.setHours(0, 0, 0, 0);
+  end.setHours(0, 0, 0, 0);
+  if (start >= end) return 0;
+  let count = 0;
+  const current = new Date(start);
+  while (current < end) {
+    const day = current.getDay(); // 5 = الجمعة, 6 = السبت
+    const dateStr = current.toISOString().split("T")[0];
+    if (day !== 5 && day !== 6 && !holidays.includes(dateStr)) {
+      count++;
+    }
+    current.setDate(current.getDate() + 1);
+  }
+  return count;
+};
+
 // ==================== MAIN COMPONENT ====================
 // ===== SortTh - عنوان عمود قابل للفرز بقائمة Excel =====
 const SortTh = ({ label, field, sortField, sortDir, sortDropdown, onSort, onClear, onToggle, align="center" }: {
@@ -3041,6 +3062,7 @@ useEffect(() => {
                               <th style={{ padding:"12px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>البداية</th>
                               <th style={{ padding:"12px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>نهاية الإجازة</th>
                               <th style={{ padding:"12px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>الأيام</th>
+                              <th style={{ padding:"12px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>أيام العمل<br/><span style={{fontSize:'10px',color:'#94a3b8'}}>من العودة للنزول</span></th>
                               <th style={{ padding:"12px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>الحالة</th>
                               <th style={{ padding:"12px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>الإجراءات</th>
                             </tr>
@@ -3070,6 +3092,13 @@ useEffect(() => {
                                   <td style={{ padding:"12px", textAlign:"center" }}>
                                     <span style={{ fontWeight:"900", color:"#059669", fontSize:"14px" }}>{req.days}</span>
                                     <span style={{ fontSize:"10px", color:"#94a3b8" }}> يوم</span>
+                                  </td>
+                                  <td style={{ padding:"12px", textAlign:"center", fontWeight:"700", color:"#d97706", fontSize:"13px" }}>
+                                    {(() => {
+                                      const holidayDates = publicHolidays.map(h => h.date);
+                                      const days = calculateWorkDaysBetween(emp?.return_date || "", req.start_date, holidayDates);
+                                      return days > 0 ? days : "-";
+                                    })()}
                                   </td>
                                   <td style={{ padding:"12px", textAlign:"center" }}>
                                     {req.notes && <div style={{ fontSize:"11px", color:"#64748b", fontStyle:"italic", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", maxWidth:"100px" }} title={req.notes}>"{req.notes}"</div>}
@@ -3120,6 +3149,7 @@ useEffect(() => {
                               <th style={{ padding:"12px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>البداية</th>
                               <th style={{ padding:"12px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>نهاية الإجازة</th>
                               <th style={{ padding:"12px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>الأيام</th>
+                              <th style={{ padding:"12px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>أيام العمل<br/><span style={{fontSize:'10px',color:'#94a3b8'}}>من العودة للنزول</span></th>
                               <th style={{ padding:"12px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>الحالة</th>
                               <th style={{ padding:"12px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>الإجراءات</th>
                             </tr>
@@ -3159,6 +3189,14 @@ useEffect(() => {
                               <td style={{ padding:"12px", textAlign:"center" }}>
                                 <span style={{ fontWeight:"900", color:"#059669", fontSize:"14px" }}>{req.days}</span>
                                 <span style={{ fontSize:"10px", color:"#94a3b8" }}> يوم</span>
+                              </td>
+                              {/* أيام العمل من العودة للنزول */}
+                              <td style={{ padding:"12px", textAlign:"center", fontWeight:"700", color:"#d97706", fontSize:"13px" }}>
+                                {(() => {
+                                  const holidayDates = publicHolidays.map(h => h.date);
+                                  const days = calculateWorkDaysBetween(emp?.return_date || "", req.start_date, holidayDates);
+                                  return days > 0 ? days : "-";
+                                })()}
                               </td>
                               {/* الحالة / ملاحظات */}
                               <td style={{ padding:"12px", textAlign:"center", maxWidth:"120px" }}>
@@ -3850,6 +3888,8 @@ useEffect(() => {
                           const vt = vacationTypes.find((v: any) => v.id === r.vacation_type_id);
                           const { back } = getCalculatedDates(r.start_date, r.days);
                           const statusMap: any = { pending:"معلق", dept_approved:"موافقة مبدئية", approved:"مقبول", rejected:"مرفوض" };
+                          const holidayDates = publicHolidays.map(h => h.date);
+                          const workDays = calculateWorkDaysBetween(emp?.return_date || "", r.start_date, holidayDates);
                           return {
                             "اسم الموظف": r.employee_name,
                             "الكود الوظيفي": emp?.code || "",
@@ -3859,6 +3899,7 @@ useEffect(() => {
                             "تاريخ البداية": r.start_date,
                             "عدد الأيام": r.days,
                             "تاريخ العودة المتوقع": back,
+                            "أيام العمل من العودة": workDays > 0 ? workDays : 0,
                             "تاريخ العودة الفعلي": r.actual_return_date || "",
                             "الحالة": statusMap[r.status] || r.status,
                             "تمت الموافقة بواسطة": r.owner_approved_by || "",
@@ -3868,7 +3909,7 @@ useEffect(() => {
                           };
                         });
                         const ws = XLSX.utils.json_to_sheet(data);
-                        ws["!cols"] = Array(14).fill({ wch:18 });
+                        ws["!cols"] = Array(15).fill({ wch:18 });
                         const wb = XLSX.utils.book_new();
                         XLSX.utils.book_append_sheet(wb, ws, "سجل الإجازات");
                         XLSX.writeFile(wb, `سجل-الإجازات-${new Date().toISOString().split("T")[0]}.xlsx`);
@@ -3930,6 +3971,7 @@ useEffect(() => {
                           <th className="p-4 text-center">تاريخ البداية</th>
                           <th className="p-4 text-center">المدة</th>
                           <th className="p-4 text-center">تاريخ العودة المتوقع</th>
+                          <th className="p-4 text-center">أيام العمل<br/><span style={{fontSize:'10px',color:'#94a3b8'}}>من العودة للنزول</span></th>
                           <th className="p-4 text-center">تاريخ العودة الفعلي</th>
                           <th className="p-4 text-center">الحالة</th>
                           <th className="p-4 text-center">ملاحظات</th>
@@ -3955,6 +3997,14 @@ useEffect(() => {
                               <td className="p-4 text-center">{formatDate(req.start_date)}</td>
                               <td className="p-4 text-center font-bold">{req.days}</td>
                               <td className="p-4 text-center text-indigo-600 font-bold">{formatDate(back)}</td>
+                              <td className="p-4 text-center">
+                                {(() => {
+                                  const emp = employees.find(e => e.id === req.employee_id);
+                                  const holidayDates = publicHolidays.map(h => h.date);
+                                  const days = calculateWorkDaysBetween(emp?.return_date || "", req.start_date, holidayDates);
+                                  return days > 0 ? <span className="font-bold text-amber-600">{days}</span> : <span style={{color:"#94a3b8"}}>-</span>;
+                                })()}
+                              </td>
                               <td className="p-4 text-center">
                                 {req.actual_return_date ? (
                                   <span className="text-green-600 font-bold">{formatDate(req.actual_return_date)}</span>
