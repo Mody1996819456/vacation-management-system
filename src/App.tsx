@@ -5043,23 +5043,44 @@ useEffect(() => {
                 <label style={{ fontSize: "13px", fontWeight: "700", color: "#667eea", marginBottom: "8px", display: "block" }}>موعد النزول</label>
                 <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:"10px" }}>
                   {[
-                    { value:"after_work", icon:"🌆", label:"بعد العمل",           desc:"يوم التاريخ عمل\nثاني يوم سفر\nثالث يوم إجازة" },
-                    { value:"morning",    icon:"🌅", label:"صباحاً",              desc:"يوم التاريخ سفر\nثاني يوم إجازة" },
-                    { value:"actual",     icon:"✅", label:"بداية الإجازة الفعلي", desc:"يوم التاريخ أول يوم إجازة" },
-                  ].map(opt => (
-                    <button key={opt.value} type="button" title={opt.desc}
-                      onClick={() => setNewRequest({...newRequest, departure_time: opt.value})}
-                      style={{
-                        padding:"12px 6px", borderRadius:"16px", border:`2px solid ${newRequest.departure_time === opt.value ? "#6366f1" : "#e2e8f0"}`,
-                        background: newRequest.departure_time === opt.value ? "#ede9fe" : "#f8fafc",
-                        color: newRequest.departure_time === opt.value ? "#6366f1" : "#64748b",
-                        fontWeight:"700", fontSize:"11px", cursor:"pointer", textAlign:"center" as const, transition:"all 0.2s",
-                      }}>
-                      <div style={{ fontSize:"22px", marginBottom:"4px" }}>{opt.icon}</div>
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
+                  {[
+  { value:"after_work", icon:"🌆", label:"بعد العمل",           desc:"يوم التاريخ عمل\nثاني يوم سفر\nثالث يوم إجازة" },
+  { value:"morning",    icon:"🌅", label:"صباحاً",              desc:"يوم التاريخ سفر\nثاني يوم إجازة" },
+  { value:"actual",     icon:"✅", label:"بداية الإجازة الفعلي", desc:"يوم التاريخ أول يوم إجازة" },
+].map(opt => (
+  <button
+    key={opt.value}
+    type="button"
+    title={opt.desc}
+    onClick={() =>
+      setNewRequest({
+        ...newRequest,
+        departure_time: opt.value
+      })
+    }
+    style={{
+      padding: "12px 6px",
+      borderRadius: "16px",
+      border: `2px solid ${
+        newRequest.departure_time === opt.value ? "#6366f1" : "#e2e8f0"
+      }`,
+      background:
+        newRequest.departure_time === opt.value ? "#ede9fe" : "#f8fafc",
+      color:
+        newRequest.departure_time === opt.value ? "#6366f1" : "#64748b",
+      fontWeight: "700",
+      fontSize: "11px",
+      cursor: "pointer",
+      textAlign: "center",
+      transition: "all 0.2s"
+    }}
+  >
+    <div style={{ fontSize: "22px", marginBottom: "4px" }}>
+      {opt.icon}
+    </div>
+    {opt.label}
+  </button>
+))}
                 {newRequest.start_date && (
                   <div style={{ marginTop:"12px", padding:"14px 16px", borderRadius:"14px", background:"linear-gradient(135deg,#ede9fe,#ddd6fe)", border:"1px solid #c4b5fd" }}>
                     <p style={{ fontSize:"11px", color:"#7c3aed", fontWeight:"700", marginBottom:"8px" }}>📅 ملخص الإجازة</p>
