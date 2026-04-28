@@ -5043,44 +5043,23 @@ useEffect(() => {
                 <label style={{ fontSize: "13px", fontWeight: "700", color: "#667eea", marginBottom: "8px", display: "block" }}>موعد النزول</label>
                 <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:"10px" }}>
                   {[
-                  {[
-  { value:"after_work", icon:"🌆", label:"بعد العمل",           desc:"يوم التاريخ عمل\nثاني يوم سفر\nثالث يوم إجازة" },
-  { value:"morning",    icon:"🌅", label:"صباحاً",              desc:"يوم التاريخ سفر\nثاني يوم إجازة" },
-  { value:"actual",     icon:"✅", label:"بداية الإجازة الفعلي", desc:"يوم التاريخ أول يوم إجازة" },
-].map(opt => (
-  <button
-    key={opt.value}
-    type="button"
-    title={opt.desc}
-    onClick={() =>
-      setNewRequest({
-        ...newRequest,
-        departure_time: opt.value
-      })
-    }
-    style={{
-      padding: "12px 6px",
-      borderRadius: "16px",
-      border: `2px solid ${
-        newRequest.departure_time === opt.value ? "#6366f1" : "#e2e8f0"
-      }`,
-      background:
-        newRequest.departure_time === opt.value ? "#ede9fe" : "#f8fafc",
-      color:
-        newRequest.departure_time === opt.value ? "#6366f1" : "#64748b",
-      fontWeight: "700",
-      fontSize: "11px",
-      cursor: "pointer",
-      textAlign: "center",
-      transition: "all 0.2s"
-    }}
-  >
-    <div style={{ fontSize: "22px", marginBottom: "4px" }}>
-      {opt.icon}
-    </div>
-    {opt.label}
-  </button>
-))}
+                    { value:"after_work", icon:"🌆", label:"بعد العمل",           desc:"يوم التاريخ عمل\nثاني يوم سفر\nثالث يوم إجازة" },
+                    { value:"morning",    icon:"🌅", label:"صباحاً",              desc:"يوم التاريخ سفر\nثاني يوم إجازة" },
+                    { value:"actual",     icon:"✅", label:"بداية الإجازة الفعلي", desc:"يوم التاريخ أول يوم إجازة" },
+                  ].map(opt => (
+                    <button key={opt.value} type="button" title={opt.desc}
+                      onClick={() => setNewRequest({...newRequest, departure_time: opt.value})}
+                      style={{
+                        padding:"12px 6px", borderRadius:"16px", border:`2px solid ${newRequest.departure_time === opt.value ? "#6366f1" : "#e2e8f0"}`,
+                        background: newRequest.departure_time === opt.value ? "#ede9fe" : "#f8fafc",
+                        color: newRequest.departure_time === opt.value ? "#6366f1" : "#64748b",
+                        fontWeight:"700", fontSize:"11px", cursor:"pointer", textAlign:"center" as const, transition:"all 0.2s",
+                      }}>
+                      <div style={{ fontSize:"22px", marginBottom:"4px" }}>{opt.icon}</div>
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
                 {newRequest.start_date && (
                   <div style={{ marginTop:"12px", padding:"14px 16px", borderRadius:"14px", background:"linear-gradient(135deg,#ede9fe,#ddd6fe)", border:"1px solid #c4b5fd" }}>
                     <p style={{ fontSize:"11px", color:"#7c3aed", fontWeight:"700", marginBottom:"8px" }}>📅 ملخص الإجازة</p>
@@ -5148,53 +5127,134 @@ useEffect(() => {
                     setShowExtensionModal(true);
                   }} style={{
                   background: "linear-gradient(135deg, #7c3aed, #a855f7)",
-{requests
-  .filter(r => r.employee_id === currentUser.id)
-  .map((req, idx) => {
-    const vacType = vacationTypes.find(
-      vt => vt.id === req.vacation_type_id
+                  color: "white",
+                  border: "none",
+                  padding: "16px 20px",
+                  borderRadius: "16px",
+                  fontWeight: "900",
+                  fontSize: "14px",
+                  cursor: "pointer",
+                  transition: "all 0.3s ease",
+                  boxShadow: "0 10px 25px rgba(124, 58, 237, 0.35)",
+                  whiteSpace: "nowrap"
+                }} onMouseEnter={(e) => { e.currentTarget.style.transform = "translateY(-2px)"; }} onMouseLeave={(e) => { e.currentTarget.style.transform = "translateY(0)"; }}>
+                  🔗 امتداد
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <section style={{ animation: "fadeIn 1.2s ease" }}>
+            <h3 style={{ fontSize: "20px", fontWeight: "900", marginBottom: "24px", display: "flex", alignItems: "center", gap: "12px", color: "#1e293b" }}>
+              <Clock className="text-amber-500" /> طلباتي
+            </h3>
+         {(() => {
+  const empAllRequests = requests.filter(r => r.employee_id === currentUser.id);
+  return empAllRequests.map((req, idx) => {
+    const vacType = vacationTypes.find(vt => vt.id === req.vacation_type_id);
+    const workedDays = calculateWorkedDaysForRequest(
+      req,
+      empAllRequests,
+      currentUser.return_date || ""
     );
-
     return (
-      <div
-        key={req.id}
-        style={{
-          background: "#ffffff",
-          padding: "16px 20px",
-          borderRadius: "16px",
-          marginBottom: "12px",
-          boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center"
-        }}
-      >
-        <div>
-          <p style={{ fontWeight: "700", color: "#1e293b" }}>
-            {vacType?.name || "نوع إجازة غير معروف"}
-          </p>
-          <p style={{ fontSize: "12px", color: "#64748b" }}>
-            رقم الطلب: {req.id}
-          </p>
+      <div key={req.id} style={{
+        animation: `fadeIn 1.${3 + idx}s ease`,
+        background: "rgba(255, 255, 255, 0.95)",
+        backdropFilter: "blur(20px)",
+        padding: "20px",
+        borderRadius: "20px",
+        border: "1px solid rgba(255, 255, 255, 0.2)",
+        boxShadow: "0 15px 40px rgba(0, 0, 0, 0.08)",
+        transition: "all 0.3s ease",
+        marginBottom: "16px"
+      }} onMouseEnter={(e) => { e.currentTarget.style.boxShadow = "0 25px 60px rgba(102, 126, 234, 0.2)"; e.currentTarget.style.transform = "translateY(-4px)"; }} onMouseLeave={(e) => { e.currentTarget.style.boxShadow = "0 15px 40px rgba(0, 0, 0, 0.08)"; e.currentTarget.style.transform = "translateY(0)"; }}>
+        <div className="flex justify-between items-start mb-4">
+          <div>
+            <p className="font-bold text-slate-800">{formatDate(req.start_date)}</p>
+            <p className="text-xs text-slate-400">{req.days} يوم</p>
+            {req.departure_time && req.departure_time !== "actual" && (
+              <p className="text-xs text-purple-600 font-bold mt-1">
+                🛫 نزول {req.departure_time === "after_work" ? "بعد العمل" : "صباحاً"}
+                {req.departure_date ? ` (${formatDate(req.departure_date)})` : ""}
+              </p>
+            )}
+            {vacType && <span className="inline-block mt-2 px-2 py-1 rounded-full text-xs font-bold" style={{ backgroundColor: vacType.color+'20', color: vacType.color }}>{vacType.name}</span>}
+            {req.is_extension && (
+              <span className="inline-block mt-2 mr-1 px-2 py-1 rounded-full text-xs font-bold" style={{ background: "#ede9fe", color: "#7c3aed" }}>
+                🔗 امتداد
+              </span>
+            )}
+          </div>
+          <span className={`px-4 py-1.5 rounded-full text-xs font-black ${req.status === 'approved' ? 'bg-emerald-100 text-emerald-700' : req.status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
+            {req.status === 'approved' ? '✓ مقبول' : req.status === 'rejected' ? '✗ مرفوض' : req.status === 'dept_approved' ? '◑ موافقة مبدئية' : '⏳ معلق'}
+          </span>
         </div>
 
-        <div
-          style={{
-            fontSize: "12px",
-            fontWeight: "700",
-            color:
-              req.status === "approved"
-                ? "green"
-                : req.status === "rejected"
-                ? "red"
-                : "#f59e0b"
-          }}
-        >
-          {req.status}
-        </div>
+        {/* ✅ أيام العمل قبل هذا النزول */}
+        {workedDays !== null && (
+          <div style={{
+            marginTop: "12px",
+            padding: "10px 16px",
+            background: "linear-gradient(135deg, #f0fdf4, #dcfce7)",
+            borderRadius: "12px",
+            border: "1px solid #bbf7d0",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center"
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+              <span style={{ fontSize: "16px" }}>💼</span>
+              <span style={{ fontSize: "12px", color: "#15803d", fontWeight: "700" }}>
+                أيام العمل قبل هذا النزول
+              </span>
+            </div>
+            <span style={{
+              fontSize: "16px",
+              fontWeight: "900",
+              color: "#15803d",
+              background: "#dcfce7",
+              padding: "3px 12px",
+              borderRadius: "20px",
+              border: "1px solid #86efac"
+            }}>
+              {workedDays} يوم
+            </span>
+          </div>
+        )}
+
+        {req.admin_notes && (
+          <div className="mt-4 p-4 bg-blue-50 rounded-xl border border-blue-100">
+            <p className="text-xs text-blue-600 font-bold mb-1 flex items-center gap-1"><MessageSquare size={14} /> ملاحظات الإدارة:</p>
+            <p className="text-sm text-blue-900">{req.admin_notes}</p>
+          </div>
+        )}
+        {req.status === "pending" && (() => {
+          const created = new Date(req.created_at || Date.now());
+          const daysOld = Math.floor((Date.now() - created.getTime()) / 86400000);
+          return daysOld <= 3 ? (
+            <button onClick={() => { setEmpEditReq({...req}); setShowEditRequestModal(true); }}
+              style={{ marginTop:"10px", width:"100%", padding:"9px", background:"#f5f3ff", border:"1px solid #ddd6fe", borderRadius:"10px", color:"#7c3aed", cursor:"pointer", fontWeight:"700", fontSize:"12px" }}>
+              ✏️ تعديل الطلب (متبقي {3 - daysOld} يوم)
+            </button>
+          ) : null;
+        })()}
       </div>
     );
-  })}
+  });
+})()}
+            {requests.filter(r => r.employee_id === currentUser.id).length === 0 && (
+              <div className="bg-white p-16 rounded-[2rem] text-center border border-dashed">
+                <p className="text-slate-400 font-bold">لم تقدم أي طلبات بعد</p>
+              </div>
+            )}
+          </section>
+        </div>
+      </div>
+
+      {/* Modal طلب امتداد إجازة */}
+      {showExtensionModal && (() => {
+        const myApproved = requests.filter(r => 
           r.employee_id === currentUser.id && 
           r.status === "approved" &&
           !r.is_extension
