@@ -166,49 +166,6 @@ const calculateWorkedDays = (returnDate: string, isOnVacation: boolean = false) 
   return Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
 };
 
-// حساب أيام العمل من تاريخ العودة إلى تاريخ النزول في الطلب
-const calculateWorkedDaysForRequest = (
-  req: any,
-  allEmpRequests: any[],
-  empReturnDate: string
-): number | null => {
-  if (!req.start_date) return null;
-
-  const reqStart = new Date(req.start_date);
-  reqStart.setHours(0, 0, 0, 0);
-
-  // البحث عن آخر طلب مقبول قبل هذا الطلب زمنياً
-  const prevApproved = allEmpRequests
-    .filter(r =>
-      r.id !== req.id &&
-      r.status === "approved" &&
-      new Date(r.start_date) < reqStart
-    )
-    .sort((a: any, b: any) =>
-      new Date(b.start_date).getTime() - new Date(a.start_date).getTime()
-    )[0];
-
-  let fromStr: string;
-  if (prevApproved) {
-    // نحسب تاريخ العودة من الطلب السابق عشان back_date في الـ DB مش ISO
-    fromStr = getCalculatedDates(prevApproved.start_date, prevApproved.days).back;
-  } else {
-    // أول طلب → نستخدم return_date الموظف
-    fromStr = empReturnDate;
-  }
-
-  if (!fromStr) return null;
-
-  const fromDate = new Date(fromStr);
-  fromDate.setHours(0, 0, 0, 0);
-
-  if (fromDate >= reqStart) return 0;
-
-  return Math.floor(
-    (reqStart.getTime() - fromDate.getTime()) / (1000 * 60 * 60 * 24)
-  );
-};
-
 // ==================== MAIN COMPONENT ====================
 // ===== SortTh - عنوان عمود قابل للفرز بقائمة Excel =====
 const SortTh = ({ label, field, sortField, sortDir, sortDropdown, onSort, onClear, onToggle, align="center" }: {
@@ -5148,101 +5105,60 @@ useEffect(() => {
             <h3 style={{ fontSize: "20px", fontWeight: "900", marginBottom: "24px", display: "flex", alignItems: "center", gap: "12px", color: "#1e293b" }}>
               <Clock className="text-amber-500" /> طلباتي
             </h3>
-         {(() => {
-  const empAllRequests = requests.filter(r => r.employee_id === currentUser.id);
-  return empAllRequests.map((req, idx) => {
-    const vacType = vacationTypes.find(vt => vt.id === req.vacation_type_id);
-    const workedDays = calculateWorkedDaysForRequest(
-      req,
-      empAllRequests,
-      currentUser.return_date || ""
-    );
-    return (
-      <div key={req.id} style={{
-        animation: `fadeIn 1.${3 + idx}s ease`,
-        background: "rgba(255, 255, 255, 0.95)",
-        backdropFilter: "blur(20px)",
-        padding: "20px",
-        borderRadius: "20px",
-        border: "1px solid rgba(255, 255, 255, 0.2)",
-        boxShadow: "0 15px 40px rgba(0, 0, 0, 0.08)",
-        transition: "all 0.3s ease",
-        marginBottom: "16px"
-      }} onMouseEnter={(e) => { e.currentTarget.style.boxShadow = "0 25px 60px rgba(102, 126, 234, 0.2)"; e.currentTarget.style.transform = "translateY(-4px)"; }} onMouseLeave={(e) => { e.currentTarget.style.boxShadow = "0 15px 40px rgba(0, 0, 0, 0.08)"; e.currentTarget.style.transform = "translateY(0)"; }}>
-        <div className="flex justify-between items-start mb-4">
-          <div>
-            <p className="font-bold text-slate-800">{formatDate(req.start_date)}</p>
-            <p className="text-xs text-slate-400">{req.days} يوم</p>
-            {req.departure_time && req.departure_time !== "actual" && (
-              <p className="text-xs text-purple-600 font-bold mt-1">
-                🛫 نزول {req.departure_time === "after_work" ? "بعد العمل" : "صباحاً"}
-                {req.departure_date ? ` (${formatDate(req.departure_date)})` : ""}
-              </p>
-            )}
-            {vacType && <span className="inline-block mt-2 px-2 py-1 rounded-full text-xs font-bold" style={{ backgroundColor: vacType.color+'20', color: vacType.color }}>{vacType.name}</span>}
-            {req.is_extension && (
-              <span className="inline-block mt-2 mr-1 px-2 py-1 rounded-full text-xs font-bold" style={{ background: "#ede9fe", color: "#7c3aed" }}>
-                🔗 امتداد
-              </span>
-            )}
-          </div>
-          <span className={`px-4 py-1.5 rounded-full text-xs font-black ${req.status === 'approved' ? 'bg-emerald-100 text-emerald-700' : req.status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
-            {req.status === 'approved' ? '✓ مقبول' : req.status === 'rejected' ? '✗ مرفوض' : req.status === 'dept_approved' ? '◑ موافقة مبدئية' : '⏳ معلق'}
-          </span>
-        </div>
-
-        {/* ✅ أيام العمل قبل هذا النزول */}
-        {workedDays !== null && (
-          <div style={{
-            marginTop: "12px",
-            padding: "10px 16px",
-            background: "linear-gradient(135deg, #f0fdf4, #dcfce7)",
-            borderRadius: "12px",
-            border: "1px solid #bbf7d0",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center"
-          }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-              <span style={{ fontSize: "16px" }}>💼</span>
-              <span style={{ fontSize: "12px", color: "#15803d", fontWeight: "700" }}>
-                أيام العمل قبل هذا النزول
-              </span>
-            </div>
-            <span style={{
-              fontSize: "16px",
-              fontWeight: "900",
-              color: "#15803d",
-              background: "#dcfce7",
-              padding: "3px 12px",
-              borderRadius: "20px",
-              border: "1px solid #86efac"
-            }}>
-              {workedDays} يوم
-            </span>
-          </div>
-        )}
-
-        {req.admin_notes && (
-          <div className="mt-4 p-4 bg-blue-50 rounded-xl border border-blue-100">
-            <p className="text-xs text-blue-600 font-bold mb-1 flex items-center gap-1"><MessageSquare size={14} /> ملاحظات الإدارة:</p>
-            <p className="text-sm text-blue-900">{req.admin_notes}</p>
-          </div>
-        )}
-        {req.status === "pending" && (() => {
-          const created = new Date(req.created_at || Date.now());
-          const daysOld = Math.floor((Date.now() - created.getTime()) / 86400000);
-          return daysOld <= 3 ? (
-            <button onClick={() => { setEmpEditReq({...req}); setShowEditRequestModal(true); }}
-              style={{ marginTop:"10px", width:"100%", padding:"9px", background:"#f5f3ff", border:"1px solid #ddd6fe", borderRadius:"10px", color:"#7c3aed", cursor:"pointer", fontWeight:"700", fontSize:"12px" }}>
-              ✏️ تعديل الطلب (متبقي {3 - daysOld} يوم)
-            </button>
-          ) : null;
-        })()}
-      </div>
-    );
-  });
-})()}
+            {requests.filter(r => r.employee_id === currentUser.id).map((req, idx) => {
+              const vacType = vacationTypes.find(vt => vt.id === req.vacation_type_id);
+              return (
+                <div key={req.id} style={{
+                  animation: `fadeIn 1.${3 + idx}s ease`,
+                  background: "rgba(255, 255, 255, 0.95)",
+                  backdropFilter: "blur(20px)",
+                  padding: "20px",
+                  borderRadius: "20px",
+                  border: "1px solid rgba(255, 255, 255, 0.2)",
+                  boxShadow: "0 15px 40px rgba(0, 0, 0, 0.08)",
+                  transition: "all 0.3s ease",
+                  marginBottom: "16px"
+                }} onMouseEnter={(e) => { e.currentTarget.style.boxShadow = "0 25px 60px rgba(102, 126, 234, 0.2)"; e.currentTarget.style.transform = "translateY(-4px)"; }} onMouseLeave={(e) => { e.currentTarget.style.boxShadow = "0 15px 40px rgba(0, 0, 0, 0.08)"; e.currentTarget.style.transform = "translateY(0)"; }}>
+                  <div className="flex justify-between items-start mb-4">
+                    <div>
+                      <p className="font-bold text-slate-800">{formatDate(req.start_date)}</p>
+                      <p className="text-xs text-slate-400">{req.days} يوم</p>
+                      {req.departure_time && req.departure_time !== "actual" && (
+                        <p className="text-xs text-purple-600 font-bold mt-1">
+                          🛫 نزول {req.departure_time === "after_work" ? "بعد العمل" : "صباحاً"}
+                          {req.departure_date ? ` (${formatDate(req.departure_date)})` : ""}
+                        </p>
+                      )}
+                      {vacType && <span className="inline-block mt-2 px-2 py-1 rounded-full text-xs font-bold" style={{ backgroundColor: vacType.color+'20', color: vacType.color }}>{vacType.name}</span>}
+                      {req.is_extension && (
+                        <span className="inline-block mt-2 mr-1 px-2 py-1 rounded-full text-xs font-bold" style={{ background: "#ede9fe", color: "#7c3aed" }}>
+                          🔗 امتداد
+                        </span>
+                      )}
+                    </div>
+                    <span className={`px-4 py-1.5 rounded-full text-xs font-black ${req.status === 'approved' ? 'bg-emerald-100 text-emerald-700' : req.status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
+                      {req.status === 'approved' ? '✓ مقبول' : req.status === 'rejected' ? '✗ مرفوض' : req.status === 'dept_approved' ? '◑ موافقة مبدئية' : '⏳ معلق'}
+                    </span>
+                  </div>
+                  {req.admin_notes && (
+                    <div className="mt-4 p-4 bg-blue-50 rounded-xl border border-blue-100">
+                      <p className="text-xs text-blue-600 font-bold mb-1 flex items-center gap-1"><MessageSquare size={14} /> ملاحظات الإدارة:</p>
+                      <p className="text-sm text-blue-900">{req.admin_notes}</p>
+                    </div>
+                  )}
+                  {req.status === "pending" && (() => {
+                    const created = new Date(req.created_at || Date.now());
+                    const daysOld = Math.floor((Date.now() - created.getTime()) / 86400000);
+                    return daysOld <= 3 ? (
+                      <button onClick={() => { setEmpEditReq({...req}); setShowEditRequestModal(true); }}
+                        style={{ marginTop:"10px", width:"100%", padding:"9px", background:"#f5f3ff", border:"1px solid #ddd6fe", borderRadius:"10px", color:"#7c3aed", cursor:"pointer", fontWeight:"700", fontSize:"12px" }}>
+                        ✏️ تعديل الطلب (متبقي {3 - daysOld} يوم)
+                      </button>
+                    ) : null;
+                  })()}
+                </div>
+              );
+            })}
             {requests.filter(r => r.employee_id === currentUser.id).length === 0 && (
               <div className="bg-white p-16 rounded-[2rem] text-center border border-dashed">
                 <p className="text-slate-400 font-bold">لم تقدم أي طلبات بعد</p>
