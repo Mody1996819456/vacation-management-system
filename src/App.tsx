@@ -430,14 +430,25 @@ const VacationManagementSystem = () => {
   const [activeVacDateTo, setActiveVacDateTo] = useState("");
   const [activeVacSortField, setActiveVacSortField] = useState("back");
   const [activeVacSortDir, setActiveVacSortDir] = useState<"asc"|"desc">("asc");
+  const [activeVacSortDropdown, setActiveVacSortDropdown] = useState("");
+
+  // ===== States للفرز في صفحة الطلبات =====
+  const [reqSortField, setReqSortField] = useState("");
+  const [reqSortDir, setReqSortDir] = useState<"asc"|"desc">("desc");
+  const [reqSortDropdown, setReqSortDropdown] = useState("");
+
+  // ===== States للفرز في سجل الإجازات =====
+  const [histSortField, setHistSortField] = useState("");
+  const [histSortDir, setHistSortDir] = useState<"asc"|"desc">("desc");
+  const [histSortDropdown, setHistSortDropdown] = useState("");
 
   // إغلاق dropdown الفرز عند الضغط خارجه
   useEffect(() => {
-    if (!empSortDropdown) return;
-    const handler = () => setEmpSortDropdown("");
+    if (!empSortDropdown && !reqSortDropdown && !histSortDropdown && !activeVacSortDropdown) return;
+    const handler = () => { setEmpSortDropdown(""); setReqSortDropdown(""); setHistSortDropdown(""); setActiveVacSortDropdown(""); };
     document.addEventListener("click", handler);
     return () => document.removeEventListener("click", handler);
-  }, [empSortDropdown]);
+  }, [empSortDropdown, reqSortDropdown, histSortDropdown, activeVacSortDropdown]);
 
   // تحديث الساعة كل ثانية
   useEffect(() => {
@@ -1972,8 +1983,51 @@ useEffect(() => {
       const matchDateFrom = !reqDateFrom || req.start_date >= reqDateFrom;
       const matchDateTo = !reqDateTo || req.start_date <= reqDateTo;
       return matchSearch && matchType && matchStatus && matchDateFrom && matchDateTo;
+    }).sort((a, b) => {
+      // ترتيب صفحة الطلبات
+      if (reqSortField) {
+        let va: any = "", vb: any = "";
+        if (reqSortField === "name")    { va = a.employee_name || ""; vb = b.employee_name || ""; }
+        else if (reqSortField === "type")   { va = a.vacation_type_id || ""; vb = b.vacation_type_id || ""; }
+        else if (reqSortField === "start")  { va = a.start_date || ""; vb = b.start_date || ""; }
+        else if (reqSortField === "days")   { va = Number(a.days || 0); vb = Number(b.days || 0); }
+        else if (reqSortField === "status") { va = a.status || ""; vb = b.status || ""; }
+        else if (reqSortField === "dept")   {
+          const da = employees.find(e => e.id === a.employee_id);
+          const db = employees.find(e => e.id === b.employee_id);
+          va = da?.department_id || ""; vb = db?.department_id || "";
+        }
+        else if (reqSortField === "workdays") {
+          const ea = employees.find(e => e.id === a.employee_id);
+          const eb = employees.find(e => e.id === b.employee_id);
+          const hd = publicHolidays.map((h: any) => h.date);
+          va = Number(calculateWorkDaysBetween(ea?.return_date || "", a.start_date, hd));
+          vb = Number(calculateWorkDaysBetween(eb?.return_date || "", b.start_date, hd));
+        }
+        if (typeof va === "number") return reqSortDir === "desc" ? vb - va : va - vb;
+        return reqSortDir === "desc" ? vb.localeCompare(va, "ar") : va.localeCompare(vb, "ar");
+      }
+      // ترتيب سجل الإجازات
+      if (histSortField) {
+        let va: any = "", vb: any = "";
+        if (histSortField === "name")    { va = a.employee_name || ""; vb = b.employee_name || ""; }
+        else if (histSortField === "type")   { va = a.vacation_type_id || ""; vb = b.vacation_type_id || ""; }
+        else if (histSortField === "start")  { va = a.start_date || ""; vb = b.start_date || ""; }
+        else if (histSortField === "days")   { va = Number(a.days || 0); vb = Number(b.days || 0); }
+        else if (histSortField === "status") { va = a.status || ""; vb = b.status || ""; }
+        else if (histSortField === "workdays") {
+          const ea = employees.find(e => e.id === a.employee_id);
+          const eb = employees.find(e => e.id === b.employee_id);
+          const hd = publicHolidays.map((h: any) => h.date);
+          va = Number(calculateWorkDaysBetween(ea?.return_date || "", a.start_date, hd));
+          vb = Number(calculateWorkDaysBetween(eb?.return_date || "", b.start_date, hd));
+        }
+        if (typeof va === "number") return histSortDir === "desc" ? vb - va : va - vb;
+        return histSortDir === "desc" ? vb.localeCompare(va, "ar") : va.localeCompare(vb, "ar");
+      }
+      return 0;
     });
-  }, [scopedRequests, vacSearch, reqSearch, vacationTypeFilter, statusFilter, reqDateFrom, reqDateTo, employees]);
+  }, [scopedRequests, vacSearch, reqSearch, vacationTypeFilter, statusFilter, reqDateFrom, reqDateTo, employees, reqSortField, reqSortDir, histSortField, histSortDir, publicHolidays]);
 
   // ==================== GOOGLE SHEETS BACKUP ====================
   const handleBackup = async () => {
@@ -3048,13 +3102,13 @@ useEffect(() => {
                         <table style={{ width:"100%", borderCollapse:"collapse", fontSize:"13px", minWidth:"620px" }}>
                           <thead>
                             <tr style={{ background:"linear-gradient(135deg,#fffbeb,#fef3c7)", borderBottom:"2px solid #fde68a" }}>
-                              <th style={{ padding:"12px 16px", textAlign:"right", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>الموظف</th>
-                              <th style={{ padding:"12px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>النوع</th>
-                              <th style={{ padding:"12px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>البداية</th>
-                              <th style={{ padding:"12px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>نهاية الإجازة</th>
-                              <th style={{ padding:"12px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>الأيام</th>
-                              <th style={{ padding:"12px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>أيام العمل<br/><span style={{fontSize:'10px',color:'#94a3b8'}}>من العودة للنزول</span></th>
-                              <th style={{ padding:"12px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>الحالة</th>
+                              <SortTh label="الموظف"    field="name"     align="right"  sortField={reqSortField} sortDir={reqSortDir} sortDropdown={reqSortDropdown} onSort={(f,d)=>{setReqSortField(f);setReqSortDir(d);setReqSortDropdown("");}} onClear={()=>{setReqSortField("");setReqSortDropdown("");}} onToggle={f=>setReqSortDropdown(d=>d===f?"":f)} />
+                              <SortTh label="النوع"     field="type"     align="center" sortField={reqSortField} sortDir={reqSortDir} sortDropdown={reqSortDropdown} onSort={(f,d)=>{setReqSortField(f);setReqSortDir(d);setReqSortDropdown("");}} onClear={()=>{setReqSortField("");setReqSortDropdown("");}} onToggle={f=>setReqSortDropdown(d=>d===f?"":f)} />
+                              <SortTh label="البداية"   field="start"    align="center" sortField={reqSortField} sortDir={reqSortDir} sortDropdown={reqSortDropdown} onSort={(f,d)=>{setReqSortField(f);setReqSortDir(d);setReqSortDropdown("");}} onClear={()=>{setReqSortField("");setReqSortDropdown("");}} onToggle={f=>setReqSortDropdown(d=>d===f?"":f)} />
+                              <SortTh label="نهاية الإجازة" field="end" align="center" sortField={reqSortField} sortDir={reqSortDir} sortDropdown={reqSortDropdown} onSort={(f,d)=>{setReqSortField(f);setReqSortDir(d);setReqSortDropdown("");}} onClear={()=>{setReqSortField("");setReqSortDropdown("");}} onToggle={f=>setReqSortDropdown(d=>d===f?"":f)} />
+                              <SortTh label="الأيام"    field="days"     align="center" sortField={reqSortField} sortDir={reqSortDir} sortDropdown={reqSortDropdown} onSort={(f,d)=>{setReqSortField(f);setReqSortDir(d);setReqSortDropdown("");}} onClear={()=>{setReqSortField("");setReqSortDropdown("");}} onToggle={f=>setReqSortDropdown(d=>d===f?"":f)} />
+                              <SortTh label="أيام العمل" field="workdays" align="center" sortField={reqSortField} sortDir={reqSortDir} sortDropdown={reqSortDropdown} onSort={(f,d)=>{setReqSortField(f);setReqSortDir(d);setReqSortDropdown("");}} onClear={()=>{setReqSortField("");setReqSortDropdown("");}} onToggle={f=>setReqSortDropdown(d=>d===f?"":f)} />
+                              <SortTh label="الحالة"    field="status"   align="center" sortField={reqSortField} sortDir={reqSortDir} sortDropdown={reqSortDropdown} onSort={(f,d)=>{setReqSortField(f);setReqSortDir(d);setReqSortDropdown("");}} onClear={()=>{setReqSortField("");setReqSortDropdown("");}} onToggle={f=>setReqSortDropdown(d=>d===f?"":f)} />
                               <th style={{ padding:"12px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>الإجراءات</th>
                             </tr>
                           </thead>
@@ -3134,14 +3188,14 @@ useEffect(() => {
                         <table style={{ width:"100%", borderCollapse:"collapse", fontSize:"13px", minWidth:"680px" }}>
                           <thead>
                             <tr style={{ background:"linear-gradient(135deg,#f0fdf4,#dcfce7)", borderBottom:"2px solid #bbf7d0" }}>
-                              <th style={{ padding:"12px 16px", textAlign:"right", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>الموظف</th>
-                              <th style={{ padding:"12px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>النوع</th>
-                              <th style={{ padding:"12px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>القسم</th>
-                              <th style={{ padding:"12px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>البداية</th>
-                              <th style={{ padding:"12px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>نهاية الإجازة</th>
-                              <th style={{ padding:"12px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>الأيام</th>
-                              <th style={{ padding:"12px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>أيام العمل<br/><span style={{fontSize:'10px',color:'#94a3b8'}}>من العودة للنزول</span></th>
-                              <th style={{ padding:"12px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>الحالة</th>
+                              <SortTh label="الموظف"    field="name"     align="right"  sortField={reqSortField} sortDir={reqSortDir} sortDropdown={reqSortDropdown} onSort={(f,d)=>{setReqSortField(f);setReqSortDir(d);setReqSortDropdown("");}} onClear={()=>{setReqSortField("");setReqSortDropdown("");}} onToggle={f=>setReqSortDropdown(d=>d===f?"":f)} />
+                              <SortTh label="النوع"     field="type"     align="center" sortField={reqSortField} sortDir={reqSortDir} sortDropdown={reqSortDropdown} onSort={(f,d)=>{setReqSortField(f);setReqSortDir(d);setReqSortDropdown("");}} onClear={()=>{setReqSortField("");setReqSortDropdown("");}} onToggle={f=>setReqSortDropdown(d=>d===f?"":f)} />
+                              <SortTh label="القسم"     field="dept"     align="center" sortField={reqSortField} sortDir={reqSortDir} sortDropdown={reqSortDropdown} onSort={(f,d)=>{setReqSortField(f);setReqSortDir(d);setReqSortDropdown("");}} onClear={()=>{setReqSortField("");setReqSortDropdown("");}} onToggle={f=>setReqSortDropdown(d=>d===f?"":f)} />
+                              <SortTh label="البداية"   field="start"    align="center" sortField={reqSortField} sortDir={reqSortDir} sortDropdown={reqSortDropdown} onSort={(f,d)=>{setReqSortField(f);setReqSortDir(d);setReqSortDropdown("");}} onClear={()=>{setReqSortField("");setReqSortDropdown("");}} onToggle={f=>setReqSortDropdown(d=>d===f?"":f)} />
+                              <SortTh label="نهاية الإجازة" field="end" align="center" sortField={reqSortField} sortDir={reqSortDir} sortDropdown={reqSortDropdown} onSort={(f,d)=>{setReqSortField(f);setReqSortDir(d);setReqSortDropdown("");}} onClear={()=>{setReqSortField("");setReqSortDropdown("");}} onToggle={f=>setReqSortDropdown(d=>d===f?"":f)} />
+                              <SortTh label="الأيام"    field="days"     align="center" sortField={reqSortField} sortDir={reqSortDir} sortDropdown={reqSortDropdown} onSort={(f,d)=>{setReqSortField(f);setReqSortDir(d);setReqSortDropdown("");}} onClear={()=>{setReqSortField("");setReqSortDropdown("");}} onToggle={f=>setReqSortDropdown(d=>d===f?"":f)} />
+                              <SortTh label="أيام العمل" field="workdays" align="center" sortField={reqSortField} sortDir={reqSortDir} sortDropdown={reqSortDropdown} onSort={(f,d)=>{setReqSortField(f);setReqSortDir(d);setReqSortDropdown("");}} onClear={()=>{setReqSortField("");setReqSortDropdown("");}} onToggle={f=>setReqSortDropdown(d=>d===f?"":f)} />
+                              <SortTh label="الحالة"    field="status"   align="center" sortField={reqSortField} sortDir={reqSortDir} sortDropdown={reqSortDropdown} onSort={(f,d)=>{setReqSortField(f);setReqSortDir(d);setReqSortDropdown("");}} onClear={()=>{setReqSortField("");setReqSortDropdown("");}} onToggle={f=>setReqSortDropdown(d=>d===f?"":f)} />
                               <th style={{ padding:"12px 12px", textAlign:"center", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>الإجراءات</th>
                             </tr>
                           </thead>
@@ -3364,10 +3418,10 @@ useEffect(() => {
                   return matchSearch && matchDept && matchType && matchDateFrom && matchDateTo;
                 }).sort((a, b) => {
                   let va: any = "", vb: any = "";
-                  if (activeVacSortField === "back") { va = a.back || ""; vb = b.back || ""; }
+                  if (activeVacSortField === "back"  || activeVacSortField === "") { va = a.back || ""; vb = b.back || ""; }
                   else if (activeVacSortField === "start") { va = a.lastReq?.start_date || ""; vb = b.lastReq?.start_date || ""; }
-                  else if (activeVacSortField === "name") { va = a.emp.name || ""; vb = b.emp.name || ""; }
-                  else if (activeVacSortField === "days") { va = Number(a.lastReq?.days || 0); vb = Number(b.lastReq?.days || 0); }
+                  else if (activeVacSortField === "name")  { va = a.emp.name || ""; vb = b.emp.name || ""; }
+                  else if (activeVacSortField === "days")  { va = Number(a.lastReq?.days || 0); vb = Number(b.lastReq?.days || 0); }
                   if (typeof va === "number") return activeVacSortDir === "desc" ? vb - va : va - vb;
                   return activeVacSortDir === "desc" ? vb.localeCompare(va, "ar") : va.localeCompare(vb, "ar");
                 });
@@ -3456,20 +3510,7 @@ useEffect(() => {
                         <input type="date" style={{ padding:"8px 10px", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:"10px", fontSize:"12px", outline:"none" }}
                           value={activeVacDateTo} onChange={e => setActiveVacDateTo(e.target.value)} />
                       </div>
-                      <div style={{ display:"flex", alignItems:"center", gap:"6px" }}>
-                        <label style={{ fontSize:"12px", color:"#64748b", fontWeight:"600", whiteSpace:"nowrap" }}>ترتيب حسب:</label>
-                        <select style={{ padding:"8px 12px", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:"10px", fontSize:"12px", outline:"none" }}
-                          value={activeVacSortField} onChange={e => setActiveVacSortField(e.target.value)}>
-                          <option value="back">تاريخ العودة</option>
-                          <option value="start">تاريخ البداية</option>
-                          <option value="name">الاسم</option>
-                          <option value="days">المدة</option>
-                        </select>
-                        <button onClick={() => setActiveVacSortDir(d => d === "asc" ? "desc" : "asc")}
-                          style={{ padding:"8px 12px", background:"#eef2ff", border:"none", borderRadius:"10px", fontSize:"12px", fontWeight:"700", cursor:"pointer", color:"#4f46e5" }}>
-                          {activeVacSortDir === "asc" ? "↑ من الأقل" : "↓ من الأعلى"}
-                        </button>
-                      </div>
+
                       {(activeVacDateFrom || activeVacDateTo) && (
                         <button onClick={() => { setActiveVacDateFrom(""); setActiveVacDateTo(""); }}
                           style={{ padding:"8px 14px", background:"#fee2e2", color:"#dc2626", border:"none", borderRadius:"10px", fontSize:"12px", fontWeight:"700", cursor:"pointer" }}>
@@ -3490,9 +3531,15 @@ useEffect(() => {
                           <table style={{ width:"100%", borderCollapse:"collapse", fontSize:"13px" }}>
                             <thead style={{ background:"#f8fafc", borderBottom:"2px solid #e2e8f0" }}>
                               <tr>
-                                {["الموظف", "القسم", "نوع الإجازة", "تاريخ البداية", "المدة", "نهاية الإجازة", "الرصيد", "المصدر", "الإجراءات"].map(h => (
-                                  <th key={h} style={{ padding:"12px 14px", textAlign:"right", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>{h}</th>
-                                ))}
+                                <SortTh label="الموظف"        field="name"  align="right"  sortField={activeVacSortField} sortDir={activeVacSortDir} sortDropdown={activeVacSortDropdown} onSort={(f,d)=>{setActiveVacSortField(f);setActiveVacSortDir(d);setActiveVacSortDropdown("");}} onClear={()=>{setActiveVacSortField("");setActiveVacSortDropdown("");}} onToggle={f=>setActiveVacSortDropdown(d=>d===f?"":f)} />
+                              <th style={{ padding:"12px 14px", textAlign:"right", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>القسم</th>
+                              <th style={{ padding:"12px 14px", textAlign:"right", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>نوع الإجازة</th>
+                              <SortTh label="تاريخ البداية" field="start" align="center" sortField={activeVacSortField} sortDir={activeVacSortDir} sortDropdown={activeVacSortDropdown} onSort={(f,d)=>{setActiveVacSortField(f);setActiveVacSortDir(d);setActiveVacSortDropdown("");}} onClear={()=>{setActiveVacSortField("");setActiveVacSortDropdown("");}} onToggle={f=>setActiveVacSortDropdown(d=>d===f?"":f)} />
+                              <SortTh label="المدة"         field="days"  align="center" sortField={activeVacSortField} sortDir={activeVacSortDir} sortDropdown={activeVacSortDropdown} onSort={(f,d)=>{setActiveVacSortField(f);setActiveVacSortDir(d);setActiveVacSortDropdown("");}} onClear={()=>{setActiveVacSortField("");setActiveVacSortDropdown("");}} onToggle={f=>setActiveVacSortDropdown(d=>d===f?"":f)} />
+                              <SortTh label="نهاية الإجازة" field="back" align="center" sortField={activeVacSortField} sortDir={activeVacSortDir} sortDropdown={activeVacSortDropdown} onSort={(f,d)=>{setActiveVacSortField(f);setActiveVacSortDir(d);setActiveVacSortDropdown("");}} onClear={()=>{setActiveVacSortField("");setActiveVacSortDropdown("");}} onToggle={f=>setActiveVacSortDropdown(d=>d===f?"":f)} />
+                              <th style={{ padding:"12px 14px", textAlign:"right", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>الرصيد</th>
+                              <th style={{ padding:"12px 14px", textAlign:"right", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>المصدر</th>
+                              <th style={{ padding:"12px 14px", textAlign:"right", fontWeight:"800", color:"#374151", whiteSpace:"nowrap" }}>الإجراءات</th>
                               </tr>
                             </thead>
                             <tbody>
@@ -3957,16 +4004,16 @@ useEffect(() => {
                     <table className="w-full text-sm" style={{ minWidth:"700px" }}>
                       <thead className="bg-slate-50 border-b text-xs">
                         <tr>
-                          <th className="p-4 text-right">الموظف</th>
-                          <th className="p-4">نوع الإجازة</th>
-                          <th className="p-4 text-center">تاريخ البداية</th>
-                          <th className="p-4 text-center">المدة</th>
-                          <th className="p-4 text-center">تاريخ العودة المتوقع</th>
-                          <th className="p-4 text-center">أيام العمل<br/><span style={{fontSize:'10px',color:'#94a3b8'}}>من العودة للنزول</span></th>
-                          <th className="p-4 text-center">تاريخ العودة الفعلي</th>
-                          <th className="p-4 text-center">الحالة</th>
-                          <th className="p-4 text-center">ملاحظات</th>
-                          <th className="p-4 text-center">إجراءات</th>
+                          <SortTh label="الموظف"         field="name"     align="right"  sortField={histSortField} sortDir={histSortDir} sortDropdown={histSortDropdown} onSort={(f,d)=>{setHistSortField(f);setHistSortDir(d);setHistSortDropdown("");}} onClear={()=>{setHistSortField("");setHistSortDropdown("");}} onToggle={f=>setHistSortDropdown(d=>d===f?"":f)} />
+                          <SortTh label="نوع الإجازة"    field="type"     align="center" sortField={histSortField} sortDir={histSortDir} sortDropdown={histSortDropdown} onSort={(f,d)=>{setHistSortField(f);setHistSortDir(d);setHistSortDropdown("");}} onClear={()=>{setHistSortField("");setHistSortDropdown("");}} onToggle={f=>setHistSortDropdown(d=>d===f?"":f)} />
+                          <SortTh label="تاريخ البداية"  field="start"    align="center" sortField={histSortField} sortDir={histSortDir} sortDropdown={histSortDropdown} onSort={(f,d)=>{setHistSortField(f);setHistSortDir(d);setHistSortDropdown("");}} onClear={()=>{setHistSortField("");setHistSortDropdown("");}} onToggle={f=>setHistSortDropdown(d=>d===f?"":f)} />
+                          <SortTh label="المدة"          field="days"     align="center" sortField={histSortField} sortDir={histSortDir} sortDropdown={histSortDropdown} onSort={(f,d)=>{setHistSortField(f);setHistSortDir(d);setHistSortDropdown("");}} onClear={()=>{setHistSortField("");setHistSortDropdown("");}} onToggle={f=>setHistSortDropdown(d=>d===f?"":f)} />
+                          <th className="p-4 text-center" style={{fontWeight:"800",color:"#374151"}}>تاريخ العودة المتوقع</th>
+                          <SortTh label="أيام العمل"     field="workdays" align="center" sortField={histSortField} sortDir={histSortDir} sortDropdown={histSortDropdown} onSort={(f,d)=>{setHistSortField(f);setHistSortDir(d);setHistSortDropdown("");}} onClear={()=>{setHistSortField("");setHistSortDropdown("");}} onToggle={f=>setHistSortDropdown(d=>d===f?"":f)} />
+                          <th className="p-4 text-center" style={{fontWeight:"800",color:"#374151"}}>تاريخ العودة الفعلي</th>
+                          <SortTh label="الحالة"         field="status"   align="center" sortField={histSortField} sortDir={histSortDir} sortDropdown={histSortDropdown} onSort={(f,d)=>{setHistSortField(f);setHistSortDir(d);setHistSortDropdown("");}} onClear={()=>{setHistSortField("");setHistSortDropdown("");}} onToggle={f=>setHistSortDropdown(d=>d===f?"":f)} />
+                          <th className="p-4 text-center" style={{fontWeight:"800",color:"#374151"}}>ملاحظات</th>
+                          <th className="p-4 text-center" style={{fontWeight:"800",color:"#374151"}}>إجراءات</th>
                         </tr>
                       </thead>
                       <tbody>
