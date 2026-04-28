@@ -166,7 +166,7 @@ const calculateWorkedDays = (returnDate: string, isOnVacation: boolean = false) 
   return Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
 };
 
-// أيام العمل بين تاريخين (من تاريخ العودة حتى تاريخ النزول) — يستبعد الجمعة والسبت والأعياد
+// أيام العمل بين تاريخين (من تاريخ العودة حتى تاريخ النزول) — تحسب جميع الأيام بدون استثناء
 const calculateWorkDaysBetween = (fromDate: string, toDate: string, holidays: string[] = []) => {
   if (!fromDate || !toDate) return 0;
   const start = new Date(fromDate);
@@ -174,17 +174,8 @@ const calculateWorkDaysBetween = (fromDate: string, toDate: string, holidays: st
   start.setHours(0, 0, 0, 0);
   end.setHours(0, 0, 0, 0);
   if (start >= end) return 0;
-  let count = 0;
-  const current = new Date(start);
-  while (current < end) {
-    const day = current.getDay(); // 5 = الجمعة, 6 = السبت
-    const dateStr = current.toISOString().split("T")[0];
-    if (day !== 5 && day !== 6 && !holidays.includes(dateStr)) {
-      count++;
-    }
-    current.setDate(current.getDate() + 1);
-  }
-  return count;
+  const diffTime = end.getTime() - start.getTime();
+  return Math.floor(diffTime / (1000 * 60 * 60 * 24));
 };
 
 // ==================== MAIN COMPONENT ====================
