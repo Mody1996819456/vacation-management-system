@@ -5127,47 +5127,53 @@ useEffect(() => {
                     setShowExtensionModal(true);
                   }} style={{
                   background: "linear-gradient(135deg, #7c3aed, #a855f7)",
-                  color: "white",
-                  border: "none",
-                  padding: "16px 20px",
-                  borderRadius: "16px",
-                  fontWeight: "900",
-                  fontSize: "14px",
-                  cursor: "pointer",
-                  transition: "all 0.3s ease",
-                  boxShadow: "0 10px 25px rgba(124, 58, 237, 0.35)",
-                  whiteSpace: "nowrap"
-                }} onMouseEnter={(e) => { e.currentTarget.style.transform = "translateY(-2px)"; }} onMouseLeave={(e) => { e.currentTarget.style.transform = "translateY(0)"; }}>
-                  🔗 امتداد
-                </button>
-              </div>
-            </div>
-          </section>
+{requests
+  .filter(r => r.employee_id === currentUser.id)
+  .map((req, idx) => {
+    const vacType = vacationTypes.find(
+      vt => vt.id === req.vacation_type_id
+    );
 
-          <section style={{ animation: "fadeIn 1.2s ease" }}>
-            <h3 style={{ fontSize: "20px", fontWeight: "900", marginBottom: "24px", display: "flex", alignItems: "center", gap: "12px", color: "#1e293b" }}>
-              <Clock className="text-amber-500" /> طلباتي
-            </h3>
-           {requests.filter(r => r.employee_id === currentUser.id).map((req, idx) => {
-  const vacType = vacationTypes.find(vt => vt.id === req.vacation_type_id);
-  return (
-    <div key={req.id} style={{...}} ...>
-      ...
-    </div>
-  );
-})}
-            {requests.filter(r => r.employee_id === currentUser.id).length === 0 && (
-              <div className="bg-white p-16 rounded-[2rem] text-center border border-dashed">
-                <p className="text-slate-400 font-bold">لم تقدم أي طلبات بعد</p>
-              </div>
-            )}
-          </section>
+    return (
+      <div
+        key={req.id}
+        style={{
+          background: "#ffffff",
+          padding: "16px 20px",
+          borderRadius: "16px",
+          marginBottom: "12px",
+          boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center"
+        }}
+      >
+        <div>
+          <p style={{ fontWeight: "700", color: "#1e293b" }}>
+            {vacType?.name || "نوع إجازة غير معروف"}
+          </p>
+          <p style={{ fontSize: "12px", color: "#64748b" }}>
+            رقم الطلب: {req.id}
+          </p>
+        </div>
+
+        <div
+          style={{
+            fontSize: "12px",
+            fontWeight: "700",
+            color:
+              req.status === "approved"
+                ? "green"
+                : req.status === "rejected"
+                ? "red"
+                : "#f59e0b"
+          }}
+        >
+          {req.status}
         </div>
       </div>
-
-      {/* Modal طلب امتداد إجازة */}
-      {showExtensionModal && (() => {
-        const myApproved = requests.filter(r => 
+    );
+  })}
           r.employee_id === currentUser.id && 
           r.status === "approved" &&
           !r.is_extension
