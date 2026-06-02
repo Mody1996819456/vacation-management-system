@@ -5600,36 +5600,43 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser }: {
 
     setSaving(true);
     try {
-      // حساب الكمية المتبقية
-      const remaining = (form.quantity_requested || 0) - (form.quantity_executed || 0);
-      
-      // ✅ التعديل هنا: تحويل التواريخ الفارغة إلى null
+      // 1. التأكد من تحويل الكميات لأرقام صحيحة لتجنب أخطاء قاعدة البيانات
+      const qtyReq = Number(form.quantity_requested) || 0;
+      const qtyExec = Number(form.quantity_executed) || 0;
+      const remaining = qtyReq - qtyExec;
+
+      // 2. معالجة التواريخ والبيانات
       const dataToSave = {
         ...form,
-        request_date: form.request_date || null, // <-- حل مشكلة التاريخ الفارغ
-        receipt_date: form.receipt_date || null, // <-- حل مشكلة التاريخ الفارغ
+        quantity_requested: qtyReq,
+        quantity_executed: qtyExec,
         quantity_remaining: remaining,
+        request_date: form.request_date || null, // حماية التواريخ الفارغة
+        receipt_date: form.receipt_date || null, // حماية التواريخ الفارغة
         updated_at: new Date().toISOString(),
       };
 
       if (editingRecord) {
         // تحديث
-        await supabase
+        const { error } = await supabase
           .from("admin_affairs_purchases")
           .update(dataToSave)
           .eq("id", editingRecord.id);
         
+        if (error) throw error; // 🚨 إجبار الكود على إظهار الخطأ إذا فشل التحديث
+        
         await logAction("update", "admin_affairs_purchases", editingRecord.id);
       } else {
         // إضافة جديد
-        await supabase
+        const { error } = await supabase
           .from("admin_affairs_purchases")
           .insert([{
             ...dataToSave,
-            // ✅ التعديل هنا: حماية حالة الـ Owner الذي ليس له ID
-            created_by: currentUser?.id || null, 
+            created_by: currentUser?.id || null, // حماية الـ ID للمالك
             created_at: new Date().toISOString(),
           }]);
+        
+        if (error) throw error; // 🚨 إجبار الكود على إظهار الخطأ إذا فشلت الإضافة
         
         await logAction("create", "admin_affairs_purchases", null);
       }
@@ -5637,21 +5644,14 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser }: {
       setShowForm(false);
       setEditingRecord(null);
       fetchRecords();
+      alert("✅ تم الحفظ بنجاح!");
+      
     } catch (err: any) {
-      alert("❌ خطأ: " + (err?.message || "فشل الحفظ"));
-    }
-    setSaving(false);
-  };
-
-  const deleteRecord = async (id: string) => {
-    if (!window.confirm("هل تريد حذف هذا السجل؟")) return;
-    
-    try {
-      await supabase.from("admin_affairs_purchases").delete().eq("id", id);
-      await logAction("delete", "admin_affairs_purchases", id);
-      fetchRecords();
-    } catch (err: any) {
-      alert("❌ خطأ: " + (err?.message || "فشل الحذف"));
+      console.error("Supabase API Error:", err);
+      // 🚨 الآن ستظهر لك رسالة الخطأ الدقيقة من الخادم
+      alert("❌ حدث خطأ من قاعدة البيانات: \n" + (err?.message || "فشل الحفظ"));
+    } finally {
+      setSaving(false);
     }
   };
 
