@@ -2257,20 +2257,24 @@ useEffect(() => {
           {/* القائمة */}
           <nav style={{ flex:1, padding:"12px 10px", display:"flex", flexDirection:"column", gap:"4px", overflowY:"auto" }}>
             {([
-              { id: "dashboard",   label: "الرئيسية",       icon: LayoutDashboard, ownerOnly: false },
-              { id: "employees",   label: "الموظفين",        icon: Users,           ownerOnly: false },
-              { id: "requests",    label: "الطلبات",         icon: Clock,           ownerOnly: false },
-              { id: "calendar",    label: "التقويم",          icon: Calendar,        ownerOnly: false },
-              { id: "reports",     label: "التقارير",         icon: BarChart3,       ownerOnly: false },
-              { id: "departments", label: "الأقسام",          icon: Building2,       ownerOnly: true  },
-              { id: "managers",    label: "مديرو الأقسام",   icon: ShieldCheck,     ownerOnly: true  },
-              { id: "admins",      label: "الادمن",          icon: Users,           ownerOnly: true  },
-              { id: "holidays",    label: "العطلات",          icon: CalendarDays,    ownerOnly: true  },
-              { id: "history",     label: "السجل",            icon: History,         ownerOnly: false },
-              { id: "active_vacations", label: "الإجازات الفعلية", icon: CheckCircle, ownerOnly: false },
-              { id: "notifications_center", label: "الاشعارات",   icon: Bell,            ownerOnly: false },
-            ] as {id:string,label:string,icon:any,ownerOnly:boolean}[])
-              .filter(item => !item.ownerOnly || isOwner)
+              { id: "dashboard",   label: "الرئيسية",       icon: LayoutDashboard, ownerOnly: false, managerAllowed: true  },
+              { id: "employees",   label: "الموظفين",        icon: Users,           ownerOnly: false, managerAllowed: true  },
+              { id: "requests",    label: "الطلبات",         icon: Clock,           ownerOnly: false, managerAllowed: true  },
+              { id: "calendar",    label: "التقويم",          icon: Calendar,        ownerOnly: false, managerAllowed: false },
+              { id: "reports",     label: "التقارير",         icon: BarChart3,       ownerOnly: false, managerAllowed: false },
+              { id: "departments", label: "الأقسام",          icon: Building2,       ownerOnly: true,  managerAllowed: false },
+              { id: "managers",    label: "مديرو الأقسام",   icon: ShieldCheck,     ownerOnly: true,  managerAllowed: false },
+              { id: "admins",      label: "الادمن",          icon: Users,           ownerOnly: true,  managerAllowed: false },
+              { id: "holidays",    label: "العطلات",          icon: CalendarDays,    ownerOnly: true,  managerAllowed: false },
+              { id: "history",     label: "السجل",            icon: History,         ownerOnly: false, managerAllowed: true  },
+              { id: "active_vacations", label: "الإجازات الفعلية", icon: CheckCircle, ownerOnly: false, managerAllowed: true  },
+              { id: "notifications_center", label: "الاشعارات",   icon: Bell,            ownerOnly: false, managerAllowed: false },
+            ] as {id:string,label:string,icon:any,ownerOnly:boolean,managerAllowed:boolean}[])
+              .filter(item => {
+                if (isOwner) return true; // المالك والادمن يرى كل شيء
+                if (isDeptMgr) return item.managerAllowed; // مدير القسم يرى الصفحات المحددة له فقط
+                return false;
+              })
               .map((item) => (
               <button key={item.id}
                 onClick={() => { setActiveTab(item.id); if (window.innerWidth < 1024) setSidebarOpen(false); }}
@@ -3280,7 +3284,7 @@ useEffect(() => {
               )}
 
               {/* ===== CALENDAR ===== */}
-              {activeTab === "calendar" && (
+              {activeTab === "calendar" && isOwner && (
                 <div style={{ width:"100%", boxSizing:"border-box" }} className="space-y-6">
                   <h2 className="text-2xl font-black">التقويم الشهري</h2>
                   {renderCalendar()}
@@ -3288,7 +3292,7 @@ useEffect(() => {
               )}
 
               {/* ===== REPORTS ===== */}
-              {activeTab === "reports" && (
+              {activeTab === "reports" && isOwner && (
                 <div style={{ width:"100%", boxSizing:"border-box" }} className="space-y-6">
                   <div className="flex justify-between items-center">
                     <h2 className="text-2xl font-black">التقارير والإحصائيات</h2>
@@ -3327,7 +3331,7 @@ useEffect(() => {
               )}
 
               {/* ===== DEPARTMENTS ===== */}
-              {activeTab === "departments" && (
+              {activeTab === "departments" && isOwner && (
                 <div style={{ width:"100%", boxSizing:"border-box" }} className="space-y-6">
                   <div className="flex justify-between items-center">
                     <h2 className="text-2xl font-black">إدارة الأقسام</h2>
@@ -3354,7 +3358,7 @@ useEffect(() => {
               )}
 
               {/* ===== HOLIDAYS ===== */}
-              {activeTab === "holidays" && (
+              {activeTab === "holidays" && isOwner && (
                 <div style={{ width:"100%", boxSizing:"border-box" }} className="space-y-6">
                   <div className="flex justify-between items-center">
                     <h2 className="text-2xl font-black">العطلات الرسمية</h2>
@@ -3772,7 +3776,7 @@ useEffect(() => {
               )}
 
               {/* ===== NOTIFICATIONS CENTER ===== */}
-              {activeTab === "notifications_center" && (() => {
+              {activeTab === "notifications_center" && isOwner && (() => {
                 const allNotifs = requests.filter(r => r.status === "approved" || r.status === "rejected");
                 const filtered = allNotifs
                   .filter(r => {
