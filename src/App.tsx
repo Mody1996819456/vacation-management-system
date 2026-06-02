@@ -9,8 +9,9 @@ import {
   FileDown, BarChart3, Building2, TrendingUp,
   AlertCircle, RefreshCw, PieChart, BarChart2,
   History, Mail, Briefcase, Smartphone, Wifi, WifiOff,
-  Award, Target, Flame, Eye, KeyRound,
+  Award, Target, Flame, Eye, KeyRound, ShoppingCart, Leaf,
 } from "lucide-react";
+import { AdminAffairsModule } from "./AdminAffairsModule";
 
 // ==================== SUPABASE CONFIG ====================
 const supabaseUrl = process.env.REACT_APP_SUPABASE_URL || "https://rxeminlotawcfqalxoqy.supabase.co";
@@ -922,6 +923,38 @@ useEffect(() => {
         localStorage.setItem("vms_currentUser", JSON.stringify(mgrUser));
         localStorage.setItem("vms_currentView", "admin");
         await logAction("login", "department_managers", mgr.id, null, { role: "dept_manager" });
+        return;
+      }
+    }
+
+    // 3.5️⃣ مدير الشؤون الإدارية
+    if (loginData.email && loginData.password) {
+      const hashedPwAA = await hashPassword(loginData.password);
+      let { data: aaMgr } = await supabase
+        .from("admin_affairs_managers")
+        .select("*")
+        .eq("email", loginData.email.trim())
+        .eq("password", hashedPwAA)
+        .single();
+      if (!aaMgr) {
+        const { data: mgrPlain } = await supabase
+          .from("admin_affairs_managers")
+          .select("*")
+          .eq("email", loginData.email.trim())
+          .eq("password", loginData.password)
+          .single();
+        if (mgrPlain) {
+          aaMgr = mgrPlain;
+          await supabase.from("admin_affairs_managers").update({ password: hashedPwAA }).eq("id", mgrPlain.id);
+        }
+      }
+      if (aaMgr) {
+        const aaUser = { role: "admin_affairs_manager", id: aaMgr.id, name: aaMgr.name, email: aaMgr.email };
+        setCurrentUser(aaUser);
+        setCurrentView("admin");
+        localStorage.setItem("vms_currentUser", JSON.stringify(aaUser));
+        localStorage.setItem("vms_currentView", "admin");
+        await logAction("login", "admin_affairs_managers", aaMgr.id, null, { role: "admin_affairs_manager" });
         return;
       }
     }
@@ -1922,6 +1955,7 @@ useEffect(() => {
   const isOwner   = currentUser?.role === "owner" || currentUser?.role === "admin";
   const isAdmin   = currentUser?.role === "admin";
   const isDeptMgr = currentUser?.role === "dept_manager";
+  const isAdminAffairs = currentUser?.role === "admin_affairs_manager" || isOwner;
   const myDeptId  = currentUser?.dept_id ?? null;
 
   // Owner يرى الكل — مدير القسم يرى قسمه فقط
@@ -2248,7 +2282,7 @@ useEffect(() => {
               <div>
                 <div style={{ color:"white", fontWeight:"900", fontSize:"13px", lineHeight:"1.2" }}>نظام الإجازات</div>
                 <div style={{ fontSize:"10px", fontWeight:"700", color: isOwner ? "#a5b4fc" : "#6ee7b7" }}>
-                  {isAdmin ? "⚙️ ادمن" : isOwner ? "👑 المالك" : `🏢 ${currentUser?.dept_name || "مدير قسم"}`}
+                  {isAdmin ? "⚙️ ادمن" : isOwner ? "👑 المالك" : currentUser?.role === "admin_affairs_manager" ? "🏛️ شؤون إدارية" : `🏢 ${currentUser?.dept_name || "مدير قسم"}`}
                 </div>
               </div>
             </div>
@@ -2268,11 +2302,17 @@ useEffect(() => {
               { id: "holidays",    label: "العطلات",          icon: CalendarDays,    ownerOnly: true,  managerAllowed: false },
               { id: "history",     label: "السجل",            icon: History,         ownerOnly: false, managerAllowed: true  },
               { id: "active_vacations", label: "الإجازات الفعلية", icon: CheckCircle, ownerOnly: false, managerAllowed: true  },
-              { id: "notifications_center", label: "الاشعارات",   icon: Bell,            ownerOnly: false, managerAllowed: false },
-            ] as {id:string,label:string,icon:any,ownerOnly:boolean,managerAllowed:boolean}[])
+              { id: "notifications_center",    label: "الاشعارات",                      icon: Bell,        ownerOnly: false, managerAllowed: false },
+              // ===== قسم الشؤون الإدارية =====
+              { id: "admin_affairs_purchase",   label: "بيان بطلبات الشراء",          icon: ShoppingCart, ownerOnly: false, managerAllowed: false, adminAffairsOnly: true },
+              { id: "admin_affairs_total",      label: "اجمالى الطلبات",               icon: BarChart3,    ownerOnly: false, managerAllowed: false, adminAffairsOnly: true },
+              { id: "admin_affairs_vegetable",  label: "طلبات شراء الخضار",            icon: Leaf,         ownerOnly: false, managerAllowed: false, adminAffairsOnly: true },
+              { id: "admin_affairs_vacations",  label: "نظام الإجازات",                icon: CheckCircle,  ownerOnly: false, managerAllowed: false, adminAffairsOnly: true },
+            ] as {id:string,label:string,icon:any,ownerOnly:boolean,managerAllowed:boolean,adminAffairsOnly?:boolean}[])
               .filter(item => {
                 if (isOwner) return true; // المالك والادمن يرى كل شيء
                 if (isDeptMgr) return item.managerAllowed; // مدير القسم يرى الصفحات المحددة له فقط
+                if (isAdminAffairs) return !!(item as any).adminAffairsOnly; // مدير الشؤون الإدارية
                 return false;
               })
               .map((item) => (
@@ -3769,6 +3809,20 @@ useEffect(() => {
 
               {activeTab === "managers" && isOwner && (
                 <ManagersTab departments={departments} supabase={supabase} logAction={logAction} currentUser={currentUser} />
+              )}
+
+              {/* ===== صفحات قسم الشؤون الإدارية ===== */}
+              {(activeTab === "admin_affairs_purchase" || activeTab === "admin_affairs_total" || activeTab === "admin_affairs_vegetable" || activeTab === "admin_affairs_vacations") && isAdminAffairs && (
+                <AdminAffairsModule
+                  supabase={supabase}
+                  currentUser={currentUser}
+                  initialTab={
+                    activeTab === "admin_affairs_purchase"  ? "purchase_requests"  :
+                    activeTab === "admin_affairs_total"     ? "total_requests"     :
+                    activeTab === "admin_affairs_vegetable" ? "vegetable_purchases" :
+                    "vacations"
+                  }
+                />
               )}
 
               {activeTab === "admins" && isOwner && (
