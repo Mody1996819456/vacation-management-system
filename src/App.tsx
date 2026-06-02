@@ -5603,8 +5603,11 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser }: {
       // حساب الكمية المتبقية
       const remaining = (form.quantity_requested || 0) - (form.quantity_executed || 0);
       
+      // ✅ التعديل هنا: تحويل التواريخ الفارغة إلى null
       const dataToSave = {
         ...form,
+        request_date: form.request_date || null, // <-- حل مشكلة التاريخ الفارغ
+        receipt_date: form.receipt_date || null, // <-- حل مشكلة التاريخ الفارغ
         quantity_remaining: remaining,
         updated_at: new Date().toISOString(),
       };
@@ -5623,7 +5626,8 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser }: {
           .from("admin_affairs_purchases")
           .insert([{
             ...dataToSave,
-            created_by: currentUser.id,
+            // ✅ التعديل هنا: حماية حالة الـ Owner الذي ليس له ID
+            created_by: currentUser?.id || null, 
             created_at: new Date().toISOString(),
           }]);
         
