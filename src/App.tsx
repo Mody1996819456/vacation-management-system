@@ -6228,11 +6228,27 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser, userRole }: {
                         style={{ cursor: "pointer" }}
                       />
                     </td>
-                    {currentSchema.fields.map((f: any) => (
-                      <td key={f.key} style={{ padding: "10px", textAlign: "right", fontSize: "12px", color: "#1e293b" }}>
-                        {f.type === "date" && record[f.key] ? formatDate(record[f.key]) : record[f.key] || "-"}
-                      </td>
-                    ))}
+                    {currentSchema.fields.map((f: any) => {
+                      const cellValue = f.type === "date" && record[f.key] ? formatDate(record[f.key]) : record[f.key] || "-";
+                      return (
+                        <td
+                          key={f.key}
+                          title={f.type === "textarea" && record[f.key] ? record[f.key] : undefined}
+                          style={{
+                            padding: "10px",
+                            textAlign: "right",
+                            fontSize: "12px",
+                            color: "#1e293b",
+                            whiteSpace: f.type === "textarea" ? "nowrap" : "nowrap",
+                            maxWidth: f.type === "textarea" ? "150px" : undefined,
+                            overflow: f.type === "textarea" ? "hidden" : undefined,
+                            textOverflow: f.type === "textarea" ? "ellipsis" : undefined,
+                          }}
+                        >
+                          {cellValue}
+                        </td>
+                      );
+                    })}
                     <td style={{ padding: "8px 10px", textAlign: "center" }}>
                       <div style={{ display: "flex", gap: "4px", justifyContent: "center" }}>
                         <button onClick={() => openEdit(record)} style={{
