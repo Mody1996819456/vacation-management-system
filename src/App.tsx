@@ -6404,7 +6404,17 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser, userRole }: {
           background: "white", borderRadius: "12px", border: "1px solid #e2e8f0", overflow: "hidden"
         }}>
           <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px", tableLayout: "fixed" }}>
+              <colgroup>
+                <col style={{ width: "40px" }} />
+                {currentSchema.fields.map((f: any) => {
+                  const wideKeys = ["item_name", "notes", "remarks", "description"];
+                  const narrowKeys = ["system_request_no", "admin_request_no", "request_number", "year", "quantity_requested", "quantity_executed", "quantity_remaining", "unit"];
+                  const width = wideKeys.includes(f.key) ? "150px" : narrowKeys.includes(f.key) ? "72px" : "96px";
+                  return <col key={f.key} style={{ width }} />;
+                })}
+                <col style={{ width: "76px" }} />
+              </colgroup>
               <thead style={{ background: "#f8fafc", borderBottom: "2px solid #e2e8f0" }}>
                 <tr>
                   <th style={{ padding: "10px", textAlign: "center", width: "40px" }}>
@@ -6422,19 +6432,19 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser, userRole }: {
                     />
                   </th>
                   {currentSchema.fields.map((f: any) => (
-                    <th key={f.key} style={{ padding: "10px", textAlign: "right", fontWeight: "800", color: "#374151", whiteSpace: "nowrap" }}>
+                    <th key={f.key} style={{ padding: "10px 8px", textAlign: "right", fontWeight: "800", color: "#374151", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                       {f.label}
                     </th>
                   ))}
-                  <th style={{ padding: "10px", textAlign: "center", fontWeight: "800", color: "#374151" }}>الإجراءات</th>
+                  <th style={{ padding: "10px", textAlign: "center", fontWeight: "800", color: "#374151", whiteSpace: "nowrap" }}>الإجراءات</th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.map((record: any) => (
-                  <tr key={record.id} style={{ borderBottom: "1px solid #f1f5f9" }}
+                  <tr key={record.id} style={{ borderBottom: "1px solid #f1f5f9", height: "44px" }}
                     onMouseEnter={e => (e.currentTarget.style.background = "#f8fafc")}
                     onMouseLeave={e => (e.currentTarget.style.background = "white")}>
-                    <td style={{ padding: "10px", textAlign: "center" }}>
+                    <td style={{ padding: "8px 10px", textAlign: "center", verticalAlign: "middle" }}>
                       <input
                         type="checkbox"
                         checked={selectedIds.includes(record.id)}
@@ -6448,12 +6458,26 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser, userRole }: {
                         style={{ cursor: "pointer" }}
                       />
                     </td>
-                    {currentSchema.fields.map((f: any) => (
-                      <td key={f.key} style={{ padding: "10px", textAlign: "right", fontSize: "12px", color: "#1e293b" }}>
-                        {f.type === "date" && record[f.key] ? formatDate(record[f.key]) : record[f.key] || "-"}
-                      </td>
-                    ))}
-                    <td style={{ padding: "8px 10px", textAlign: "center" }}>
+                    {currentSchema.fields.map((f: any) => {
+                      const rawVal = f.type === "date" && record[f.key] ? formatDate(record[f.key]) : (record[f.key] ?? "-");
+                      const displayVal = rawVal === "" ? "-" : rawVal;
+                      return (
+                        <td key={f.key} title={String(displayVal).length > 18 ? String(displayVal) : undefined} style={{
+                          padding: "8px 8px",
+                          textAlign: "right",
+                          fontSize: "12px",
+                          color: "#1e293b",
+                          verticalAlign: "middle",
+                          whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          maxWidth: "0",
+                        }}>
+                          {displayVal}
+                        </td>
+                      );
+                    })}
+                    <td style={{ padding: "8px 10px", textAlign: "center", verticalAlign: "middle" }}>
                       <div style={{ display: "flex", gap: "4px", justifyContent: "center" }}>
                         <button onClick={() => openEdit(record)} style={{
                           padding: "5px 8px", background: "#eff6ff", color: "#0284c7",
