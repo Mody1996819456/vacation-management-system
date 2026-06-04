@@ -5491,6 +5491,8 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser, userRole }: {
   const [editingRecord, setEditingRecord] = useState<any>(null);
   const [saving, setSaving] = useState(false);
   const [uploadingFile, setUploadingFile] = useState(false);
+  const [importProgress, setImportProgress] = useState<{ total: number; done: number; errors: {row:number;msg:string}[]; success: boolean } | null>(null);
+  const [showImportGuide, setShowImportGuide] = useState(false);
   
   // ===== FILTERS & SEARCH =====
   const [searchText, setSearchText] = useState("");
@@ -5515,7 +5517,7 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser, userRole }: {
   const departments = ["الإدارة", "المطبخ", "الصيانة", "النظافة", "الأمن", "الموارد البشرية", "المالية", "أخرى"];
   const statuses = ["لم يتم", "قيد التنفيذ", "تم التنفيذ", "ملغى"];
   const units = ["عدد", "كيس", "علبة", "صندوق", "كيلو", "متر", "ساعة", "أخرى"];
-  const years = ["2024", "2025", "2026", "2027"];
+  const years = Array.from({ length: 21 }, (_, i) => String(2015 + i)); // 2015 → 2035
 
   // ===== TABLE SCHEMAS =====
   const schemas: Record<string, any> = {
@@ -5565,7 +5567,7 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser, userRole }: {
         { key: "description", label: "وصف طلب الشراء", type: "textarea", required: true },
         { key: "year", label: "العام", type: "select", options: years },
         { key: "status", label: "حالة الطلب", type: "select", options: ["قيد الانتظار", "قيد التنفيذ", "مكتمل", "ملغى"] },
-        { key: "remaining_items", label: "عدد البنود المتبقية", type: "number" },
+        { key: "remaining_items", label: "عدد البنود المتبقية", type: "text" },
         { key: "remarks", label: "ملاحظات", type: "textarea" },
       ],
       excelColumns: {
@@ -5832,9 +5834,10 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser, userRole }: {
       Object.entries(currentSchema.excelColumns).forEach(([excelCol, dbField]: any) => {
         let value = r[dbField];
         if (dbField.includes("date") && value) {
-          value = formatDate(value);
+          // نُصدّر بصيغة ISO لضمان إعادة الاستيراد بشكل صحيح
+          value = String(value).split("T")[0]; // YYYY-MM-DD
         }
-        row[excelCol] = value || "";
+        row[excelCol] = value ?? "";
       });
       return row;
     });
@@ -5846,57 +5849,137 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser, userRole }: {
   };
 
   // ===== IMPORT FROM EXCEL =====
+  // تحويل الأرقام العربية/الهندية إلى إنجليزية
+  const arabicToEnglish = (s: string) =>
+    String(s)
+      .replace(/[٠١٢٣٤٥٦٧٨٩]/g, (c) => String("٠١٢٣٤٥٦٧٨٩".indexOf(c)))
+      .replace(/[۰۱۲۳۴۵۶۷۸۹]/g, (c) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(c)));
+
+  const parseImportDate = (value: any): string | null => {
+    if (value === null || value === undefined || value === "") return null;
+
+    // Excel serial number
+    if (typeof value === "number") {
+      if (value <= 0) return null;
+      const excelEpoch = new Date(1899, 11, 30);
+      const date = new Date(excelEpoch.getTime() + value * 86400000);
+      return isNaN(date.getTime()) ? null : date.toISOString().split("T")[0];
+    }
+
+    if (value instanceof Date) {
+      return isNaN(value.getTime()) ? null : value.toISOString().split("T")[0];
+    }
+
+    const str = arabicToEnglish(String(value).trim());
+    if (!str) return null;
+
+    // YYYY-MM-DD أو YYYY/MM/DD
+    if (/^\d{4}[-/]\d{1,2}[-/]\d{1,2}$/.test(str)) {
+      const parts = str.split(/[-/]/);
+      const iso = `${parts[0]}-${parts[1].padStart(2,"0")}-${parts[2].padStart(2,"0")}`;
+      return isNaN(new Date(iso).getTime()) ? null : iso;
+    }
+
+    // DD-MM-YYYY أو DD/MM/YYYY
+    if (/^\d{1,2}[-/]\d{1,2}[-/]\d{4}$/.test(str)) {
+      const parts = str.split(/[-/]/);
+      const iso = `${parts[2]}-${parts[1].padStart(2,"0")}-${parts[0].padStart(2,"0")}`;
+      return isNaN(new Date(iso).getTime()) ? null : iso;
+    }
+
+    const fallback = new Date(str);
+    return isNaN(fallback.getTime()) ? null : fallback.toISOString().split("T")[0];
+  };
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setUploadingFile(true);
+    setImportProgress({ total: 0, done: 0, errors: [], success: false });
+
     try {
       const data = await file.arrayBuffer();
       const workbook = XLSX.read(data, { cellDates: true });
       const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-      const jsonData = XLSX.utils.sheet_to_json(worksheet);
+      const jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
 
-      const toInsert = jsonData.map((row: any) => {
+      const dateFields = currentSchema.fields
+        .filter((f: any) => f.type === "date")
+        .map((f: any) => f.key);
+
+      const rowErrors: {row:number; msg:string}[] = [];
+      const toInsert: any[] = [];
+
+      jsonData.forEach((row: any, idx: number) => {
         const record: any = {};
-        
+
         Object.entries(currentSchema.excelColumns).forEach(([excelCol, dbField]: any) => {
-          const value = row[excelCol] || row[dbField];
-          record[dbField] = value || "";
+          let value = row[excelCol] !== undefined ? row[excelCol] : row[dbField];
+
+          if (dateFields.includes(dbField)) {
+            const parsed = parseImportDate(value);
+            if (value !== "" && value !== undefined && value !== null && parsed === null) {
+              rowErrors.push({ row: idx + 2, msg: `الصف ${idx + 2}: قيمة التاريخ "${value}" في عمود "${excelCol}" غير صحيحة — استخدم صيغة YYYY-MM-DD` });
+            }
+            record[dbField] = parsed ?? null;
+          } else {
+            record[dbField] = value === "" ? null : value;
+          }
         });
 
-        // حساب الكمية المتبقية
-        if (record.quantity_requested && record.quantity_executed) {
-          record.quantity_remaining = record.quantity_requested - record.quantity_executed;
+        // حساب الكمية المتبقية تلقائياً
+        if (record.quantity_requested != null && record.quantity_executed != null) {
+          record.quantity_remaining = Number(record.quantity_requested) - Number(record.quantity_executed);
         }
 
         record.created_by = currentUser?.id;
         record.created_at = new Date().toISOString();
         record.updated_at = new Date().toISOString();
 
-        return record;
-      }).filter((r: any) => {
         const requiredField = currentSchema.fields.find((f: any) => f.required);
-        return r[requiredField.key]?.toString().trim();
+        if (requiredField && !String(record[requiredField.key] || "").trim()) {
+          rowErrors.push({ row: idx + 2, msg: `الصف ${idx + 2}: الحقل المطلوب "${requiredField.label}" فارغ — تم تخطي السجل` });
+          return;
+        }
+
+        toInsert.push(record);
       });
 
+      setImportProgress({ total: toInsert.length, done: 0, errors: rowErrors, success: false });
+
       if (toInsert.length === 0) {
-        alert("❌ لم يتم العثور على بيانات صحيحة في الملف");
+        setImportProgress({ total: 0, done: 0, errors: [{ row: 0, msg: "❌ لم يتم العثور على بيانات صحيحة في الملف" }, ...rowErrors], success: false });
         setUploadingFile(false);
         return;
       }
 
-      const { error } = await supabase
-        .from(currentSchema.tableName)
-        .insert(toInsert);
-      
-      if (error) throw error;
+      // رفع على دفعات مع تتبع التقدم
+      const BATCH = 10;
+      let inserted = 0;
+      const insertErrors: {row:number;msg:string}[] = [...rowErrors];
+
+      for (let i = 0; i < toInsert.length; i += BATCH) {
+        const batch = toInsert.slice(i, i + BATCH);
+        const { error } = await supabase.from(currentSchema.tableName).insert(batch);
+        if (error) {
+          insertErrors.push({ row: i + 2, msg: `دفعة السجلات ${i + 1}–${i + batch.length}: ${error.message}` });
+        } else {
+          inserted += batch.length;
+        }
+        setImportProgress({ total: toInsert.length, done: inserted, errors: insertErrors, success: false });
+      }
+
       await logAction("bulk_import", currentSchema.tableName, null);
-      
-      alert(`✅ تم استيراد ${toInsert.length} سجل بنجاح`);
+      setImportProgress({ total: toInsert.length, done: inserted, errors: insertErrors, success: true });
       fetchRecords();
     } catch (err: any) {
-      alert("❌ خطأ في الاستيراد: " + (err?.message || "فشل الاستيراد"));
+      setImportProgress(prev => ({
+        total: prev?.total || 0,
+        done: prev?.done || 0,
+        errors: [{ row: 0, msg: "خطأ عام: " + (err?.message || "فشل الاستيراد") }],
+        success: false
+      }));
     }
     setUploadingFile(false);
     if (fileInputRef.current) fileInputRef.current.value = "";
@@ -6057,8 +6140,145 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser, userRole }: {
         }}>
           <Share2 size={16} /> مشاركة
         </button>
+        {/* زر تعليمات الاستيراد */}
+        <button onClick={() => setShowImportGuide(true)} style={{
+          display: "flex", alignItems: "center", gap: "6px",
+          background: "#f1f5f9", color: "#475569",
+          border: "1px solid #e2e8f0", borderRadius: "10px", padding: "10px 16px",
+          fontWeight: "800", fontSize: "13px", cursor: "pointer", fontFamily: "inherit"
+        }}>
+          ❓ تعليمات الاستيراد
+        </button>
         <input ref={fileInputRef} type="file" accept=".xlsx,.xls" onChange={handleFileUpload} style={{ display: "none" }} />
       </div>
+
+      {/* ===== نافذة تعليمات الاستيراد ===== */}
+      {showImportGuide && (
+        <div style={{
+          position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000,
+          display: "flex", alignItems: "center", justifyContent: "center", padding: "16px"
+        }}>
+          <div style={{
+            background: "white", borderRadius: "16px", padding: "28px", maxWidth: "560px", width: "100%",
+            maxHeight: "80vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.2)"
+          }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+              <h3 style={{ margin: 0, fontSize: "18px", fontWeight: "900", color: "#1e293b" }}>📋 تعليمات الاستيراد من Excel</h3>
+              <button onClick={() => setShowImportGuide(false)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "20px", color: "#94a3b8" }}>✕</button>
+            </div>
+
+            {/* التواريخ */}
+            <div style={{ background: "#eff6ff", borderRadius: "10px", padding: "14px", marginBottom: "14px", borderRight: "4px solid #3b82f6" }}>
+              <p style={{ margin: "0 0 8px", fontWeight: "900", color: "#1d4ed8", fontSize: "14px" }}>📅 صيغ التواريخ المقبولة</p>
+              <ul style={{ margin: 0, paddingRight: "20px", fontSize: "13px", color: "#1e40af", lineHeight: "1.8" }}>
+                <li><strong>YYYY-MM-DD</strong> مثال: <code>2026-02-20</code> ✅ (الأفضل)</li>
+                <li><strong>YYYY/MM/DD</strong> مثال: <code>2026/02/20</code> ✅</li>
+                <li><strong>DD-MM-YYYY</strong> مثال: <code>20-02-2026</code> ✅</li>
+                <li><strong>DD/MM/YYYY</strong> مثال: <code>20/02/2026</code> ✅</li>
+                <li>أرقام عربية مثال: <code>٢٠٢٦/٠٢/٢٠</code> ✅ (مدعومة)</li>
+                <li>رقم تسلسلي Excel ✅ (تلقائي)</li>
+              </ul>
+            </div>
+
+            {/* الحقول المطلوبة */}
+            <div style={{ background: "#fef2f2", borderRadius: "10px", padding: "14px", marginBottom: "14px", borderRight: "4px solid #ef4444" }}>
+              <p style={{ margin: "0 0 8px", fontWeight: "900", color: "#dc2626", fontSize: "14px" }}>⚠️ الحقول المطلوبة</p>
+              <ul style={{ margin: 0, paddingRight: "20px", fontSize: "13px", color: "#991b1b", lineHeight: "1.8" }}>
+                {activeSubTab !== "summary"
+                  ? <li><strong>البند</strong> — يجب ألا يكون فارغاً في كل صف</li>
+                  : <li><strong>رقم الطلب</strong> و<strong>وصف طلب الشراء</strong> — مطلوبان</li>
+                }
+                <li>أي صف يخلو من الحقل المطلوب سيُتخطى تلقائياً</li>
+              </ul>
+            </div>
+
+            {/* نصائح عامة */}
+            <div style={{ background: "#f0fdf4", borderRadius: "10px", padding: "14px", marginBottom: "14px", borderRight: "4px solid #22c55e" }}>
+              <p style={{ margin: "0 0 8px", fontWeight: "900", color: "#15803d", fontSize: "14px" }}>💡 نصائح مهمة</p>
+              <ul style={{ margin: 0, paddingRight: "20px", fontSize: "13px", color: "#166534", lineHeight: "1.8" }}>
+                <li>حمّل النموذج أولاً واملأه لضمان تطابق أسماء الأعمدة</li>
+                <li>لا تغيّر أسماء الأعمدة في النموذج</li>
+                <li>الكمية المتبقية تُحسب تلقائياً (مطلوبة - منفذة)</li>
+                <li>حقل "عدد البنود المتبقية" يقبل أرقاماً ونصوصاً</li>
+                <li>حقل "العام" يقبل أي سنة من 2015 إلى 2035</li>
+              </ul>
+            </div>
+
+            <button onClick={() => { setShowImportGuide(false); downloadTemplate(); }} style={{
+              width: "100%", padding: "12px", background: "linear-gradient(135deg,#4f46e5,#7c3aed)",
+              color: "white", border: "none", borderRadius: "10px", fontWeight: "900",
+              fontSize: "14px", cursor: "pointer", fontFamily: "inherit"
+            }}>
+              ⬇️ تحميل النموذج الجاهز
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ===== شريط تقدم الاستيراد ===== */}
+      {importProgress && (
+        <div style={{
+          background: "white", borderRadius: "14px", padding: "20px",
+          border: `2px solid ${importProgress.success ? "#22c55e" : importProgress.errors.length > 0 ? "#f59e0b" : "#3b82f6"}`,
+          boxShadow: "0 4px 20px rgba(0,0,0,0.08)"
+        }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+            <p style={{ margin: 0, fontWeight: "900", fontSize: "14px", color: "#1e293b" }}>
+              {importProgress.success ? "✅ اكتمل الاستيراد" : uploadingFile ? "⏳ جاري الاستيراد..." : "📊 نتيجة الاستيراد"}
+            </p>
+            <button onClick={() => setImportProgress(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "18px" }}>✕</button>
+          </div>
+
+          {/* شريط التقدم */}
+          {importProgress.total > 0 && (
+            <div style={{ marginBottom: "12px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px", fontSize: "12px", color: "#64748b", fontWeight: "700" }}>
+                <span>تم رفع {importProgress.done} من {importProgress.total} سجل</span>
+                <span>{Math.round((importProgress.done / importProgress.total) * 100)}%</span>
+              </div>
+              <div style={{ background: "#e2e8f0", borderRadius: "99px", height: "10px", overflow: "hidden" }}>
+                <div style={{
+                  height: "100%",
+                  width: `${(importProgress.done / importProgress.total) * 100}%`,
+                  background: importProgress.success ? "#22c55e" : "linear-gradient(90deg,#4f46e5,#7c3aed)",
+                  borderRadius: "99px",
+                  transition: "width 0.3s ease"
+                }} />
+              </div>
+            </div>
+          )}
+
+          {/* الملخص */}
+          <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginBottom: importProgress.errors.length > 0 ? "12px" : "0" }}>
+            <span style={{ background: "#dcfce7", color: "#15803d", padding: "4px 10px", borderRadius: "20px", fontSize: "12px", fontWeight: "800" }}>
+              ✅ {importProgress.done} سجل بنجاح
+            </span>
+            {importProgress.errors.length > 0 && (
+              <span style={{ background: "#fef3c7", color: "#92400e", padding: "4px 10px", borderRadius: "20px", fontSize: "12px", fontWeight: "800" }}>
+                ⚠️ {importProgress.errors.length} تنبيه
+              </span>
+            )}
+          </div>
+
+          {/* رسائل الأخطاء */}
+          {importProgress.errors.length > 0 && (
+            <div style={{ background: "#fef9ec", borderRadius: "8px", padding: "12px", maxHeight: "160px", overflowY: "auto" }}>
+              <p style={{ margin: "0 0 8px", fontWeight: "900", fontSize: "12px", color: "#92400e" }}>⚠️ تفاصيل التنبيهات:</p>
+              {importProgress.errors.map((e, i) => (
+                <div key={i} style={{ fontSize: "12px", color: "#78350f", padding: "4px 0", borderBottom: "1px solid #fde68a" }}>
+                  {e.msg}
+                  {e.msg.includes("التاريخ") && (
+                    <span style={{ color: "#0284c7", marginRight: "8px", cursor: "pointer", fontWeight: "700" }}
+                      onClick={() => setShowImportGuide(true)}>
+                      — اطلع على تعليمات التواريخ ←
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Search & Filters */}
       <div style={{
@@ -6228,27 +6448,11 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser, userRole }: {
                         style={{ cursor: "pointer" }}
                       />
                     </td>
-                    {currentSchema.fields.map((f: any) => {
-                      const cellValue = f.type === "date" && record[f.key] ? formatDate(record[f.key]) : record[f.key] || "-";
-                      return (
-                        <td
-                          key={f.key}
-                          title={f.type === "textarea" && record[f.key] ? record[f.key] : undefined}
-                          style={{
-                            padding: "10px",
-                            textAlign: "right",
-                            fontSize: "12px",
-                            color: "#1e293b",
-                            whiteSpace: f.type === "textarea" ? "nowrap" : "nowrap",
-                            maxWidth: f.type === "textarea" ? "150px" : undefined,
-                            overflow: f.type === "textarea" ? "hidden" : undefined,
-                            textOverflow: f.type === "textarea" ? "ellipsis" : undefined,
-                          }}
-                        >
-                          {cellValue}
-                        </td>
-                      );
-                    })}
+                    {currentSchema.fields.map((f: any) => (
+                      <td key={f.key} style={{ padding: "10px", textAlign: "right", fontSize: "12px", color: "#1e293b" }}>
+                        {f.type === "date" && record[f.key] ? formatDate(record[f.key]) : record[f.key] || "-"}
+                      </td>
+                    ))}
                     <td style={{ padding: "8px 10px", textAlign: "center" }}>
                       <div style={{ display: "flex", gap: "4px", justifyContent: "center" }}>
                         <button onClick={() => openEdit(record)} style={{
