@@ -9,7 +9,7 @@ import {
   FileDown, BarChart3, Building2, TrendingUp,
   AlertCircle, RefreshCw, PieChart, BarChart2,
   History, Mail, Briefcase, Smartphone, Wifi, WifiOff,
-  Award, Target, Flame, Eye, KeyRound,
+  Award, Target, Flame, Eye, KeyRound, Printer, Share2,
 } from "lucide-react";
 
 // ==================== SUPABASE CONFIG ====================
