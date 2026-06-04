@@ -5937,7 +5937,7 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser, userRole }: {
 
   // ===== DOWNLOAD TEMPLATE =====
   const downloadTemplate = () => {
-    const templateData = [{}];
+    const templateData: Record<string, any>[] = [{}];
     currentSchema.fields.forEach((f: any) => {
       templateData[0][Object.keys(currentSchema.excelColumns).find(key => currentSchema.excelColumns[key] === f.key) || f.key] = "";
     });
