@@ -5491,7 +5491,7 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser, userRole }: {
   const [editingRecord, setEditingRecord] = useState<any>(null);
   const [saving, setSaving] = useState(false);
   const [uploadingFile, setUploadingFile] = useState(false);
-  const [importProgress, setImportProgress] = useState<{ total: number; done: number; errors: {row:number;msg:string}[]; success: boolean } | null>(null);
+  const [importProgress, setImportProgress] = useState<{ total: number; done: number; errors: {row:number;msg:string}[]; success: boolean; inserted?: number; updated?: number } | null>(null);
   const [showImportGuide, setShowImportGuide] = useState(false);
   
   // ===== FILTERS & SEARCH =====
@@ -5523,6 +5523,7 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser, userRole }: {
   const schemas: Record<string, any> = {
     purchases: {
       tableName: "admin_affairs_purchases",
+      uniqueKey: ["system_request_no", "item_name"],  // مفتاح التكرار
       fields: [
         { key: "admin_request_no", label: "رقم طلب الإدارة", type: "text" },
         { key: "system_request_no", label: "رقم الطلب سيستم", type: "text" },
@@ -5560,6 +5561,7 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser, userRole }: {
     },
     summary: {
       tableName: "admin_affairs_summary",
+      uniqueKey: ["request_number"],
       fields: [
         { key: "request_number", label: "رقم الطلب", type: "text", required: true },
         { key: "request_date", label: "تاريخ الطلب", type: "date" },
@@ -5574,8 +5576,10 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser, userRole }: {
         "رقم الطلب": "request_number",
         "تاريخ الطلب": "request_date",
         "تاريخ التنفيذ": "execution_date",
+        "تاريخ التنفيذ ": "execution_date",
         "وصف طلب الشراء": "description",
         "العام": "year",
+        "العام ": "year",
         "حالة الطلب": "status",
         "عدد البنود المتبقيه": "remaining_items",
         "ملاحظات": "remarks",
@@ -5583,6 +5587,7 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser, userRole }: {
     },
     vegetables: {
       tableName: "admin_affairs_vegetables",
+      uniqueKey: ["system_request_no", "item_name"],
       fields: [
         { key: "admin_request_no", label: "رقم طلب الإدارة", type: "text" },
         { key: "system_request_no", label: "رقم الطلب سيستم", type: "text" },
@@ -5800,25 +5805,21 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser, userRole }: {
   };
 
   const deleteSelected = async () => {
-    if (selectedIds.length === 0) {
-      alert("❌ اختر سجلات للحذف");
-      return;
-    }
-    
-    if (!window.confirm(`حذف ${selectedIds.length} سجل؟`)) return;
+    if (selectedIds.length === 0) return;
+    if (!window.confirm(`⚠️ هل تريد حذف ${selectedIds.length} سجل نهائياً؟\nلا يمكن التراجع عن هذا الإجراء.`)) return;
 
     try {
       const { error } = await supabase
         .from(currentSchema.tableName)
         .delete()
         .in("id", selectedIds);
-      
+
       if (error) throw error;
       await logAction("bulk_delete", currentSchema.tableName, null);
       setSelectedIds([]);
       fetchRecords();
     } catch (err: any) {
-      alert("❌ خطأ: " + (err?.message || "فشل الحذف"));
+      alert("❌ خطأ في الحذف: " + (err?.message || "فشل الحذف"));
     }
   };
 
@@ -5900,9 +5901,35 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser, userRole }: {
 
     try {
       const data = await file.arrayBuffer();
-      const workbook = XLSX.read(data, { cellDates: true });
+      const workbook = XLSX.read(data, { cellDates: true, cellFormula: false, cellNF: false });
       const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-      const jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+
+      // ── البحث عن صف الرأس الحقيقي (قد يكون في صف 2، 3، أو 4) ──
+      // نبحث عن أول صف يحتوي على مفاتيح تطابق أعمدة الـ schema
+      const schemaKeys = Object.keys(currentSchema.excelColumns).map(k => k.trim());
+      let headerRowIndex = 0; // افتراضي: صف 1
+      const rawAll = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: null }) as any[][];
+
+      for (let i = 0; i < Math.min(rawAll.length, 10); i++) {
+        const rowVals = rawAll[i].map((v: any) => String(v ?? "").trim());
+        const matches = schemaKeys.filter(k => rowVals.includes(k)).length;
+        if (matches >= 2) { headerRowIndex = i; break; }
+      }
+
+      // قراءة البيانات بدءاً من صف الرأس الصحيح
+      const jsonData = XLSX.utils.sheet_to_json(worksheet, {
+        defval: "",
+        range: headerRowIndex,
+      }) as any[];
+
+      // دالة مساعدة: ينظف اسم العمود (يزيل مسافات زيادة)
+      const normKey = (k: string) => String(k).trim().replace(/\s+/g, " ");
+
+      // بناء خريطة محوّلة: excelCol مُنظَّف → dbField
+      const colMap: Record<string, string> = {};
+      Object.entries(currentSchema.excelColumns).forEach(([excelCol, dbField]: any) => {
+        colMap[normKey(excelCol)] = dbField;
+      });
 
       const dateFields = currentSchema.fields
         .filter((f: any) => f.type === "date")
@@ -5914,24 +5941,40 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser, userRole }: {
       jsonData.forEach((row: any, idx: number) => {
         const record: any = {};
 
-        Object.entries(currentSchema.excelColumns).forEach(([excelCol, dbField]: any) => {
-          let value = row[excelCol] !== undefined ? row[excelCol] : row[dbField];
+        // ننظف مفاتيح الصف أيضاً قبل المقارنة
+        const cleanRow: Record<string, any> = {};
+        Object.entries(row).forEach(([k, v]) => { cleanRow[normKey(k)] = v; });
+
+        Object.entries(colMap).forEach(([excelColNorm, dbField]) => {
+          let value = cleanRow[excelColNorm];
+          if (value === undefined || value === null) value = "";
+
+          // تجاهل المعادلات — نحسبها تلقائياً بعدين
+          if (typeof value === "string" && value.startsWith("=")) value = "";
 
           if (dateFields.includes(dbField)) {
             const parsed = parseImportDate(value);
-            if (value !== "" && value !== undefined && value !== null && parsed === null) {
-              rowErrors.push({ row: idx + 2, msg: `الصف ${idx + 2}: قيمة التاريخ "${value}" في عمود "${excelCol}" غير صحيحة — استخدم صيغة YYYY-MM-DD` });
+            if (value !== "" && parsed === null) {
+              rowErrors.push({ row: idx + headerRowIndex + 2, msg: `الصف ${idx + headerRowIndex + 2}: التاريخ "${value}" في عمود "${excelColNorm}" غير صحيح` });
             }
             record[dbField] = parsed ?? null;
+          } else if (dbField === "quantity_remaining") {
+            // يُحسب تلقائياً — لا نأخذه من الملف
           } else {
-            record[dbField] = value === "" ? null : value;
+            // الحقول الرقمية: تأكد إنها أرقام
+            if (["quantity_requested","quantity_executed","year"].includes(dbField)) {
+              const n = parseFloat(arabicToEnglish(String(value)));
+              record[dbField] = isNaN(n) ? null : n;
+            } else {
+              record[dbField] = value === "" ? null : value;
+            }
           }
         });
 
         // حساب الكمية المتبقية تلقائياً
-        if (record.quantity_requested != null && record.quantity_executed != null) {
-          record.quantity_remaining = Number(record.quantity_requested) - Number(record.quantity_executed);
-        }
+        const req = Number(record.quantity_requested);
+        const exe = Number(record.quantity_executed ?? 0);
+        if (!isNaN(req)) record.quantity_remaining = req - exe;
 
         record.created_by = currentUser?.id;
         record.created_at = new Date().toISOString();
@@ -5939,7 +5982,7 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser, userRole }: {
 
         const requiredField = currentSchema.fields.find((f: any) => f.required);
         if (requiredField && !String(record[requiredField.key] || "").trim()) {
-          rowErrors.push({ row: idx + 2, msg: `الصف ${idx + 2}: الحقل المطلوب "${requiredField.label}" فارغ — تم تخطي السجل` });
+          rowErrors.push({ row: idx + headerRowIndex + 2, msg: `الصف ${idx + headerRowIndex + 2}: الحقل "${requiredField.label}" فارغ — تم تخطيه` });
           return;
         }
 
@@ -5954,24 +5997,60 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser, userRole }: {
         return;
       }
 
-      // رفع على دفعات مع تتبع التقدم
+      // رفع على دفعات مع upsert لمنع التكرار
       const BATCH = 10;
       let inserted = 0;
+      let updated = 0;
       const insertErrors: {row:number;msg:string}[] = [...rowErrors];
+      const uniqueKeys: string[] = currentSchema.uniqueKey || [];
 
       for (let i = 0; i < toInsert.length; i += BATCH) {
         const batch = toInsert.slice(i, i + BATCH);
-        const { error } = await supabase.from(currentSchema.tableName).insert(batch);
-        if (error) {
-          insertErrors.push({ row: i + 2, msg: `دفعة السجلات ${i + 1}–${i + batch.length}: ${error.message}` });
+
+        if (uniqueKeys.length > 0) {
+          // upsert: نحاول نحدّث السجلات المكررة بدل إضافتها
+          let batchInserted = 0;
+          let batchUpdated = 0;
+
+          for (const rec of batch) {
+            // ابحث عن سجل مكرر في الـ records المحملة
+            const existing = records.find((r: any) =>
+              uniqueKeys.every(k => r[k] != null && rec[k] != null && String(r[k]).trim() === String(rec[k]).trim())
+            );
+
+            if (existing) {
+              // تحديث السجل الموجود
+              const { error } = await supabase
+                .from(currentSchema.tableName)
+                .update({ ...rec, updated_at: new Date().toISOString() })
+                .eq("id", existing.id);
+              if (error) insertErrors.push({ row: i + 2, msg: `تحديث السجل: ${error.message}` });
+              else batchUpdated++;
+            } else {
+              // إضافة سجل جديد
+              const { error } = await supabase
+                .from(currentSchema.tableName)
+                .insert([rec]);
+              if (error) insertErrors.push({ row: i + 2, msg: `إضافة السجل: ${error.message}` });
+              else batchInserted++;
+            }
+          }
+          inserted += batchInserted;
+          updated += batchUpdated;
         } else {
-          inserted += batch.length;
+          const { error } = await supabase.from(currentSchema.tableName).insert(batch);
+          if (error) {
+            insertErrors.push({ row: i + 2, msg: `دفعة ${i + 1}–${i + batch.length}: ${error.message}` });
+          } else {
+            inserted += batch.length;
+          }
         }
-        setImportProgress({ total: toInsert.length, done: inserted, errors: insertErrors, success: false });
+
+        setImportProgress({ total: toInsert.length, done: inserted + updated, errors: insertErrors, success: false });
       }
 
       await logAction("bulk_import", currentSchema.tableName, null);
-      setImportProgress({ total: toInsert.length, done: inserted, errors: insertErrors, success: true });
+      setImportProgress({ total: toInsert.length, done: inserted + updated, errors: insertErrors, success: true, inserted, updated });
       fetchRecords();
     } catch (err: any) {
       setImportProgress(prev => ({
@@ -6070,7 +6149,7 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser, userRole }: {
         ].map((tab: any) => (
           <button
             key={tab.id}
-            onClick={() => setActiveSubTab(tab.id)}
+            onClick={() => { setActiveSubTab(tab.id); setSelectedIds([]); }}
             style={{
               padding: "12px 20px",
               border: "none",
@@ -6151,6 +6230,38 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser, userRole }: {
         </button>
         <input ref={fileInputRef} type="file" accept=".xlsx,.xls" onChange={handleFileUpload} style={{ display: "none" }} />
       </div>
+
+      {/* ===== شريط التحديد الجماعي ===== */}
+      {selectedIds.length > 0 && (
+        <div style={{
+          display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap",
+          background: "linear-gradient(135deg,#1e293b,#334155)", borderRadius: "12px",
+          padding: "12px 18px", color: "white"
+        }}>
+          <span style={{ fontWeight: "900", fontSize: "14px" }}>
+            ✅ تم تحديد <span style={{ color: "#fbbf24", fontSize: "16px" }}>{selectedIds.length}</span> سجل
+          </span>
+          <button onClick={deleteSelected} style={{
+            display: "flex", alignItems: "center", gap: "6px",
+            background: "#dc2626", color: "white", border: "none", borderRadius: "8px",
+            padding: "8px 14px", fontWeight: "800", fontSize: "13px", cursor: "pointer", fontFamily: "inherit"
+          }}>
+            <Trash2 size={14} /> حذف المحدد ({selectedIds.length})
+          </button>
+          <button onClick={() => setSelectedIds(filtered.map((r: any) => r.id))} style={{
+            background: "#475569", color: "white", border: "none", borderRadius: "8px",
+            padding: "8px 14px", fontWeight: "800", fontSize: "13px", cursor: "pointer", fontFamily: "inherit"
+          }}>
+            تحديد الكل ({filtered.length})
+          </button>
+          <button onClick={() => setSelectedIds([])} style={{
+            background: "transparent", color: "#94a3b8", border: "1px solid #475569", borderRadius: "8px",
+            padding: "8px 14px", fontWeight: "800", fontSize: "13px", cursor: "pointer", fontFamily: "inherit"
+          }}>
+            إلغاء التحديد
+          </button>
+        </div>
+      )}
 
       {/* ===== نافذة تعليمات الاستيراد ===== */}
       {showImportGuide && (
@@ -6250,9 +6361,16 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser, userRole }: {
 
           {/* الملخص */}
           <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginBottom: importProgress.errors.length > 0 ? "12px" : "0" }}>
-            <span style={{ background: "#dcfce7", color: "#15803d", padding: "4px 10px", borderRadius: "20px", fontSize: "12px", fontWeight: "800" }}>
-              ✅ {importProgress.done} سجل بنجاح
-            </span>
+            {(importProgress.inserted ?? importProgress.done) > 0 && (
+              <span style={{ background: "#dcfce7", color: "#15803d", padding: "4px 10px", borderRadius: "20px", fontSize: "12px", fontWeight: "800" }}>
+                ✅ {importProgress.inserted ?? importProgress.done} سجل جديد
+              </span>
+            )}
+            {(importProgress.updated ?? 0) > 0 && (
+              <span style={{ background: "#dbeafe", color: "#1d4ed8", padding: "4px 10px", borderRadius: "20px", fontSize: "12px", fontWeight: "800" }}>
+                🔄 {importProgress.updated} سجل مُحدَّث
+              </span>
+            )}
             {importProgress.errors.length > 0 && (
               <span style={{ background: "#fef3c7", color: "#92400e", padding: "4px 10px", borderRadius: "20px", fontSize: "12px", fontWeight: "800" }}>
                 ⚠️ {importProgress.errors.length} تنبيه
