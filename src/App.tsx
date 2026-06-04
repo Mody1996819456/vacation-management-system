@@ -1079,36 +1079,48 @@ useEffect(() => {
 
   // ========== دالة تحويل التواريخ من أي صيغة ==========
   const parseFlexibleDate = (value: any): string | null => {
-    if (!value && value !== 0) return null;
+    if (value === null || value === undefined || value === "") return null;
 
     // 1) Excel serial number (رقم تسلسلي من Excel)
     if (typeof value === "number") {
+      if (value <= 0) return null;
       const excelEpoch = new Date(1899, 11, 30);
       const date = new Date(excelEpoch.getTime() + value * 86400000);
       if (!isNaN(date.getTime())) return date.toISOString().split("T")[0];
       return null;
     }
 
-    const str = String(value).trim();
+    // تحويل الأرقام العربية/الهندية إلى أرقام إنجليزية
+    const arabicToEnglish = (s: string) =>
+      s.replace(/[٠١٢٣٤٥٦٧٨٩]/g, (c) => String("٠١٢٣٤٥٦٧٨٩".indexOf(c)))
+       .replace(/[۰۱۲۳۴۵۶۷۸۹]/g, (c) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(c)));
+
+    const str = arabicToEnglish(String(value).trim());
     if (!str) return null;
 
     // 2) YYYY-MM-DD أو YYYY/MM/DD
     if (/^\d{4}[-/]\d{1,2}[-/]\d{1,2}$/.test(str)) {
-      const d = new Date(str.replace(/\//g, "-"));
-      if (!isNaN(d.getTime())) return d.toISOString().split("T")[0];
+      const normalized = str.replace(/\//g, "-");
+      const parts = normalized.split("-");
+      const iso = `${parts[0]}-${parts[1].padStart(2,"0")}-${parts[2].padStart(2,"0")}`;
+      const d = new Date(iso);
+      if (!isNaN(d.getTime())) return iso;
     }
 
     // 3) DD-MM-YYYY أو DD/MM/YYYY
     if (/^\d{1,2}[-/]\d{1,2}[-/]\d{4}$/.test(str)) {
       const parts = str.split(/[-/]/);
-      const d = new Date(`${parts[2]}-${parts[1].padStart(2, "0")}-${parts[0].padStart(2, "0")}`);
-      if (!isNaN(d.getTime())) return d.toISOString().split("T")[0];
+      const iso = `${parts[2]}-${parts[1].padStart(2, "0")}-${parts[0].padStart(2, "0")}`;
+      const d = new Date(iso);
+      if (!isNaN(d.getTime())) return iso;
     }
 
-    // 4) MM/DD/YYYY
+    // 4) MM/DD/YYYY (American format)
     if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(str)) {
-      const d = new Date(str);
-      if (!isNaN(d.getTime())) return d.toISOString().split("T")[0];
+      const parts = str.split("/");
+      const iso = `${parts[2]}-${parts[0].padStart(2,"0")}-${parts[1].padStart(2,"0")}`;
+      const d = new Date(iso);
+      if (!isNaN(d.getTime())) return iso;
     }
 
     // 5) أي صيغة أخرى يقدر JavaScript يفهمها
@@ -1203,8 +1215,8 @@ useEffect(() => {
           if (row.email !== undefined)            updatePayload.email = row.email;
           if (row.balance !== undefined)          updatePayload.balance = row.balance;
           if (row.monthly_balance !== undefined)  updatePayload.monthly_balance = row.monthly_balance;
-          if (row.hire_date !== undefined)        updatePayload.hire_date = row.hire_date;
-          if (row.return_date !== undefined)      updatePayload.return_date = row.return_date;
+          if (row.hire_date !== undefined)        updatePayload.hire_date = row.hire_date || null;
+          if (row.return_date !== undefined)      updatePayload.return_date = row.return_date || null;
           if (row.department_id !== undefined)    updatePayload.department_id = row.department_id;
           toUpdate.push(updatePayload);
           updatedCount++;
@@ -1279,8 +1291,8 @@ useEffect(() => {
         "القسم": dept?.name || "",
         "الرصيد الحالي": emp.balance ?? 0,
         "الرصيد الشهري": emp.monthly_balance ?? 0,
-        "تاريخ التعيين": emp.hire_date || "",
-        "تاريخ العودة": emp.return_date || "",
+        "تاريخ التعيين": emp.hire_date || null,
+        "تاريخ العودة": emp.return_date || null,
         "أيام العمل بعد العودة": workedDays,
         "حالة الموظف": status,
       };
@@ -1960,6 +1972,12 @@ useEffect(() => {
   const isAdmin   = currentUser?.role === "admin";
   const isDeptMgr = currentUser?.role === "dept_manager";
   const isAdminAffairsMgr = currentUser?.role === "admin_affairs_manager";
+  // مدير قسم الشؤون الإدارية (dept_manager لكن قسمه هو الشؤون الإدارية)
+  const isDeptAdminAffairsMgr = isDeptMgr && (
+    currentUser?.dept_name?.includes("الشؤون الإدارية") ||
+    currentUser?.dept_name?.includes("الشؤون") ||
+    currentUser?.dept_name?.includes("شؤون")
+  );
   const myDeptId  = currentUser?.dept_id ?? null;
 
   // Owner يرى الكل — مدير القسم يرى قسمه فقط
@@ -2307,11 +2325,12 @@ useEffect(() => {
               { id: "history",     label: "السجل",            icon: History,         ownerOnly: false, managerAllowed: true  },
               { id: "active_vacations", label: "الإجازات الفعلية", icon: CheckCircle, ownerOnly: false, managerAllowed: true  },
               { id: "notifications_center", label: "الاشعارات",   icon: Bell,            ownerOnly: false, managerAllowed: false },
-              { id: "admin_affairs", label: "الشؤون الإدارية", icon: Briefcase, ownerOnly: true, managerAllowed: false, adminAffairsManager: true },
-            ] as {id:string,label:string,icon:any,ownerOnly:boolean,managerAllowed:boolean,adminAffairsManager?:boolean}[])
+              { id: "admin_affairs", label: "الشؤون الإدارية", icon: Briefcase, ownerOnly: true, managerAllowed: false, adminAffairsManager: true, deptAdminAffairs: true },
+            ] as {id:string,label:string,icon:any,ownerOnly:boolean,managerAllowed:boolean,adminAffairsManager?:boolean,deptAdminAffairs?:boolean}[])
               .filter(item => {
                 if (isOwner) return true; // المالك والادمن يرى كل شيء
                 if (item.adminAffairsManager && isAdminAffairsMgr) return true; // مدير الشؤون الإدارية
+                if (item.deptAdminAffairs && isDeptAdminAffairsMgr) return true; // مدير قسم الشؤون الإدارية
                 if (isDeptMgr) return item.managerAllowed; // مدير القسم يرى الصفحات المحددة له فقط
                 return false;
               })
