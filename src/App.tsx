@@ -926,6 +926,43 @@ useEffect(() => {
       }
     }
 
+    // 3️⃣-B مدير الشؤون الإدارية (admin_affairs_manager)
+    if (loginData.email && loginData.password) {
+      const hashedPwAA = await hashPassword(loginData.password);
+      let { data: aaMgr } = await supabase
+        .from("admin_affairs_managers")
+        .select("*")
+        .eq("email", loginData.email.trim())
+        .eq("password", hashedPwAA)
+        .single();
+      if (!aaMgr) {
+        const { data: aaMgrPlain } = await supabase
+          .from("admin_affairs_managers")
+          .select("*")
+          .eq("email", loginData.email.trim())
+          .eq("password", loginData.password)
+          .single();
+        if (aaMgrPlain) {
+          aaMgr = aaMgrPlain;
+          await supabase.from("admin_affairs_managers").update({ password: hashedPwAA }).eq("id", aaMgrPlain.id);
+        }
+      }
+      if (aaMgr) {
+        const aaMgrUser = {
+          role: "admin_affairs_manager",
+          id: aaMgr.id,
+          name: aaMgr.name,
+          email: aaMgr.email,
+        };
+        setCurrentUser(aaMgrUser);
+        setCurrentView("admin");
+        localStorage.setItem("vms_currentUser", JSON.stringify(aaMgrUser));
+        localStorage.setItem("vms_currentView", "admin");
+        await logAction("login", "admin_affairs_managers", aaMgr.id, null, { role: "admin_affairs_manager" });
+        return;
+      }
+    }
+
     // 4️⃣ موظف بالكود + PIN
     if (empCodeInput.trim()) {
       if (!/^\d{4}$/.test(empPinInput)) {
@@ -1922,6 +1959,7 @@ useEffect(() => {
   const isOwner   = currentUser?.role === "owner" || currentUser?.role === "admin";
   const isAdmin   = currentUser?.role === "admin";
   const isDeptMgr = currentUser?.role === "dept_manager";
+  const isAdminAffairsMgr = currentUser?.role === "admin_affairs_manager";
   const myDeptId  = currentUser?.dept_id ?? null;
 
   // Owner يرى الكل — مدير القسم يرى قسمه فقط
@@ -2248,7 +2286,7 @@ useEffect(() => {
               <div>
                 <div style={{ color:"white", fontWeight:"900", fontSize:"13px", lineHeight:"1.2" }}>نظام الإجازات</div>
                 <div style={{ fontSize:"10px", fontWeight:"700", color: isOwner ? "#a5b4fc" : "#6ee7b7" }}>
-                  {isAdmin ? "⚙️ ادمن" : isOwner ? "👑 المالك" : `🏢 ${currentUser?.dept_name || "مدير قسم"}`}
+                  {isAdmin ? "⚙️ ادمن" : isOwner ? "👑 المالك" : isAdminAffairsMgr ? "🏛️ مدير الشؤون الإدارية" : `🏢 ${currentUser?.dept_name || "مدير قسم"}`}
                 </div>
               </div>
             </div>
@@ -2269,10 +2307,11 @@ useEffect(() => {
               { id: "history",     label: "السجل",            icon: History,         ownerOnly: false, managerAllowed: true  },
               { id: "active_vacations", label: "الإجازات الفعلية", icon: CheckCircle, ownerOnly: false, managerAllowed: true  },
               { id: "notifications_center", label: "الاشعارات",   icon: Bell,            ownerOnly: false, managerAllowed: false },
-              { id: "admin_affairs", label: "الشؤون الإدارية", icon: Briefcase, ownerOnly: true, managerAllowed: false },
-            ] as {id:string,label:string,icon:any,ownerOnly:boolean,managerAllowed:boolean}[])
+              { id: "admin_affairs", label: "الشؤون الإدارية", icon: Briefcase, ownerOnly: true, managerAllowed: false, adminAffairsManager: true },
+            ] as {id:string,label:string,icon:any,ownerOnly:boolean,managerAllowed:boolean,adminAffairsManager?:boolean}[])
               .filter(item => {
                 if (isOwner) return true; // المالك والادمن يرى كل شيء
+                if (item.adminAffairsManager && isAdminAffairsMgr) return true; // مدير الشؤون الإدارية
                 if (isDeptMgr) return item.managerAllowed; // مدير القسم يرى الصفحات المحددة له فقط
                 return false;
               })
@@ -4087,7 +4126,7 @@ useEffect(() => {
               )}
               {/* ===== الشؤون الإدارية ===== */}
               {activeTab === "admin_affairs" && (
-                <AdminAffairsTab supabase={supabase} logAction={logAction} currentUser={currentUser} />
+                <AdminAffairsTab supabase={supabase} logAction={logAction} currentUser={currentUser} userRole={currentUser?.role} />
               )}
             </>
           )}
@@ -5416,10 +5455,17 @@ useEffect(() => {
 // ============================================================================
 // 🏛️ مكوّن الشؤون الإدارية — إدارة طلبات الشراء والعمليات الإدارية
 // ============================================================================
-const AdminAffairsTab = ({ supabase, logAction, currentUser }: {
-  supabase: any; logAction: Function; currentUser: any;
+// ============================================================================
+// 🏛️ مكوّن الشؤون الإدارية — نظام إدارة شامل متعدد الصفحات
+// ============================================================================
+// يدعم 3 صفحات منفصلة مع كافة ميزات الإدارة والاستيراد والتصدير والطباعة
+
+
+const AdminAffairsTab = ({ supabase, logAction, currentUser, userRole }: {
+  supabase: any; logAction: Function; currentUser: any; userRole?: string;
 }) => {
-  // ===== STATES =====
+  // ===== MAIN STATE =====
+  const [activeSubTab, setActiveSubTab] = useState<"purchases" | "summary" | "vegetables">("purchases");
   const [records, setRecords] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -5427,7 +5473,7 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser }: {
   const [saving, setSaving] = useState(false);
   const [uploadingFile, setUploadingFile] = useState(false);
   
-  // فلترة وبحث
+  // ===== FILTERS & SEARCH =====
   const [searchText, setSearchText] = useState("");
   const [departmentFilter, setDepartmentFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -5435,33 +5481,15 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser }: {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   
-  // ترتيب
+  // ===== SORT =====
   const [sortField, setSortField] = useState("request_date");
   const [sortDir, setSortDir] = useState<"asc"|"desc">("desc");
-  const [sortDropdown, setSortDropdown] = useState("");
   
-  // تحديد متعدد
+  // ===== MULTI-SELECT =====
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   
-  // فورم الإضافة/التعديل
-  const [form, setForm] = useState({
-    admin_request_no: "",
-    system_request_no: "",
-    request_date: "",
-    item_name: "",
-    unit: "",
-    quantity_requested: 0,
-    quantity_executed: 0,
-    quantity_remaining: 0,
-    year: new Date().getFullYear().toString(),
-    executor: "لم يتم",
-    requesting_department: "",
-    receipt_date: "",
-    received_by: "",
-    notes: "",
-    remarks: "",
-  });
-
+  // ===== FORM STATE =====
+  const [form, setForm] = useState<any>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // ===== CONSTANTS =====
@@ -5470,23 +5498,147 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser }: {
   const units = ["عدد", "كيس", "علبة", "صندوق", "كيلو", "متر", "ساعة", "أخرى"];
   const years = ["2024", "2025", "2026", "2027"];
 
+  // ===== TABLE SCHEMAS =====
+  const schemas: Record<string, any> = {
+    purchases: {
+      tableName: "admin_affairs_purchases",
+      fields: [
+        { key: "admin_request_no", label: "رقم طلب الإدارة", type: "text" },
+        { key: "system_request_no", label: "رقم الطلب سيستم", type: "text" },
+        { key: "request_date", label: "تاريخ الطلب", type: "date" },
+        { key: "item_name", label: "البند", type: "text", required: true },
+        { key: "unit", label: "الوحدة", type: "select", options: units },
+        { key: "quantity_requested", label: "الكمية المطلوبة", type: "number" },
+        { key: "quantity_executed", label: "الكمية المنفذة", type: "number" },
+        { key: "quantity_remaining", label: "الكمية المتبقية", type: "number", readonly: true },
+        { key: "year", label: "العام", type: "select", options: years },
+        { key: "executor", label: "المنفذ", type: "select", options: statuses },
+        { key: "requesting_department", label: "القسم الطالب", type: "select", options: departments },
+        { key: "receipt_date", label: "تاريخ الاستلام", type: "date" },
+        { key: "received_by", label: "المستلم", type: "text" },
+        { key: "notes", label: "لزوم", type: "textarea" },
+        { key: "remarks", label: "ملاحظات", type: "textarea" },
+      ],
+      excelColumns: {
+        "رقم طلب الادارة": "admin_request_no",
+        "رقم الطلب سيستم": "system_request_no",
+        "تاريخ الطلب": "request_date",
+        "البند": "item_name",
+        "الوحده": "unit",
+        "الكميه المطلوبه": "quantity_requested",
+        "الكميه المنفذه": "quantity_executed",
+        "الكميه المتبقيه": "quantity_remaining",
+        "العام": "year",
+        "المنفذ": "executor",
+        "القسم الطالب": "requesting_department",
+        "تاريخ الاستلام": "receipt_date",
+        "المستلم": "received_by",
+        "لزوم": "notes",
+        "ملاحظات": "remarks",
+      }
+    },
+    summary: {
+      tableName: "admin_affairs_summary",
+      fields: [
+        { key: "request_number", label: "رقم الطلب", type: "text", required: true },
+        { key: "request_date", label: "تاريخ الطلب", type: "date" },
+        { key: "execution_date", label: "تاريخ التنفيذ", type: "date" },
+        { key: "description", label: "وصف طلب الشراء", type: "textarea", required: true },
+        { key: "year", label: "العام", type: "select", options: years },
+        { key: "status", label: "حالة الطلب", type: "select", options: ["قيد الانتظار", "قيد التنفيذ", "مكتمل", "ملغى"] },
+        { key: "remaining_items", label: "عدد البنود المتبقية", type: "number" },
+        { key: "remarks", label: "ملاحظات", type: "textarea" },
+      ],
+      excelColumns: {
+        "رقم الطلب": "request_number",
+        "تاريخ الطلب": "request_date",
+        "تاريخ التنفيذ": "execution_date",
+        "وصف طلب الشراء": "description",
+        "العام": "year",
+        "حالة الطلب": "status",
+        "عدد البنود المتبقيه": "remaining_items",
+        "ملاحظات": "remarks",
+      }
+    },
+    vegetables: {
+      tableName: "admin_affairs_vegetables",
+      fields: [
+        { key: "admin_request_no", label: "رقم طلب الإدارة", type: "text" },
+        { key: "system_request_no", label: "رقم الطلب سيستم", type: "text" },
+        { key: "request_date", label: "تاريخ الطلب", type: "date" },
+        { key: "item_name", label: "البند", type: "text", required: true },
+        { key: "unit", label: "الوحدة", type: "select", options: units },
+        { key: "quantity_requested", label: "الكمية المطلوبة", type: "number" },
+        { key: "quantity_executed", label: "الكمية المنفذة", type: "number" },
+        { key: "quantity_remaining", label: "الكمية المتبقية", type: "number", readonly: true },
+        { key: "year", label: "العام", type: "select", options: years },
+        { key: "executor", label: "المنفذ", type: "select", options: statuses },
+        { key: "requesting_department", label: "القسم الطالب", type: "select", options: departments },
+        { key: "receipt_date", label: "تاريخ الاستلام", type: "date" },
+        { key: "received_by", label: "المستلم", type: "text" },
+        { key: "notes", label: "لزوم", type: "textarea" },
+        { key: "remarks", label: "ملاحظات", type: "textarea" },
+      ],
+      excelColumns: {
+        "رقم طلب الادارة": "admin_request_no",
+        "رقم الطلب سيستم": "system_request_no",
+        "تاريخ الطلب": "request_date",
+        "البند": "item_name",
+        "الوحده": "unit",
+        "الكميه المطلوبه": "quantity_requested",
+        "الكميه المنفذه": "quantity_executed",
+        "الكميه المتبقيه": "quantity_remaining",
+        "العام": "year",
+        "المنفذ": "executor",
+        "القسم الطالب": "requesting_department",
+        "تاريخ الاستلام": "receipt_date",
+        "المستلم": "received_by",
+        "لزوم": "notes",
+        "ملاحظات": "remarks",
+      }
+    }
+  };
+
+  const currentSchema = schemas[activeSubTab];
+
+  // ===== HELPER FUNCTIONS =====
+  const formatDate = (dateStr: string) => {
+    if (!dateStr) return "-";
+    return new Date(dateStr).toLocaleDateString("ar-EG", {
+      year: "numeric", month: "2-digit", day: "2-digit",
+    });
+  };
+
+  const formatDateTime = (dateStr: string) => {
+    if (!dateStr) return "-";
+    return new Date(dateStr).toLocaleString("ar-EG", {
+      year: "numeric", month: "2-digit", day: "2-digit",
+      hour: "2-digit", minute: "2-digit",
+    });
+  };
+
   // ===== FETCH DATA =====
   const fetchRecords = useCallback(async () => {
     setLoading(true);
     try {
-      const { data } = await supabase
-        .from("admin_affairs_purchases")
+      const { data, error } = await supabase
+        .from(currentSchema.tableName)
         .select("*")
         .order(sortField, { ascending: sortDir === "asc" });
       
+      if (error) throw error;
       if (data) setRecords(data);
-    } catch (err) {
-      console.error("خطأ في جلب البيانات:", err);
+    } catch (err: any) {
+      console.error("خطأ في جلب البيانات:", err?.message);
     }
     setLoading(false);
-  }, [supabase, sortField, sortDir]);
+  }, [supabase, currentSchema.tableName, sortField, sortDir]);
 
-  useEffect(() => { fetchRecords(); }, [fetchRecords]);
+  useEffect(() => { 
+    setSelectedIds([]);
+    setSearchText("");
+    fetchRecords(); 
+  }, [activeSubTab, fetchRecords]);
 
   // ===== FILTERED & SORTED DATA =====
   const filtered = useMemo(() => {
@@ -5496,53 +5648,44 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser }: {
     if (searchText) {
       const search = searchText.toLowerCase();
       result = result.filter(r => 
-        r.item_name?.toLowerCase().includes(search) ||
-        r.admin_request_no?.toString().includes(search) ||
-        r.system_request_no?.toString().includes(search) ||
-        r.notes?.toLowerCase().includes(search)
+        Object.values(r).some(v => 
+          v && v.toString().toLowerCase().includes(search)
+        )
       );
     }
 
-    // فلترة القسم
+    // فلترة
     if (departmentFilter !== "all") {
       result = result.filter(r => r.requesting_department === departmentFilter);
     }
-
-    // فلترة الحالة
     if (statusFilter !== "all") {
-      result = result.filter(r => r.executor === statusFilter);
+      result = result.filter(r => r.executor === statusFilter || r.status === statusFilter);
     }
-
-    // فلترة السنة
     if (yearFilter !== "all") {
       result = result.filter(r => r.year?.toString() === yearFilter);
     }
-
-    // فلترة التاريخ
     if (dateFrom) {
-      result = result.filter(r => r.request_date >= dateFrom);
+      result = result.filter(r => (r.request_date || r.execution_date) >= dateFrom);
     }
     if (dateTo) {
-      result = result.filter(r => r.request_date <= dateTo);
+      result = result.filter(r => (r.request_date || r.execution_date) <= dateTo);
     }
 
     // ترتيب
-    if (sortField) {
-      result.sort((a, b) => {
-        let aVal = a[sortField];
-        let bVal = b[sortField];
-        
-        if (aVal === null || aVal === undefined) aVal = "";
-        if (bVal === null || bVal === undefined) bVal = "";
-        
-        if (typeof aVal === "string") aVal = aVal.toLowerCase();
-        if (typeof bVal === "string") bVal = bVal.toLowerCase();
-        
-        if (aVal < bVal) return sortDir === "asc" ? -1 : 1;
-        if (aVal > bVal) return sortDir === "asc" ? 1 : -1;
-        return 0;
-      });
-    }
+    result.sort((a, b) => {
+      let aVal = a[sortField];
+      let bVal = b[sortField];
+      
+      if (aVal === null || aVal === undefined) aVal = "";
+      if (bVal === null || bVal === undefined) bVal = "";
+      
+      if (typeof aVal === "string") aVal = aVal.toLowerCase();
+      if (typeof bVal === "string") bVal = bVal.toLowerCase();
+      
+      if (aVal < bVal) return sortDir === "asc" ? -1 : 1;
+      if (aVal > bVal) return sortDir === "asc" ? 1 : -1;
+      return 0;
+    });
 
     return result;
   }, [records, searchText, departmentFilter, statusFilter, yearFilter, dateFrom, dateTo, sortField, sortDir]);
@@ -5550,78 +5693,55 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser }: {
   // ===== CRUD OPERATIONS =====
   const openAdd = () => {
     setEditingRecord(null);
-    setForm({
-      admin_request_no: "",
-      system_request_no: "",
-      request_date: "",
-      item_name: "",
-      unit: "",
-      quantity_requested: 0,
-      quantity_executed: 0,
-      quantity_remaining: 0,
-      year: new Date().getFullYear().toString(),
-      executor: "لم يتم",
-      requesting_department: "",
-      receipt_date: "",
-      received_by: "",
-      notes: "",
-      remarks: "",
+    const newForm: any = {};
+    currentSchema.fields.forEach((f: any) => {
+      if (f.key === "year") newForm[f.key] = new Date().getFullYear().toString();
+      else if (f.key === "executor") newForm[f.key] = "لم يتم";
+      else newForm[f.key] = "";
     });
+    setForm(newForm);
     setShowForm(true);
   };
 
   const openEdit = (record: any) => {
     setEditingRecord(record);
-    setForm({
-      admin_request_no: record.admin_request_no || "",
-      system_request_no: record.system_request_no || "",
-      request_date: record.request_date || "",
-      item_name: record.item_name || "",
-      unit: record.unit || "",
-      quantity_requested: record.quantity_requested || 0,
-      quantity_executed: record.quantity_executed || 0,
-      quantity_remaining: record.quantity_remaining || 0,
-      year: record.year || new Date().getFullYear().toString(),
-      executor: record.executor || "لم يتم",
-      requesting_department: record.requesting_department || "",
-      receipt_date: record.receipt_date || "",
-      received_by: record.received_by || "",
-      notes: record.notes || "",
-      remarks: record.remarks || "",
+    const newForm: any = {};
+    currentSchema.fields.forEach((f: any) => {
+      newForm[f.key] = record[f.key] || "";
     });
+    setForm(newForm);
     setShowForm(true);
   };
 
   const save = async () => {
-    if (!form.item_name.trim()) {
-      alert("❌ اسم البند مطلوب");
+    const requiredField = currentSchema.fields.find((f: any) => f.required);
+    if (requiredField && !form[requiredField.key]?.toString().trim()) {
+      alert(`❌ حقل "${requiredField.label}" مطلوب`);
       return;
     }
 
     setSaving(true);
     try {
-      // حساب الكمية المتبقية
-      const remaining = (form.quantity_requested || 0) - (form.quantity_executed || 0);
+      const dataToSave = { ...form };
       
-      const dataToSave = {
-        ...form,
-        quantity_remaining: remaining,
-        updated_at: new Date().toISOString(),
-      };
+      // حساب الكمية المتبقية إذا كانت موجودة
+      if (dataToSave.quantity_requested && dataToSave.quantity_executed) {
+        dataToSave.quantity_remaining = dataToSave.quantity_requested - dataToSave.quantity_executed;
+      }
+
+      dataToSave.updated_at = new Date().toISOString();
 
       if (editingRecord) {
-        // تحديث
         const { error } = await supabase
-          .from("admin_affairs_purchases")
+          .from(currentSchema.tableName)
           .update(dataToSave)
           .eq("id", editingRecord.id);
         
         if (error) throw error;
-        await logAction("update", "admin_affairs_purchases", editingRecord.id);
+        await logAction("update", currentSchema.tableName, editingRecord.id);
       } else {
-        // إضافة جديد
         const { error } = await supabase
-          .from("admin_affairs_purchases")
+          .from(currentSchema.tableName)
           .insert([{
             ...dataToSave,
             created_by: currentUser?.id,
@@ -5629,7 +5749,7 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser }: {
           }]);
         
         if (error) throw error;
-        await logAction("create", "admin_affairs_purchases", null);
+        await logAction("create", currentSchema.tableName, null);
       }
 
       setShowForm(false);
@@ -5645,8 +5765,13 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser }: {
     if (!window.confirm("هل تريد حذف هذا السجل؟")) return;
     
     try {
-      await supabase.from("admin_affairs_purchases").delete().eq("id", id);
-      await logAction("delete", "admin_affairs_purchases", id);
+      const { error } = await supabase
+        .from(currentSchema.tableName)
+        .delete()
+        .eq("id", id);
+      
+      if (error) throw error;
+      await logAction("delete", currentSchema.tableName, id);
       fetchRecords();
     } catch (err: any) {
       alert("❌ خطأ: " + (err?.message || "فشل الحذف"));
@@ -5662,8 +5787,13 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser }: {
     if (!window.confirm(`حذف ${selectedIds.length} سجل؟`)) return;
 
     try {
-      await supabase.from("admin_affairs_purchases").delete().in("id", selectedIds);
-      await logAction("bulk_delete", "admin_affairs_purchases", null);
+      const { error } = await supabase
+        .from(currentSchema.tableName)
+        .delete()
+        .in("id", selectedIds);
+      
+      if (error) throw error;
+      await logAction("bulk_delete", currentSchema.tableName, null);
       setSelectedIds([]);
       fetchRecords();
     } catch (err: any) {
@@ -5678,28 +5808,22 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser }: {
       return;
     }
 
-    const ws = XLSX.utils.json_to_sheet(filtered.map(r => ({
-      "رقم طلب الادارة": r.admin_request_no,
-      "رقم الطلب سيستم": r.system_request_no,
-      "تاريخ الطلب": formatDate(r.request_date),
-      "البند": r.item_name,
-      "الوحدة": r.unit,
-      "الكمية المطلوبة": r.quantity_requested,
-      "الكمية المنفذة": r.quantity_executed,
-      "الكمية المتبقية": r.quantity_remaining,
-      "العام": r.year,
-      "المنفذ": r.executor,
-      "القسم الطالب": r.requesting_department,
-      "تاريخ الاستلام": formatDate(r.receipt_date),
-      "المستلم": r.received_by,
-      "لزوم": r.notes,
-      "ملاحظات": r.remarks,
-      "تاريخ الإنشاء": formatDateTime(r.created_at),
-    })));
+    const exportData = filtered.map(r => {
+      const row: any = {};
+      Object.entries(currentSchema.excelColumns).forEach(([excelCol, dbField]: any) => {
+        let value = r[dbField];
+        if (dbField.includes("date") && value) {
+          value = formatDate(value);
+        }
+        row[excelCol] = value || "";
+      });
+      return row;
+    });
 
+    const ws = XLSX.utils.json_to_sheet(exportData);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "طلبات الشراء");
-    XLSX.writeFile(wb, `طلبات_الشراء_${new Date().toISOString().split("T")[0]}.xlsx`);
+    XLSX.utils.book_append_sheet(wb, ws, activeSubTab === "purchases" ? "طلبات الشراء" : activeSubTab === "summary" ? "إجمالي الطلبات" : "خضار أسبوعي");
+    XLSX.writeFile(wb, `${activeSubTab === "purchases" ? "طلبات_الشراء" : activeSubTab === "summary" ? "إجمالي_الطلبات" : "خضار_أسبوعي"}_${new Date().toISOString().split("T")[0]}.xlsx`);
   };
 
   // ===== IMPORT FROM EXCEL =====
@@ -5715,31 +5839,27 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser }: {
       const jsonData = XLSX.utils.sheet_to_json(worksheet);
 
       const toInsert = jsonData.map((row: any) => {
-        const qtyRequested = Number(row["الكمية المطلوبة"] || row["quantity_requested"] || 0);
-        const qtyExecuted = Number(row["الكمية المنفذة"] || row["quantity_executed"] || 0);
-        const qtyRemaining = qtyRequested - qtyExecuted;
+        const record: any = {};
+        
+        Object.entries(currentSchema.excelColumns).forEach(([excelCol, dbField]: any) => {
+          const value = row[excelCol] || row[dbField];
+          record[dbField] = value || "";
+        });
 
-        return {
-          admin_request_no: row["رقم طلب الادارة"] || row["admin_request_no"] || "",
-          system_request_no: row["رقم الطلب سيستم"] || row["system_request_no"] || "",
-          request_date: row["تاريخ الطلب"] || row["request_date"] || "",
-          item_name: row["البند"] || row["item_name"] || "",
-          unit: row["الوحدة"] || row["unit"] || "",
-          quantity_requested: qtyRequested,
-          quantity_executed: qtyExecuted,
-          quantity_remaining: qtyRemaining,
-          year: row["العام"] || row["year"] || new Date().getFullYear().toString(),
-          executor: row["المنفذ"] || row["executor"] || "لم يتم",
-          requesting_department: row["القسم الطالب"] || row["requesting_department"] || "",
-          receipt_date: row["تاريخ الاستلام"] || row["receipt_date"] || "",
-          received_by: row["المستلم"] || row["received_by"] || "",
-          notes: row["لزوم"] || row["notes"] || "",
-          remarks: row["ملاحظات"] || row["remarks"] || "",
-          created_by: currentUser.id,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        };
-      }).filter(r => r.item_name.trim());
+        // حساب الكمية المتبقية
+        if (record.quantity_requested && record.quantity_executed) {
+          record.quantity_remaining = record.quantity_requested - record.quantity_executed;
+        }
+
+        record.created_by = currentUser?.id;
+        record.created_at = new Date().toISOString();
+        record.updated_at = new Date().toISOString();
+
+        return record;
+      }).filter((r: any) => {
+        const requiredField = currentSchema.fields.find((f: any) => f.required);
+        return r[requiredField.key]?.toString().trim();
+      });
 
       if (toInsert.length === 0) {
         alert("❌ لم يتم العثور على بيانات صحيحة في الملف");
@@ -5747,11 +5867,14 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser }: {
         return;
       }
 
-      const { error } = await supabase.from("admin_affairs_purchases").insert(toInsert);
-      if (error) throw error;
-      await logAction("bulk_import", "admin_affairs_purchases", null);
+      const { error } = await supabase
+        .from(currentSchema.tableName)
+        .insert(toInsert);
       
-      alert(`✅ تم استيراد ${toInsert.length} طلب بنجاح`);
+      if (error) throw error;
+      await logAction("bulk_import", currentSchema.tableName, null);
+      
+      alert(`✅ تم استيراد ${toInsert.length} سجل بنجاح`);
       fetchRecords();
     } catch (err: any) {
       alert("❌ خطأ في الاستيراد: " + (err?.message || "فشل الاستيراد"));
@@ -5760,15 +5883,69 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser }: {
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  // ===== HELPER FUNCTIONS =====
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "تم التنفيذ": return { bg: "#dcfce7", color: "#16a34a" };
-      case "قيد التنفيذ": return { bg: "#fef3c7", color: "#d97706" };
-      case "لم يتم": return { bg: "#fee2e2", color: "#dc2626" };
-      case "ملغى": return { bg: "#f1f5f9", color: "#64748b" };
-      default: return { bg: "#f1f5f9", color: "#64748b" };
+  // ===== PRINT =====
+  const handlePrint = () => {
+    const printWindow = window.open("", "", "height=600,width=800");
+    if (!printWindow) return;
+
+    let html = `<html><head><title>طباعة</title><style>
+      body { font-family: Arial, sans-serif; direction: rtl; }
+      table { width: 100%; border-collapse: collapse; }
+      th, td { border: 1px solid #ddd; padding: 8px; text-align: right; }
+      th { background-color: #4f46e5; color: white; }
+    </style></head><body>`;
+
+    html += `<h2>${activeSubTab === "purchases" ? "طلبات الشراء" : activeSubTab === "summary" ? "إجمالي الطلبات" : "خضار أسبوعي"}</h2>`;
+    html += `<table><thead><tr>`;
+    
+    currentSchema.fields.forEach((f: any) => {
+      html += `<th>${f.label}</th>`;
+    });
+    
+    html += `</tr></thead><tbody>`;
+    
+    filtered.forEach((record: any) => {
+      html += `<tr>`;
+      currentSchema.fields.forEach((f: any) => {
+        let value = record[f.key] || "-";
+        if (f.type === "date" && value !== "-") {
+          value = formatDate(value);
+        }
+        html += `<td>${value}</td>`;
+      });
+      html += `</tr>`;
+    });
+    
+    html += `</tbody></table></body></html>`;
+    printWindow.document.write(html);
+    printWindow.print();
+  };
+
+  // ===== SHARE =====
+  const handleShare = () => {
+    const shareText = `${activeSubTab === "purchases" ? "طلبات الشراء" : activeSubTab === "summary" ? "إجمالي الطلبات" : "خضار أسبوعي"}\n\nإجمالي السجلات: ${filtered.length}`;
+    
+    if (navigator.share) {
+      navigator.share({
+        title: "الشؤون الإدارية",
+        text: shareText,
+      });
+    } else {
+      alert("نسخ البيانات:\n" + shareText);
     }
+  };
+
+  // ===== DOWNLOAD TEMPLATE =====
+  const downloadTemplate = () => {
+    const templateData = [{}];
+    currentSchema.fields.forEach((f: any) => {
+      templateData[0][Object.keys(currentSchema.excelColumns).find(key => currentSchema.excelColumns[key] === f.key) || f.key] = "";
+    });
+
+    const ws = XLSX.utils.json_to_sheet(templateData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "نموذج");
+    XLSX.writeFile(wb, `نموذج_${activeSubTab === "purchases" ? "طلبات_الشراء" : activeSubTab === "summary" ? "إجمالي_الطلبات" : "خضار_أسبوعي"}.xlsx`);
   };
 
   // ===== RENDER =====
@@ -5777,138 +5954,167 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser }: {
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px" }}>
         <div>
-          <h2 style={{ fontSize: "24px", fontWeight: "900", margin: 0 }}>🏛️ الشؤون الإدارية - طلبات الشراء</h2>
+          <h2 style={{ fontSize: "24px", fontWeight: "900", margin: 0 }}>🏛️ الشؤون الإدارية</h2>
           <p style={{ color: "#64748b", fontSize: "13px", marginTop: "4px" }}>إدارة شاملة لطلبات الشراء والعمليات الإدارية</p>
-        </div>
-        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-          <button onClick={openAdd} style={{
-            display: "flex", alignItems: "center", gap: "6px",
-            background: "linear-gradient(135deg,#4f46e5,#7c3aed)", color: "white",
-            border: "none", borderRadius: "14px", padding: "12px 18px",
-            fontWeight: "800", fontSize: "14px", cursor: "pointer", fontFamily: "inherit"
-          }}>
-            ➕ طلب جديد
-          </button>
-          <button onClick={exportToExcel} style={{
-            display: "flex", alignItems: "center", gap: "6px",
-            background: "#10b981", color: "white",
-            border: "none", borderRadius: "14px", padding: "12px 18px",
-            fontWeight: "800", fontSize: "14px", cursor: "pointer", fontFamily: "inherit"
-          }}>
-            📥 تصدير Excel
-          </button>
-          <button onClick={() => fileInputRef.current?.click()} disabled={uploadingFile} style={{
-            display: "flex", alignItems: "center", gap: "6px",
-            background: uploadingFile ? "#94a3b8" : "#0284c7", color: "white",
-            border: "none", borderRadius: "14px", padding: "12px 18px",
-            fontWeight: "800", fontSize: "14px", cursor: uploadingFile ? "not-allowed" : "pointer",
-            fontFamily: "inherit"
-          }}>
-            {uploadingFile ? "جاري..." : "📤 استيراد Excel"}
-          </button>
-          <input ref={fileInputRef} type="file" accept=".xlsx,.xls" onChange={handleFileUpload} style={{ display: "none" }} />
         </div>
       </div>
 
-      {/* Filters */}
+      {/* Sub Tabs */}
+      <div style={{ display: "flex", gap: "8px", borderBottom: "2px solid #e2e8f0", overflowX: "auto" }}>
+        {[
+          { id: "purchases", label: "📋 طلبات الشراء" },
+          { id: "summary", label: "📊 إجمالي الطلبات" },
+          { id: "vegetables", label: "🥬 خضار أسبوعي" },
+        ].map((tab: any) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveSubTab(tab.id)}
+            style={{
+              padding: "12px 20px",
+              border: "none",
+              background: activeSubTab === tab.id ? "#4f46e5" : "transparent",
+              color: activeSubTab === tab.id ? "white" : "#64748b",
+              fontWeight: activeSubTab === tab.id ? "900" : "700",
+              fontSize: "14px",
+              cursor: "pointer",
+              borderRadius: "8px 8px 0 0",
+              fontFamily: "inherit",
+              transition: "all 0.2s"
+            }}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Action Buttons */}
+      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+        <button onClick={openAdd} style={{
+          display: "flex", alignItems: "center", gap: "6px",
+          background: "linear-gradient(135deg,#4f46e5,#7c3aed)", color: "white",
+          border: "none", borderRadius: "10px", padding: "10px 16px",
+          fontWeight: "800", fontSize: "13px", cursor: "pointer", fontFamily: "inherit"
+        }}>
+          <Plus size={16} /> إضافة جديد
+        </button>
+        <button onClick={downloadTemplate} style={{
+          display: "flex", alignItems: "center", gap: "6px",
+          background: "#f59e0b", color: "white",
+          border: "none", borderRadius: "10px", padding: "10px 16px",
+          fontWeight: "800", fontSize: "13px", cursor: "pointer", fontFamily: "inherit"
+        }}>
+          <FileDown size={16} /> تحميل نموذج
+        </button>
+        <button onClick={() => fileInputRef.current?.click()} disabled={uploadingFile} style={{
+          display: "flex", alignItems: "center", gap: "6px",
+          background: uploadingFile ? "#94a3b8" : "#0284c7", color: "white",
+          border: "none", borderRadius: "10px", padding: "10px 16px",
+          fontWeight: "800", fontSize: "13px", cursor: uploadingFile ? "not-allowed" : "pointer",
+          fontFamily: "inherit"
+        }}>
+          <Upload size={16} /> {uploadingFile ? "جاري..." : "استيراد"}
+        </button>
+        <button onClick={exportToExcel} style={{
+          display: "flex", alignItems: "center", gap: "6px",
+          background: "#10b981", color: "white",
+          border: "none", borderRadius: "10px", padding: "10px 16px",
+          fontWeight: "800", fontSize: "13px", cursor: "pointer", fontFamily: "inherit"
+        }}>
+          <Download size={16} /> تصدير
+        </button>
+        <button onClick={handlePrint} style={{
+          display: "flex", alignItems: "center", gap: "6px",
+          background: "#8b5cf6", color: "white",
+          border: "none", borderRadius: "10px", padding: "10px 16px",
+          fontWeight: "800", fontSize: "13px", cursor: "pointer", fontFamily: "inherit"
+        }}>
+          <Printer size={16} /> طباعة
+        </button>
+        <button onClick={handleShare} style={{
+          display: "flex", alignItems: "center", gap: "6px",
+          background: "#ec4899", color: "white",
+          border: "none", borderRadius: "10px", padding: "10px 16px",
+          fontWeight: "800", fontSize: "13px", cursor: "pointer", fontFamily: "inherit"
+        }}>
+          <Share2 size={16} /> مشاركة
+        </button>
+        <input ref={fileInputRef} type="file" accept=".xlsx,.xls" onChange={handleFileUpload} style={{ display: "none" }} />
+      </div>
+
+      {/* Search & Filters */}
       <div style={{
-        background: "white", borderRadius: "16px", padding: "16px 18px",
-        border: "1px solid #e2e8f0", display: "flex", gap: "12px", flexWrap: "wrap", alignItems: "center"
+        background: "white", borderRadius: "12px", padding: "14px 16px",
+        border: "1px solid #e2e8f0", display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center"
       }}>
-        {/* بحث */}
         <div style={{ flex: 1, minWidth: "200px", position: "relative" }}>
-          <Search style={{ position: "absolute", right: "12px", top: "50%", transform: "translateY(-50%)", color: "#94a3b8" }} size={16} />
+          <Search style={{ position: "absolute", right: "10px", top: "50%", transform: "translateY(-50%)", color: "#94a3b8" }} size={16} />
           <input
             type="text"
-            placeholder="ابحث بالبند أو رقم الطلب..."
+            placeholder="بحث..."
             value={searchText}
             onChange={e => setSearchText(e.target.value)}
             style={{
-              width: "100%", padding: "10px 36px 10px 12px", border: "1px solid #e2e8f0",
-              borderRadius: "10px", fontSize: "13px", outline: "none", boxSizing: "border-box" as const
+              width: "100%", padding: "10px 32px 10px 12px", border: "1px solid #e2e8f0",
+              borderRadius: "8px", outline: "none", fontSize: "13px", fontFamily: "inherit", boxSizing: "border-box" as const
             }}
           />
         </div>
 
-        {/* فلترة القسم */}
-        <select
-          value={departmentFilter}
-          onChange={e => setDepartmentFilter(e.target.value)}
-          style={{
-            padding: "10px 12px", border: "1px solid #e2e8f0", borderRadius: "10px",
-            fontSize: "13px", outline: "none", fontFamily: "inherit"
-          }}
-        >
-          <option value="all">جميع الأقسام</option>
-          {departments.map(dept => <option key={dept} value={dept}>{dept}</option>)}
-        </select>
+        {activeSubTab !== "summary" && (
+          <>
+            <select
+              value={departmentFilter}
+              onChange={e => setDepartmentFilter(e.target.value)}
+              style={{
+                padding: "10px 12px", border: "1px solid #e2e8f0", borderRadius: "8px",
+                fontSize: "13px", outline: "none", fontFamily: "inherit"
+              }}
+            >
+              <option value="all">جميع الأقسام</option>
+              {departments.map(d => <option key={d} value={d}>{d}</option>)}
+            </select>
 
-        {/* فلترة الحالة */}
-        <select
-          value={statusFilter}
-          onChange={e => setStatusFilter(e.target.value)}
-          style={{
-            padding: "10px 12px", border: "1px solid #e2e8f0", borderRadius: "10px",
-            fontSize: "13px", outline: "none", fontFamily: "inherit"
-          }}
-        >
-          <option value="all">جميع الحالات</option>
-          {statuses.map(st => <option key={st} value={st}>{st}</option>)}
-        </select>
+            <select
+              value={statusFilter}
+              onChange={e => setStatusFilter(e.target.value)}
+              style={{
+                padding: "10px 12px", border: "1px solid #e2e8f0", borderRadius: "8px",
+                fontSize: "13px", outline: "none", fontFamily: "inherit"
+              }}
+            >
+              <option value="all">جميع الحالات</option>
+              {statuses.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </>
+        )}
 
-        {/* فلترة السنة */}
         <select
           value={yearFilter}
           onChange={e => setYearFilter(e.target.value)}
           style={{
-            padding: "10px 12px", border: "1px solid #e2e8f0", borderRadius: "10px",
+            padding: "10px 12px", border: "1px solid #e2e8f0", borderRadius: "8px",
             fontSize: "13px", outline: "none", fontFamily: "inherit"
           }}
         >
           <option value="all">جميع السنوات</option>
-          {years.map(year => <option key={year} value={year}>{year}</option>)}
+          {years.map(y => <option key={y} value={y}>{y}</option>)}
         </select>
 
-        {/* فلترة التاريخ */}
-        <input
-          type="date"
-          value={dateFrom}
-          onChange={e => setDateFrom(e.target.value)}
-          style={{
-            padding: "10px 12px", border: "1px solid #e2e8f0", borderRadius: "10px",
-            fontSize: "13px", outline: "none", fontFamily: "inherit"
-          }}
-          title="من تاريخ"
-        />
-        <input
-          type="date"
-          value={dateTo}
-          onChange={e => setDateTo(e.target.value)}
-          style={{
-            padding: "10px 12px", border: "1px solid #e2e8f0", borderRadius: "10px",
-            fontSize: "13px", outline: "none", fontFamily: "inherit"
-          }}
-          title="إلى تاريخ"
-        />
-
-        {/* مسح الفلاتر */}
-        {(searchText || departmentFilter !== "all" || statusFilter !== "all" || yearFilter !== "all" || dateFrom || dateTo) && (
+        {(searchText || departmentFilter !== "all" || statusFilter !== "all" || yearFilter !== "all") && (
           <button
             onClick={() => {
               setSearchText("");
               setDepartmentFilter("all");
               setStatusFilter("all");
               setYearFilter("all");
-              setDateFrom("");
-              setDateTo("");
             }}
             style={{
               padding: "10px 14px", background: "#fee2e2", color: "#dc2626",
-              border: "none", borderRadius: "10px", fontWeight: "700", fontSize: "13px",
+              border: "none", borderRadius: "8px", fontWeight: "700", fontSize: "12px",
               cursor: "pointer", fontFamily: "inherit"
             }}
           >
-            ✕ مسح الفلاتر
+            ✕ مسح
           </button>
         )}
       </div>
@@ -5916,7 +6122,7 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser }: {
       {/* Selected Actions */}
       {selectedIds.length > 0 && (
         <div style={{
-          background: "#eef2ff", borderRadius: "12px", padding: "12px 16px",
+          background: "#eef2ff", borderRadius: "10px", padding: "12px 16px",
           border: "1px solid #c7d2fe", display: "flex", alignItems: "center", gap: "12px"
         }}>
           <span style={{ fontWeight: "700", color: "#4f46e5" }}>✓ تم تحديد {selectedIds.length} سجل</span>
@@ -5934,54 +6140,35 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser }: {
       )}
 
       {/* Statistics */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "12px" }}>
-        <div style={{ background: "white", borderRadius: "14px", padding: "16px", border: "1px solid #e2e8f0" }}>
-          <div style={{ fontSize: "12px", color: "#64748b", fontWeight: "700", marginBottom: "6px" }}>إجمالي الطلبات</div>
-          <div style={{ fontSize: "24px", fontWeight: "900", color: "#4f46e5" }}>{filtered.length}</div>
-        </div>
-        <div style={{ background: "white", borderRadius: "14px", padding: "16px", border: "1px solid #e2e8f0" }}>
-          <div style={{ fontSize: "12px", color: "#64748b", fontWeight: "700", marginBottom: "6px" }}>تم التنفيذ</div>
-          <div style={{ fontSize: "24px", fontWeight: "900", color: "#16a34a" }}>
-            {filtered.filter(r => r.executor === "تم التنفيذ").length}
-          </div>
-        </div>
-        <div style={{ background: "white", borderRadius: "14px", padding: "16px", border: "1px solid #e2e8f0" }}>
-          <div style={{ fontSize: "12px", color: "#64748b", fontWeight: "700", marginBottom: "6px" }}>قيد التنفيذ</div>
-          <div style={{ fontSize: "24px", fontWeight: "900", color: "#d97706" }}>
-            {filtered.filter(r => r.executor === "قيد التنفيذ").length}
-          </div>
-        </div>
-        <div style={{ background: "white", borderRadius: "14px", padding: "16px", border: "1px solid #e2e8f0" }}>
-          <div style={{ fontSize: "12px", color: "#64748b", fontWeight: "700", marginBottom: "6px" }}>لم يتم</div>
-          <div style={{ fontSize: "24px", fontWeight: "900", color: "#dc2626" }}>
-            {filtered.filter(r => r.executor === "لم يتم").length}
-          </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: "10px" }}>
+        <div style={{ background: "white", borderRadius: "10px", padding: "14px", border: "1px solid #e2e8f0" }}>
+          <div style={{ fontSize: "11px", color: "#64748b", fontWeight: "700", marginBottom: "4px" }}>إجمالي</div>
+          <div style={{ fontSize: "20px", fontWeight: "900", color: "#4f46e5" }}>{filtered.length}</div>
         </div>
       </div>
 
       {/* Table */}
       {loading ? (
-        <div style={{ textAlign: "center", padding: "60px", color: "#94a3b8" }}>
-          <Loader2 className="animate-spin" size={32} style={{ margin: "0 auto 12px", display: "block" }} />
+        <div style={{ textAlign: "center", padding: "40px", color: "#94a3b8" }}>
+          <Loader2 className="animate-spin" size={28} style={{ margin: "0 auto 10px", display: "block" }} />
           جاري التحميل...
         </div>
       ) : filtered.length === 0 ? (
         <div style={{
-          background: "white", borderRadius: "16px", padding: "60px 20px",
+          background: "white", borderRadius: "12px", padding: "40px 20px",
           textAlign: "center", border: "2px dashed #e2e8f0"
         }}>
-          <div style={{ fontSize: "48px", marginBottom: "12px" }}>📋</div>
-          <p style={{ color: "#94a3b8", fontWeight: "700", fontSize: "16px" }}>لا توجد طلبات</p>
+          <p style={{ color: "#94a3b8", fontWeight: "700", fontSize: "14px" }}>لا توجد بيانات</p>
         </div>
       ) : (
         <div style={{
-          background: "white", borderRadius: "16px", border: "1px solid #e2e8f0", overflow: "hidden"
+          background: "white", borderRadius: "12px", border: "1px solid #e2e8f0", overflow: "hidden"
         }}>
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
               <thead style={{ background: "#f8fafc", borderBottom: "2px solid #e2e8f0" }}>
                 <tr>
-                  <th style={{ padding: "12px 10px", textAlign: "center", width: "40px" }}>
+                  <th style={{ padding: "10px", textAlign: "center", width: "40px" }}>
                     <input
                       type="checkbox"
                       checked={selectedIds.length === filtered.length && filtered.length > 0}
@@ -5995,20 +6182,16 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser }: {
                       style={{ cursor: "pointer" }}
                     />
                   </th>
-                  <th style={{ padding: "12px 10px", textAlign: "right", fontWeight: "800", color: "#374151", whiteSpace: "nowrap" }}>رقم الطلب</th>
-                  <th style={{ padding: "12px 10px", textAlign: "right", fontWeight: "800", color: "#374151", whiteSpace: "nowrap" }}>البند</th>
-                  <th style={{ padding: "12px 10px", textAlign: "right", fontWeight: "800", color: "#374151", whiteSpace: "nowrap" }}>الوحدة</th>
-                  <th style={{ padding: "12px 10px", textAlign: "center", fontWeight: "800", color: "#374151", whiteSpace: "nowrap" }}>المطلوب</th>
-                  <th style={{ padding: "12px 10px", textAlign: "center", fontWeight: "800", color: "#374151", whiteSpace: "nowrap" }}>المنفذ</th>
-                  <th style={{ padding: "12px 10px", textAlign: "center", fontWeight: "800", color: "#374151", whiteSpace: "nowrap" }}>المتبقي</th>
-                  <th style={{ padding: "12px 10px", textAlign: "right", fontWeight: "800", color: "#374151", whiteSpace: "nowrap" }}>القسم</th>
-                  <th style={{ padding: "12px 10px", textAlign: "right", fontWeight: "800", color: "#374151", whiteSpace: "nowrap" }}>الحالة</th>
-                  <th style={{ padding: "12px 10px", textAlign: "right", fontWeight: "800", color: "#374151", whiteSpace: "nowrap" }}>التاريخ</th>
-                  <th style={{ padding: "12px 10px", textAlign: "right", fontWeight: "800", color: "#374151", whiteSpace: "nowrap" }}>الإجراءات</th>
+                  {currentSchema.fields.map((f: any) => (
+                    <th key={f.key} style={{ padding: "10px", textAlign: "right", fontWeight: "800", color: "#374151", whiteSpace: "nowrap" }}>
+                      {f.label}
+                    </th>
+                  ))}
+                  <th style={{ padding: "10px", textAlign: "center", fontWeight: "800", color: "#374151" }}>الإجراءات</th>
                 </tr>
               </thead>
               <tbody>
-                {filtered.map(record => (
+                {filtered.map((record: any) => (
                   <tr key={record.id} style={{ borderBottom: "1px solid #f1f5f9" }}
                     onMouseEnter={e => (e.currentTarget.style.background = "#f8fafc")}
                     onMouseLeave={e => (e.currentTarget.style.background = "white")}>
@@ -6026,43 +6209,11 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser }: {
                         style={{ cursor: "pointer" }}
                       />
                     </td>
-                    <td style={{ padding: "10px", textAlign: "right" }}>
-                      <div style={{ fontWeight: "700", color: "#1e293b", fontSize: "12px" }}>
-                        {record.admin_request_no || record.system_request_no || "-"}
-                      </div>
-                    </td>
-                    <td style={{ padding: "10px", textAlign: "right" }}>
-                      <div style={{ fontWeight: "700", color: "#1e293b", fontSize: "12px" }}>{record.item_name}</div>
-                      {record.remarks && <div style={{ fontSize: "10px", color: "#94a3b8", marginTop: "2px" }}>{record.remarks}</div>}
-                    </td>
-                    <td style={{ padding: "10px", textAlign: "center", fontSize: "12px" }}>
-                      <span style={{ padding: "2px 8px", borderRadius: "6px", background: "#f0f9ff", color: "#0284c7", fontWeight: "700" }}>
-                        {record.unit}
-                      </span>
-                    </td>
-                    <td style={{ padding: "10px", textAlign: "center", fontWeight: "700", fontSize: "12px" }}>
-                      {record.quantity_requested}
-                    </td>
-                    <td style={{ padding: "10px", textAlign: "center", fontWeight: "700", fontSize: "12px", color: "#16a34a" }}>
-                      {record.quantity_executed || 0}
-                    </td>
-                    <td style={{ padding: "10px", textAlign: "center", fontWeight: "700", fontSize: "12px", color: record.quantity_remaining > 0 ? "#dc2626" : "#16a34a" }}>
-                      {record.quantity_remaining || 0}
-                    </td>
-                    <td style={{ padding: "10px", textAlign: "right", fontSize: "12px", color: "#64748b" }}>
-                      {record.requesting_department || "-"}
-                    </td>
-                    <td style={{ padding: "10px", textAlign: "center" }}>
-                      <span style={{
-                        padding: "3px 8px", borderRadius: "6px", fontWeight: "700", fontSize: "11px",
-                        ...getStatusColor(record.executor)
-                      }}>
-                        {record.executor}
-                      </span>
-                    </td>
-                    <td style={{ padding: "10px", textAlign: "center", fontSize: "12px", color: "#64748b", whiteSpace: "nowrap" }}>
-                      {formatDate(record.request_date)}
-                    </td>
+                    {currentSchema.fields.map((f: any) => (
+                      <td key={f.key} style={{ padding: "10px", textAlign: "right", fontSize: "12px", color: "#1e293b" }}>
+                        {f.type === "date" && record[f.key] ? formatDate(record[f.key]) : record[f.key] || "-"}
+                      </td>
+                    ))}
                     <td style={{ padding: "8px 10px", textAlign: "center" }}>
                       <div style={{ display: "flex", gap: "4px", justifyContent: "center" }}>
                         <button onClick={() => openEdit(record)} style={{
@@ -6096,12 +6247,12 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser }: {
           display: "flex", alignItems: "center", justifyContent: "center", padding: "16px", zIndex: 9999
         }} onClick={() => setShowForm(false)}>
           <div style={{
-            background: "white", borderRadius: "24px", width: "100%", maxWidth: "600px",
-            padding: "28px", boxShadow: "0 32px 80px rgba(0,0,0,0.25)", maxHeight: "90vh", overflowY: "auto"
+            background: "white", borderRadius: "20px", width: "100%", maxWidth: "700px",
+            padding: "24px", boxShadow: "0 32px 80px rgba(0,0,0,0.25)", maxHeight: "90vh", overflowY: "auto"
           }} dir="rtl" onClick={e => e.stopPropagation()}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "18px" }}>
               <h3 style={{ margin: 0, fontWeight: "900", fontSize: "18px" }}>
-                {editingRecord ? "✏️ تعديل الطلب" : "➕ طلب شراء جديد"}
+                {editingRecord ? "✏️ تعديل" : "➕ إضافة جديد"}
               </h3>
               <button onClick={() => setShowForm(false)} style={{
                 border: "1px solid #e2e8f0", borderRadius: "8px", padding: "6px 12px",
@@ -6112,261 +6263,65 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser }: {
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
-              {/* رقم الطلب الإدارة */}
-              <div>
-                <label style={{ fontSize: "12px", fontWeight: "700", color: "#64748b", display: "block", marginBottom: "5px" }}>
-                  رقم طلب الإدارة
-                </label>
-                <input
-                  type="text"
-                  value={form.admin_request_no}
-                  onChange={e => setForm({ ...form, admin_request_no: e.target.value })}
-                  placeholder="مثال: 21"
-                  style={{
-                    width: "100%", padding: "10px 12px", border: "1px solid #e2e8f0",
-                    borderRadius: "10px", outline: "none", fontSize: "12px", fontFamily: "inherit", boxSizing: "border-box" as const
-                  }}
-                />
-              </div>
-
-              {/* رقم الطلب سيستم */}
-              <div>
-                <label style={{ fontSize: "12px", fontWeight: "700", color: "#64748b", display: "block", marginBottom: "5px" }}>
-                  رقم الطلب سيستم
-                </label>
-                <input
-                  type="text"
-                  value={form.system_request_no}
-                  onChange={e => setForm({ ...form, system_request_no: e.target.value })}
-                  placeholder="مثال: 1057"
-                  style={{
-                    width: "100%", padding: "10px 12px", border: "1px solid #e2e8f0",
-                    borderRadius: "10px", outline: "none", fontSize: "12px", fontFamily: "inherit", boxSizing: "border-box" as const
-                  }}
-                />
-              </div>
-
-              {/* تاريخ الطلب */}
-              <div>
-                <label style={{ fontSize: "12px", fontWeight: "700", color: "#64748b", display: "block", marginBottom: "5px" }}>
-                  تاريخ الطلب *
-                </label>
-                <input
-                  type="date"
-                  value={form.request_date}
-                  onChange={e => setForm({ ...form, request_date: e.target.value })}
-                  style={{
-                    width: "100%", padding: "10px 12px", border: "1px solid #e2e8f0",
-                    borderRadius: "10px", outline: "none", fontSize: "12px", fontFamily: "inherit", boxSizing: "border-box" as const
-                  }}
-                />
-              </div>
-
-              {/* السنة */}
-              <div>
-                <label style={{ fontSize: "12px", fontWeight: "700", color: "#64748b", display: "block", marginBottom: "5px" }}>
-                  السنة
-                </label>
-                <select
-                  value={form.year}
-                  onChange={e => setForm({ ...form, year: e.target.value })}
-                  style={{
-                    width: "100%", padding: "10px 12px", border: "1px solid #e2e8f0",
-                    borderRadius: "10px", outline: "none", fontSize: "12px", fontFamily: "inherit"
-                  }}
-                >
-                  {years.map(y => <option key={y} value={y}>{y}</option>)}
-                </select>
-              </div>
-
-              {/* البند */}
-              <div style={{ gridColumn: "1 / -1" }}>
-                <label style={{ fontSize: "12px", fontWeight: "700", color: "#64748b", display: "block", marginBottom: "5px" }}>
-                  البند (اسم المنتج) *
-                </label>
-                <input
-                  type="text"
-                  value={form.item_name}
-                  onChange={e => setForm({ ...form, item_name: e.target.value })}
-                  placeholder="مثال: ثلاجة حفظ طعام 2 باب"
-                  style={{
-                    width: "100%", padding: "10px 12px", border: "1px solid #e2e8f0",
-                    borderRadius: "10px", outline: "none", fontSize: "12px", fontFamily: "inherit", boxSizing: "border-box" as const
-                  }}
-                />
-              </div>
-
-              {/* الوحدة */}
-              <div>
-                <label style={{ fontSize: "12px", fontWeight: "700", color: "#64748b", display: "block", marginBottom: "5px" }}>
-                  الوحدة
-                </label>
-                <select
-                  value={form.unit}
-                  onChange={e => setForm({ ...form, unit: e.target.value })}
-                  style={{
-                    width: "100%", padding: "10px 12px", border: "1px solid #e2e8f0",
-                    borderRadius: "10px", outline: "none", fontSize: "12px", fontFamily: "inherit"
-                  }}
-                >
-                  <option value="">اختر الوحدة</option>
-                  {units.map(u => <option key={u} value={u}>{u}</option>)}
-                </select>
-              </div>
-
-              {/* الكمية المطلوبة */}
-              <div>
-                <label style={{ fontSize: "12px", fontWeight: "700", color: "#64748b", display: "block", marginBottom: "5px" }}>
-                  الكمية المطلوبة
-                </label>
-                <input
-                  type="number"
-                  value={form.quantity_requested}
-                  onChange={e => setForm({ ...form, quantity_requested: Number(e.target.value) })}
-                  min="0"
-                  style={{
-                    width: "100%", padding: "10px 12px", border: "1px solid #e2e8f0",
-                    borderRadius: "10px", outline: "none", fontSize: "12px", fontFamily: "inherit", boxSizing: "border-box" as const
-                  }}
-                />
-              </div>
-
-              {/* الكمية المنفذة */}
-              <div>
-                <label style={{ fontSize: "12px", fontWeight: "700", color: "#64748b", display: "block", marginBottom: "5px" }}>
-                  الكمية المنفذة
-                </label>
-                <input
-                  type="number"
-                  value={form.quantity_executed}
-                  onChange={e => setForm({ ...form, quantity_executed: Number(e.target.value) })}
-                  min="0"
-                  style={{
-                    width: "100%", padding: "10px 12px", border: "1px solid #e2e8f0",
-                    borderRadius: "10px", outline: "none", fontSize: "12px", fontFamily: "inherit", boxSizing: "border-box" as const
-                  }}
-                />
-              </div>
-
-              {/* القسم الطالب */}
-              <div>
-                <label style={{ fontSize: "12px", fontWeight: "700", color: "#64748b", display: "block", marginBottom: "5px" }}>
-                  القسم الطالب
-                </label>
-                <select
-                  value={form.requesting_department}
-                  onChange={e => setForm({ ...form, requesting_department: e.target.value })}
-                  style={{
-                    width: "100%", padding: "10px 12px", border: "1px solid #e2e8f0",
-                    borderRadius: "10px", outline: "none", fontSize: "12px", fontFamily: "inherit"
-                  }}
-                >
-                  <option value="">اختر القسم</option>
-                  {departments.map(d => <option key={d} value={d}>{d}</option>)}
-                </select>
-              </div>
-
-              {/* حالة التنفيذ */}
-              <div>
-                <label style={{ fontSize: "12px", fontWeight: "700", color: "#64748b", display: "block", marginBottom: "5px" }}>
-                  حالة التنفيذ
-                </label>
-                <select
-                  value={form.executor}
-                  onChange={e => setForm({ ...form, executor: e.target.value })}
-                  style={{
-                    width: "100%", padding: "10px 12px", border: "1px solid #e2e8f0",
-                    borderRadius: "10px", outline: "none", fontSize: "12px", fontFamily: "inherit"
-                  }}
-                >
-                  {statuses.map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
-              </div>
-
-              {/* تاريخ الاستلام */}
-              <div>
-                <label style={{ fontSize: "12px", fontWeight: "700", color: "#64748b", display: "block", marginBottom: "5px" }}>
-                  تاريخ الاستلام
-                </label>
-                <input
-                  type="date"
-                  value={form.receipt_date}
-                  onChange={e => setForm({ ...form, receipt_date: e.target.value })}
-                  style={{
-                    width: "100%", padding: "10px 12px", border: "1px solid #e2e8f0",
-                    borderRadius: "10px", outline: "none", fontSize: "12px", fontFamily: "inherit", boxSizing: "border-box" as const
-                  }}
-                />
-              </div>
-
-              {/* المستلم */}
-              <div>
-                <label style={{ fontSize: "12px", fontWeight: "700", color: "#64748b", display: "block", marginBottom: "5px" }}>
-                  المستلم
-                </label>
-                <input
-                  type="text"
-                  value={form.received_by}
-                  onChange={e => setForm({ ...form, received_by: e.target.value })}
-                  placeholder="اسم المستلم"
-                  style={{
-                    width: "100%", padding: "10px 12px", border: "1px solid #e2e8f0",
-                    borderRadius: "10px", outline: "none", fontSize: "12px", fontFamily: "inherit", boxSizing: "border-box" as const
-                  }}
-                />
-              </div>
-
-              {/* لزوم (ملاحظات) */}
-              <div style={{ gridColumn: "1 / -1" }}>
-                <label style={{ fontSize: "12px", fontWeight: "700", color: "#64748b", display: "block", marginBottom: "5px" }}>
-                  لزوم (ملاحظات)
-                </label>
-                <textarea
-                  value={form.notes}
-                  onChange={e => setForm({ ...form, notes: e.target.value })}
-                  placeholder="مثال: مستلزمات مطبخ"
-                  rows={2}
-                  style={{
-                    width: "100%", padding: "10px 12px", border: "1px solid #e2e8f0",
-                    borderRadius: "10px", outline: "none", fontSize: "12px", fontFamily: "inherit",
-                    resize: "none", boxSizing: "border-box" as const
-                  }}
-                />
-              </div>
-
-              {/* ملاحظات إضافية */}
-              <div style={{ gridColumn: "1 / -1" }}>
-                <label style={{ fontSize: "12px", fontWeight: "700", color: "#64748b", display: "block", marginBottom: "5px" }}>
-                  ملاحظات إضافية
-                </label>
-                <textarea
-                  value={form.remarks}
-                  onChange={e => setForm({ ...form, remarks: e.target.value })}
-                  placeholder="ملاحظات عامة"
-                  rows={2}
-                  style={{
-                    width: "100%", padding: "10px 12px", border: "1px solid #e2e8f0",
-                    borderRadius: "10px", outline: "none", fontSize: "12px", fontFamily: "inherit",
-                    resize: "none", boxSizing: "border-box" as const
-                  }}
-                />
-              </div>
+              {currentSchema.fields.map((field: any) => (
+                <div key={field.key} style={{ gridColumn: field.type === "textarea" ? "1 / -1" : "auto" }}>
+                  <label style={{ fontSize: "12px", fontWeight: "700", color: "#64748b", display: "block", marginBottom: "5px" }}>
+                    {field.label} {field.required && "*"}
+                  </label>
+                  {field.type === "select" ? (
+                    <select
+                      value={form[field.key] || ""}
+                      onChange={e => setForm({ ...form, [field.key]: e.target.value })}
+                      disabled={field.readonly}
+                      style={{
+                        width: "100%", padding: "10px 12px", border: "1px solid #e2e8f0",
+                        borderRadius: "8px", outline: "none", fontSize: "12px", fontFamily: "inherit"
+                      }}
+                    >
+                      <option value="">اختر...</option>
+                      {field.options?.map((opt: string) => <option key={opt} value={opt}>{opt}</option>)}
+                    </select>
+                  ) : field.type === "textarea" ? (
+                    <textarea
+                      value={form[field.key] || ""}
+                      onChange={e => setForm({ ...form, [field.key]: e.target.value })}
+                      disabled={field.readonly}
+                      rows={2}
+                      style={{
+                        width: "100%", padding: "10px 12px", border: "1px solid #e2e8f0",
+                        borderRadius: "8px", outline: "none", fontSize: "12px", fontFamily: "inherit",
+                        resize: "none", boxSizing: "border-box" as const
+                      }}
+                    />
+                  ) : (
+                    <input
+                      type={field.type}
+                      value={form[field.key] || ""}
+                      onChange={e => setForm({ ...form, [field.key]: e.target.value })}
+                      disabled={field.readonly}
+                      style={{
+                        width: "100%", padding: "10px 12px", border: "1px solid #e2e8f0",
+                        borderRadius: "8px", outline: "none", fontSize: "12px", fontFamily: "inherit", boxSizing: "border-box" as const
+                      }}
+                    />
+                  )}
+                </div>
+              ))}
             </div>
 
-            {/* أزرار الحفظ والإلغاء */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginTop: "20px" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginTop: "18px" }}>
               <button onClick={() => setShowForm(false)} style={{
                 padding: "12px", background: "#f1f5f9", color: "#64748b", border: "none",
-                borderRadius: "10px", fontWeight: "900", cursor: "pointer", fontSize: "13px", fontFamily: "inherit"
+                borderRadius: "8px", fontWeight: "900", cursor: "pointer", fontSize: "13px", fontFamily: "inherit"
               }}>
                 إلغاء
               </button>
               <button onClick={save} disabled={saving} style={{
                 padding: "12px", background: "linear-gradient(135deg,#4f46e5,#7c3aed)", color: "white",
-                border: "none", borderRadius: "10px", fontWeight: "900", cursor: saving ? "not-allowed" : "pointer",
+                border: "none", borderRadius: "8px", fontWeight: "900", cursor: saving ? "not-allowed" : "pointer",
                 fontSize: "13px", fontFamily: "inherit", opacity: saving ? 0.6 : 1
               }}>
-                {saving ? "جاري الحفظ..." : "💾 حفظ"}
+                {saving ? "جاري..." : "💾 حفظ"}
               </button>
             </div>
           </div>
@@ -6375,6 +6330,7 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser }: {
     </div>
   );
 };
+
 
 export default VacationManagementSystem;
 
