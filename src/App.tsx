@@ -5503,9 +5503,9 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser, userRole }: {
   const [dateTo, setDateTo] = useState("");
   
   // ===== SORT =====
-  const [sortField, setSortField] = useState("request_date");
+  const [sortField, setSortField] = useState("");
   const [sortDir, setSortDir] = useState<"asc"|"desc">("desc");
-  
+
   // ===== SORT HANDLERS =====
   const handleSort = (field: string, dir: "asc"|"desc") => {
     setSortField(field);
@@ -5513,7 +5513,7 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser, userRole }: {
     setSortDropdown("");
   };
   const handleSortClear = () => {
-    setSortField("request_date");
+    setSortField("");
     setSortDir("desc");
     setSortDropdown("");
   };
@@ -6600,16 +6600,17 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser, userRole }: {
               font-size: 12px;
             }
           `}</style>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px", tableLayout: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px", tableLayout: "fixed", minWidth: "1200px" }}>
               <colgroup>
-                <col style={{ width: "40px" }} />
+                <col style={{ width: "45px" }} />
                 {currentSchema.fields.filter((f: any) => !["requesting_department", "notes", "remarks"].includes(f.key)).map((f: any) => {
                   const wideKeys = ["item_name", "notes", "remarks", "description"];
                   const narrowKeys = ["system_request_no", "admin_request_no", "request_number", "year", "quantity_requested", "quantity_executed", "quantity_remaining", "unit"];
-                  const width = wideKeys.includes(f.key) ? "180px" : narrowKeys.includes(f.key) ? "90px" : "110px";
+                  // زيادة عرض عمود البند ليسمح بالتفاف النص بشكل أفضل
+                  const width = f.key === "item_name" ? "220px" : wideKeys.includes(f.key) ? "180px" : narrowKeys.includes(f.key) ? "100px" : "120px";
                   return <col key={f.key} style={{ width }} />;
                 })}
-                <col style={{ width: "80px" }} />
+                <col style={{ width: "85px" }} />
               </colgroup>
               <thead style={{ background: "#f8fafc", borderBottom: "2px solid #e2e8f0", position: "sticky", top: 0, zIndex: 10 }}>
                 <tr>
@@ -6666,19 +6667,21 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser, userRole }: {
                     {currentSchema.fields.filter((f: any) => !["requesting_department", "notes", "remarks"].includes(f.key)).map((f: any) => {
                       const rawVal = f.type === "date" && record[f.key] ? formatDate(record[f.key]) : (record[f.key] ?? "-");
                       const displayVal = rawVal === "" ? "-" : rawVal;
-                      const isWideField = ["item_name", "notes", "remarks", "description"].includes(f.key);
+                      // تفعيل التفاف النص لعمود البند والحقول الطويلة
+                      const isWrapField = ["item_name", "notes", "remarks", "description"].includes(f.key);
                       return (
                         <td key={f.key} title={String(displayVal).length > 20 ? String(displayVal) : undefined} style={{
-                          padding: "8px 8px",
+                          padding: "12px 10px",
                           textAlign: "right",
                           fontSize: "12px",
                           color: "#1e293b",
                           verticalAlign: "middle",
-                          whiteSpace: isWideField ? "normal" : "nowrap",
+                          whiteSpace: isWrapField ? "normal" : "nowrap",
                           overflow: "hidden",
                           textOverflow: "ellipsis",
-                          wordWrap: isWideField ? "break-word" : "normal",
-                          maxWidth: "100%",
+                          wordWrap: isWrapField ? "break-word" : "normal",
+                          lineHeight: "1.5",
+                          minHeight: "50px"
                         }}>
                           {displayVal}
                         </td>
