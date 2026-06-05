@@ -6553,14 +6553,18 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser, userRole }: {
           style={{
             background: "white", borderRadius: "12px", border: "1px solid #e2e8f0",
             maxHeight: "600px", overflowY: "auto", overflowX: "auto",
+            display: "flex", flexDirection: "column",
           }}
           className="admin-table-scroll"
           onClick={() => sortDropdown && setSortDropdown("")}
         >
           <style>{`
+            .admin-table-scroll {
+              scroll-behavior: smooth;
+            }
             .admin-table-scroll::-webkit-scrollbar {
               width: 10px;
-              height: 10px;
+              height: 12px;
             }
             .admin-table-scroll::-webkit-scrollbar-track {
               background: #f1f5f9;
@@ -6572,21 +6576,44 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser, userRole }: {
             .admin-table-scroll::-webkit-scrollbar-thumb:hover {
               background: #94a3b8;
             }
+            .admin-table-scroll table {
+              width: 100%;
+              border-collapse: collapse;
+              table-layout: auto;
+            }
+            .admin-table-scroll thead {
+              position: sticky;
+              top: 0;
+              z-index: 10;
+              background: #f8fafc;
+            }
+            .admin-table-scroll th {
+              white-space: normal;
+              word-wrap: break-word;
+              padding: 12px 8px !important;
+              font-size: 11px;
+              font-weight: 800;
+              line-height: 1.3;
+            }
+            .admin-table-scroll td {
+              padding: 8px 8px !important;
+              font-size: 12px;
+            }
           `}</style>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px", tableLayout: "fixed", minWidth: "900px" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px", tableLayout: "auto" }}>
               <colgroup>
                 <col style={{ width: "40px" }} />
                 {currentSchema.fields.map((f: any) => {
                   const wideKeys = ["item_name", "notes", "remarks", "description"];
                   const narrowKeys = ["system_request_no", "admin_request_no", "request_number", "year", "quantity_requested", "quantity_executed", "quantity_remaining", "unit"];
-                  const width = wideKeys.includes(f.key) ? "150px" : narrowKeys.includes(f.key) ? "72px" : "96px";
+                  const width = wideKeys.includes(f.key) ? "180px" : narrowKeys.includes(f.key) ? "90px" : "110px";
                   return <col key={f.key} style={{ width }} />;
                 })}
-                <col style={{ width: "76px" }} />
+                <col style={{ width: "80px" }} />
               </colgroup>
               <thead style={{ background: "#f8fafc", borderBottom: "2px solid #e2e8f0", position: "sticky", top: 0, zIndex: 10 }}>
                 <tr>
-                  <th style={{ padding: "10px", textAlign: "center", width: "40px" }}>
+                  <th style={{ padding: "12px 8px", textAlign: "center", width: "40px", fontWeight: "800", color: "#374151", whiteSpace: "nowrap" }}>
                     <input
                       type="checkbox"
                       checked={selectedIds.length === filtered.length && filtered.length > 0}
@@ -6614,7 +6641,7 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser, userRole }: {
                       align="right"
                     />
                   ))}
-                  <th style={{ padding: "10px", textAlign: "center", fontWeight: "800", color: "#374151", whiteSpace: "nowrap" }}>الإجراءات</th>
+                  <th style={{ padding: "12px 8px", textAlign: "center", fontWeight: "800", color: "#374151", whiteSpace: "nowrap", fontSize: "11px" }}>الإجراءات</th>
                 </tr>
               </thead>
               <tbody>
@@ -6622,7 +6649,7 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser, userRole }: {
                   <tr key={record.id} style={{ borderBottom: "1px solid #f1f5f9", height: "44px" }}
                     onMouseEnter={e => (e.currentTarget.style.background = "#f8fafc")}
                     onMouseLeave={e => (e.currentTarget.style.background = "white")}>
-                    <td style={{ padding: "8px 10px", textAlign: "center", verticalAlign: "middle" }}>
+                    <td style={{ padding: "8px 8px", textAlign: "center", verticalAlign: "middle" }}>
                       <input
                         type="checkbox"
                         checked={selectedIds.includes(record.id)}
@@ -6639,23 +6666,25 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser, userRole }: {
                     {currentSchema.fields.map((f: any) => {
                       const rawVal = f.type === "date" && record[f.key] ? formatDate(record[f.key]) : (record[f.key] ?? "-");
                       const displayVal = rawVal === "" ? "-" : rawVal;
+                      const isWideField = ["item_name", "notes", "remarks", "description"].includes(f.key);
                       return (
-                        <td key={f.key} title={String(displayVal).length > 18 ? String(displayVal) : undefined} style={{
+                        <td key={f.key} title={String(displayVal).length > 20 ? String(displayVal) : undefined} style={{
                           padding: "8px 8px",
                           textAlign: "right",
                           fontSize: "12px",
                           color: "#1e293b",
                           verticalAlign: "middle",
-                          whiteSpace: "nowrap",
+                          whiteSpace: isWideField ? "normal" : "nowrap",
                           overflow: "hidden",
                           textOverflow: "ellipsis",
-                          maxWidth: "0",
+                          wordWrap: isWideField ? "break-word" : "normal",
+                          maxWidth: "100%",
                         }}>
                           {displayVal}
                         </td>
                       );
                     })}
-                    <td style={{ padding: "8px 10px", textAlign: "center", verticalAlign: "middle" }}>
+                    <td style={{ padding: "8px 8px", textAlign: "center", verticalAlign: "middle" }}>
                       <div style={{ display: "flex", gap: "4px", justifyContent: "center" }}>
                         <button onClick={() => openEdit(record)} style={{
                           padding: "5px 8px", background: "#eff6ff", color: "#0284c7",
