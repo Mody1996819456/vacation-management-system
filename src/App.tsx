@@ -191,8 +191,8 @@ const SortTh = ({ label, field, sortField, sortDir, sortDropdown, onSort, onClea
   const active = sortField === field;
   const open = sortDropdown === field;
   return (
-    <th style={{ padding:"12px 10px", textAlign: align as any, fontWeight:"800", color:"#374151", whiteSpace:"nowrap", position:"relative", userSelect:"none" }}>
-      <div style={{ display:"flex", alignItems:"center", justifyContent: align==="right" ? "flex-start" : "center", gap:"4px" }}>
+    <th style={{ padding:"12px 10px", textAlign: align as any, fontWeight:"800", color:"#374151", whiteSpace:"nowrap", position:"relative", userSelect:"none", borderBottom: "2px solid #e2e8f0", background: "#f8fafc" }}>
+      <div style={{ display:"flex", alignItems:"center", justifyContent: align==="right" ? "flex-end" : "center", gap:"4px", flexWrap: "nowrap" }}>
         <span style={{ fontSize:"13px" }}>{label}</span>
         <button
           onClick={e => { e.stopPropagation(); onToggle(field); }}
@@ -6546,17 +6546,23 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser, userRole }: {
               background: #94a3b8;
             }
           `}</style>
-          <div style={{ overflowX: "auto", overflowY: "auto" }} className="admin-table-scroll">
-            <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, fontSize: "12px", tableLayout: "fixed" }}>
+          <div style={{ overflowX: "auto", overflowY: "auto", width: "100%" }} className="admin-table-scroll">
+            <table style={{ minWidth: "1200px", width: "100%", borderCollapse: "separate", borderSpacing: 0, fontSize: "12px", tableLayout: "fixed" }}>
               <colgroup>
-                <col style={{ width: "40px" }} />
+                <col style={{ width: "50px" }} />
                 {currentSchema.fields.map((f: any) => {
-                  const wideKeys = ["item_name", "notes", "remarks", "description"];
-                  const narrowKeys = ["system_request_no", "admin_request_no", "request_number", "year", "quantity_requested", "quantity_executed", "quantity_remaining", "unit"];
-                  const width = wideKeys.includes(f.key) ? "180px" : narrowKeys.includes(f.key) ? "90px" : "110px";
+                  const wideKeys = ["item_name", "notes", "remarks", "description", "requesting_department"];
+                  const narrowKeys = ["year", "unit"];
+                  const mediumKeys = ["quantity_requested", "quantity_executed", "quantity_remaining", "system_request_no", "admin_request_no", "request_number", "request_date", "receipt_date", "executor"];
+                  
+                  let width = "120px";
+                  if (wideKeys.includes(f.key)) width = "200px";
+                  else if (narrowKeys.includes(f.key)) width = "80px";
+                  else if (mediumKeys.includes(f.key)) width = "130px";
+                  
                   return <col key={f.key} style={{ width }} />;
                 })}
-                <col style={{ width: "85px" }} />
+                <col style={{ width: "100px" }} />
               </colgroup>
               <thead style={{ background: "#f8fafc", position: "sticky", top: 0, zIndex: 20 }}>
                 <tr>
@@ -6623,7 +6629,7 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser, userRole }: {
                       const displayVal = rawVal === "" ? "-" : rawVal;
                       return (
                         <td key={f.key} title={String(displayVal).length > 18 ? String(displayVal) : undefined} style={{
-                          padding: "8px 8px",
+                          padding: "8px 12px",
                           textAlign: "right",
                           fontSize: "12px",
                           color: "#1e293b",
@@ -6631,7 +6637,7 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser, userRole }: {
                           whiteSpace: "nowrap",
                           overflow: "hidden",
                           textOverflow: "ellipsis",
-                          maxWidth: "0",
+                          borderBottom: "1px solid #f1f5f9"
                         }}>
                           {displayVal}
                         </td>
