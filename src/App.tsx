@@ -575,9 +575,9 @@ const VacationManagementSystem = () => {
   // ========== FETCH DATA ==========
   const scrollRef = React.useRef(0);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (showLoading = true) => {
     scrollRef.current = window.scrollY;
-    setLoading(true);
+    if (showLoading) setLoading(true);
     try {
       const [
         { data: emps }, { data: reqs }, { data: types },
@@ -614,9 +614,11 @@ const VacationManagementSystem = () => {
     } catch (err) {
       console.error("Fetch Error:", err);
     }
-    setLoading(false);
+    if (showLoading) setLoading(false);
     // استعادة موضع التمرير بعد التحديث
-    requestAnimationFrame(() => { window.scrollTo({ top: scrollRef.current, behavior: "auto" }); });
+    if (showLoading) {
+      requestAnimationFrame(() => { window.scrollTo({ top: scrollRef.current, behavior: "auto" }); });
+    }
   }, [currentUser, currentView]);
 useEffect(() => {
   fetchData();
@@ -1365,7 +1367,7 @@ useEffect(() => {
       await supabase.from("balance_updates").delete().eq("employee_id", id);
       await supabase.from("employees").delete().eq("id", id);
       await logAction("delete", "employees", id, emp);
-      fetchData();
+      fetchData(false);
       alert("تم حذف الموظف وكل بياناته ✅");
     }
   };
@@ -1434,7 +1436,7 @@ useEffect(() => {
       if (error) { alert("خطا: " + error.message); return; }
       sendLocalNotification("تمت الموافقة على اجازة", emp.name + " - " + days + " يوم");
       setShowApprovalModal(false); setCurrentRequest(null); setAdminNotes("");
-      fetchData();
+      fetchData(false);
       await logAction("approved", "vacation_requests", id, oldData, { status: "approved", approved_by: approvedBy });
       return;
     }
@@ -1451,7 +1453,7 @@ useEffect(() => {
       if (error) { alert("خطا: " + error.message); return; }
       sendLocalNotification("تم رفض طلب اجازة", (emp?.name || "") + " - " + currentRequest.days + " يوم");
       setShowApprovalModal(false); setCurrentRequest(null); setAdminNotes("");
-      fetchData();
+      fetchData(false);
       await logAction("rejected", "vacation_requests", id, oldData, { status: "rejected", rejected_by: approvedBy });
       return;
     }
@@ -1465,7 +1467,7 @@ useEffect(() => {
     // الحذف من السجل فقط - لا تعديل على رصيد الموظف أو حالته
     await supabase.from("vacation_requests").delete().eq("id", id);
     await logAction("delete", "vacation_requests", id, req);
-    fetchData();
+    fetchData(false);
     alert("✅ تم حذف السجل.\nملاحظة: رصيد الموظف وحالته لم يتغيرا.");
   };
 
@@ -3015,7 +3017,7 @@ useEffect(() => {
 
                   {/* الجدول مع scroll أفقي */}
                   <div style={{ background:"white", borderRadius:"20px", border:"1px solid #e2e8f0", boxShadow:"0 1px 4px rgba(0,0,0,0.05)", overflow:"hidden" }}>
-                    <div style={{ overflowX:"auto", overflowY:"auto", maxHeight:"calc(100vh - 280px)" }}>
+                    <div style={{ overflowX:"auto", overflowY:"auto", maxHeight:"calc(100vh - 280px)" }} className="admin-table-scroll">
                       <table style={{ width:"100%", borderCollapse:"collapse", minWidth:"900px", fontSize:"13px" }}>
                         <thead>
                           <tr style={{ background:"#f8fafc", borderBottom:"2px solid #e2e8f0", position:"sticky", top:0, zIndex:5 }}>
@@ -5505,6 +5507,7 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser, userRole }: {
   // ===== SORT =====
   const [sortField, setSortField] = useState("request_date");
   const [sortDir, setSortDir] = useState<"asc"|"desc">("desc");
+  const [sortDropdown, setSortDropdown] = useState("");
   
   // ===== MULTI-SELECT =====
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -5644,8 +5647,8 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser, userRole }: {
   };
 
   // ===== FETCH DATA =====
-  const fetchRecords = useCallback(async () => {
-    setLoading(true);
+  const fetchRecords = useCallback(async (showLoading = true) => {
+    if (showLoading) setLoading(true);
     try {
       const { data, error } = await supabase
         .from(currentSchema.tableName)
@@ -5657,7 +5660,7 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser, userRole }: {
     } catch (err: any) {
       console.error("خطأ في جلب البيانات:", err?.message);
     }
-    setLoading(false);
+    if (showLoading) setLoading(false);
   }, [supabase, currentSchema.tableName, sortField, sortDir]);
 
   useEffect(() => { 
@@ -5780,7 +5783,7 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser, userRole }: {
 
       setShowForm(false);
       setEditingRecord(null);
-      fetchRecords();
+      fetchRecords(false);
     } catch (err: any) {
       alert("❌ خطأ: " + (err?.message || "فشل الحفظ"));
     }
@@ -5798,7 +5801,7 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser, userRole }: {
       
       if (error) throw error;
       await logAction("delete", currentSchema.tableName, id);
-      fetchRecords();
+      fetchRecords(false);
     } catch (err: any) {
       alert("❌ خطأ: " + (err?.message || "فشل الحذف"));
     }
@@ -5820,7 +5823,7 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser, userRole }: {
       }
       await logAction("bulk_delete", currentSchema.tableName, null);
       setSelectedIds([]);
-      fetchRecords();
+      fetchRecords(false);
       if (failCount > 0) alert(`⚠️ فشل حذف ${failCount} سجل`);
     } catch (err: any) {
       alert("❌ خطأ في الحذف: " + (err?.message || "فشل الحذف"));
@@ -6055,7 +6058,7 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser, userRole }: {
 
       await logAction("bulk_import", currentSchema.tableName, null);
       setImportProgress({ total: toInsert.length, done: inserted + updated, errors: insertErrors, success: true, inserted, updated });
-      fetchRecords();
+      fetchRecords(false);
     } catch (err: any) {
       setImportProgress(prev => ({
         total: prev?.total || 0,
@@ -6524,39 +6527,40 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser, userRole }: {
       ) : (
         <div style={{
           background: "white", borderRadius: "12px", border: "1px solid #e2e8f0", overflow: "hidden",
-          maxHeight: "600px", overflowY: "auto",
+          maxHeight: "650px", display: "flex", flexDirection: "column"
         } as React.CSSProperties}>
           <style>{`
             .admin-table-scroll::-webkit-scrollbar {
-              width: 10px;
-              height: 10px;
+              width: 8px;
+              height: 8px;
             }
             .admin-table-scroll::-webkit-scrollbar-track {
-              background: #f1f5f9;
+              background: #f8fafc;
             }
             .admin-table-scroll::-webkit-scrollbar-thumb {
               background: #cbd5e1;
-              border-radius: 5px;
+              border-radius: 10px;
+              border: 2px solid #f8fafc;
             }
             .admin-table-scroll::-webkit-scrollbar-thumb:hover {
               background: #94a3b8;
             }
           `}</style>
-          <div style={{ overflowX: "auto" }} className="admin-table-scroll">
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px", tableLayout: "fixed" }}>
+          <div style={{ overflowX: "auto", overflowY: "auto" }} className="admin-table-scroll">
+            <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, fontSize: "12px", tableLayout: "fixed" }}>
               <colgroup>
                 <col style={{ width: "40px" }} />
                 {currentSchema.fields.map((f: any) => {
                   const wideKeys = ["item_name", "notes", "remarks", "description"];
                   const narrowKeys = ["system_request_no", "admin_request_no", "request_number", "year", "quantity_requested", "quantity_executed", "quantity_remaining", "unit"];
-                  const width = wideKeys.includes(f.key) ? "150px" : narrowKeys.includes(f.key) ? "72px" : "96px";
+                  const width = wideKeys.includes(f.key) ? "180px" : narrowKeys.includes(f.key) ? "90px" : "110px";
                   return <col key={f.key} style={{ width }} />;
                 })}
-                <col style={{ width: "76px" }} />
+                <col style={{ width: "85px" }} />
               </colgroup>
-              <thead style={{ background: "#f8fafc", borderBottom: "2px solid #e2e8f0", position: "sticky", top: 0, zIndex: 10 }}>
+              <thead style={{ background: "#f8fafc", position: "sticky", top: 0, zIndex: 20 }}>
                 <tr>
-                  <th style={{ padding: "10px", textAlign: "center", width: "40px" }}>
+                  <th style={{ padding: "10px", textAlign: "center", width: "40px", borderBottom: "2px solid #e2e8f0", background: "#f8fafc" }}>
                     <input
                       type="checkbox"
                       checked={selectedIds.length === filtered.length && filtered.length > 0}
@@ -6571,40 +6575,28 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser, userRole }: {
                     />
                   </th>
                   {currentSchema.fields.map((f: any) => (
-                    <th 
+                    <SortTh
                       key={f.key}
-                      onClick={() => {
-                        if (sortField === f.key) {
-                          setSortDir(sortDir === "asc" ? "desc" : "asc");
-                        } else {
-                          setSortField(f.key);
-                          setSortDir("asc");
-                        }
+                      label={f.label}
+                      field={f.key}
+                      align="right"
+                      sortField={sortField}
+                      sortDir={sortDir}
+                      sortDropdown={sortDropdown}
+                      onSort={(field, dir) => {
+                        setSortField(field);
+                        setSortDir(dir);
+                        setSortDropdown("");
                       }}
-                      style={{
-                        padding: "10px 8px",
-                        textAlign: "right",
-                        fontWeight: "800",
-                        color: "#374151",
-                        whiteSpace: "nowrap",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        cursor: "pointer",
-                        background: sortField === f.key ? "#e0e7ff" : "transparent",
-                        transition: "background 0.2s",
-                        userSelect: "none",
+                      onClear={() => {
+                        setSortField("request_date");
+                        setSortDir("desc");
+                        setSortDropdown("");
                       }}
-                      title="انقر للترتيب"
-                    >
-                      <span>{f.label}</span>
-                      {sortField === f.key && (
-                        <span style={{ marginRight: "4px", fontSize: "10px" }}>
-                          {sortDir === "asc" ? "🔼" : "🔽"}
-                        </span>
-                      )}
-                    </th>
+                      onToggle={field => setSortDropdown(prev => prev === field ? "" : field)}
+                    />
                   ))}
-                  <th style={{ padding: "10px", textAlign: "center", fontWeight: "800", color: "#374151", whiteSpace: "nowrap" }}>الإجراءات</th>
+                  <th style={{ padding: "10px", textAlign: "center", fontWeight: "800", color: "#374151", whiteSpace: "nowrap", borderBottom: "2px solid #e2e8f0", background: "#f8fafc" }}>الإجراءات</th>
                 </tr>
               </thead>
               <tbody>
