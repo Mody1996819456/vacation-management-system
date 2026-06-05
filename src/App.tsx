@@ -6527,27 +6527,26 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser, userRole }: {
       ) : (
         <div style={{
           background: "white", borderRadius: "12px", border: "1px solid #e2e8f0", overflow: "hidden",
-          maxHeight: "650px", display: "flex", flexDirection: "column"
+          maxHeight: "700px", display: "flex", flexDirection: "column", position: "relative"
         } as React.CSSProperties}>
           <style>{`
             .admin-table-scroll::-webkit-scrollbar {
-              width: 8px;
-              height: 8px;
+              width: 10px;
+              height: 10px;
             }
             .admin-table-scroll::-webkit-scrollbar-track {
-              background: #f8fafc;
+              background: #f1f5f9;
             }
             .admin-table-scroll::-webkit-scrollbar-thumb {
               background: #cbd5e1;
-              border-radius: 10px;
-              border: 2px solid #f8fafc;
+              border-radius: 5px;
             }
             .admin-table-scroll::-webkit-scrollbar-thumb:hover {
               background: #94a3b8;
             }
           `}</style>
-          <div style={{ overflowX: "auto", overflowY: "auto", width: "100%" }} className="admin-table-scroll">
-            <table style={{ minWidth: "1200px", width: "100%", borderCollapse: "separate", borderSpacing: 0, fontSize: "12px", tableLayout: "fixed" }}>
+          <div style={{ overflowX: "auto", overflowY: "auto", width: "100%", flex: 1 }} className="admin-table-scroll">
+            <table style={{ minWidth: "1600px", width: "100%", borderCollapse: "separate", borderSpacing: 0, fontSize: "12px", tableLayout: "fixed" }}>
               <colgroup>
                 <col style={{ width: "50px" }} />
                 {currentSchema.fields.map((f: any) => {
@@ -6555,10 +6554,10 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser, userRole }: {
                   const narrowKeys = ["year", "unit"];
                   const mediumKeys = ["quantity_requested", "quantity_executed", "quantity_remaining", "system_request_no", "admin_request_no", "request_number", "request_date", "receipt_date", "executor"];
                   
-                  let width = "120px";
-                  if (wideKeys.includes(f.key)) width = "200px";
-                  else if (narrowKeys.includes(f.key)) width = "80px";
-                  else if (mediumKeys.includes(f.key)) width = "130px";
+                  let width = "140px";
+                  if (wideKeys.includes(f.key)) width = "220px";
+                  else if (narrowKeys.includes(f.key)) width = "90px";
+                  else if (mediumKeys.includes(f.key)) width = "150px";
                   
                   return <col key={f.key} style={{ width }} />;
                 })}
