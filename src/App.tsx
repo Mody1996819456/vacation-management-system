@@ -5809,15 +5809,19 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser, userRole }: {
     if (!window.confirm(`⚠️ هل تريد حذف ${selectedIds.length} سجل نهائياً؟\nلا يمكن التراجع عن هذا الإجراء.`)) return;
 
     try {
-      const { error } = await supabase
-        .from(currentSchema.tableName)
-        .delete()
-        .in("id", selectedIds);
-
-      if (error) throw error;
+      // حذف سجل سجل لتجنب أي قيود على حجم الطلب
+      let failCount = 0;
+      for (const id of selectedIds) {
+        const { error } = await supabase
+          .from(currentSchema.tableName)
+          .delete()
+          .eq("id", id);
+        if (error) failCount++;
+      }
       await logAction("bulk_delete", currentSchema.tableName, null);
       setSelectedIds([]);
       fetchRecords();
+      if (failCount > 0) alert(`⚠️ فشل حذف ${failCount} سجل`);
     } catch (err: any) {
       alert("❌ خطأ في الحذف: " + (err?.message || "فشل الحذف"));
     }
