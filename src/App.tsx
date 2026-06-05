@@ -6523,9 +6523,26 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser, userRole }: {
         </div>
       ) : (
         <div style={{
-          background: "white", borderRadius: "12px", border: "1px solid #e2e8f0", overflow: "hidden"
-        }}>
-          <div style={{ overflowX: "auto" }}>
+          background: "white", borderRadius: "12px", border: "1px solid #e2e8f0", overflow: "hidden",
+          maxHeight: "600px", overflowY: "auto",
+        } as React.CSSProperties}>
+          <style>{`
+            .admin-table-scroll::-webkit-scrollbar {
+              width: 10px;
+              height: 10px;
+            }
+            .admin-table-scroll::-webkit-scrollbar-track {
+              background: #f1f5f9;
+            }
+            .admin-table-scroll::-webkit-scrollbar-thumb {
+              background: #cbd5e1;
+              border-radius: 5px;
+            }
+            .admin-table-scroll::-webkit-scrollbar-thumb:hover {
+              background: #94a3b8;
+            }
+          `}</style>
+          <div style={{ overflowX: "auto" }} className="admin-table-scroll">
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px", tableLayout: "fixed" }}>
               <colgroup>
                 <col style={{ width: "40px" }} />
@@ -6537,7 +6554,7 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser, userRole }: {
                 })}
                 <col style={{ width: "76px" }} />
               </colgroup>
-              <thead style={{ background: "#f8fafc", borderBottom: "2px solid #e2e8f0" }}>
+              <thead style={{ background: "#f8fafc", borderBottom: "2px solid #e2e8f0", position: "sticky", top: 0, zIndex: 10 }}>
                 <tr>
                   <th style={{ padding: "10px", textAlign: "center", width: "40px" }}>
                     <input
@@ -6554,8 +6571,37 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser, userRole }: {
                     />
                   </th>
                   {currentSchema.fields.map((f: any) => (
-                    <th key={f.key} style={{ padding: "10px 8px", textAlign: "right", fontWeight: "800", color: "#374151", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                      {f.label}
+                    <th 
+                      key={f.key}
+                      onClick={() => {
+                        if (sortField === f.key) {
+                          setSortDir(sortDir === "asc" ? "desc" : "asc");
+                        } else {
+                          setSortField(f.key);
+                          setSortDir("asc");
+                        }
+                      }}
+                      style={{
+                        padding: "10px 8px",
+                        textAlign: "right",
+                        fontWeight: "800",
+                        color: "#374151",
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        cursor: "pointer",
+                        background: sortField === f.key ? "#e0e7ff" : "transparent",
+                        transition: "background 0.2s",
+                        userSelect: "none",
+                      }}
+                      title="انقر للترتيب"
+                    >
+                      <span>{f.label}</span>
+                      {sortField === f.key && (
+                        <span style={{ marginRight: "4px", fontSize: "10px" }}>
+                          {sortDir === "asc" ? "🔼" : "🔽"}
+                        </span>
+                      )}
                     </th>
                   ))}
                   <th style={{ padding: "10px", textAlign: "center", fontWeight: "800", color: "#374151", whiteSpace: "nowrap" }}>الإجراءات</th>
