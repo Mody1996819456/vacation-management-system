@@ -5662,10 +5662,17 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser, userRole }: {
   const fetchRecords = useCallback(async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from(currentSchema.tableName)
-        .select("*")
-        .order(sortField, { ascending: sortDir === "asc" });
+        .select("*");
+      
+      if (sortField) {
+        query = query.order(sortField, { ascending: sortDir === "asc" });
+      } else {
+        query = query.order("created_at", { ascending: false });
+      }
+
+      const { data, error } = await query;
       
       if (error) throw error;
       if (data) setRecords(data);
