@@ -6603,7 +6603,7 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser, userRole }: {
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px", tableLayout: "auto" }}>
               <colgroup>
                 <col style={{ width: "40px" }} />
-                {currentSchema.fields.map((f: any) => {
+                {currentSchema.fields.filter((f: any) => !["requesting_department", "notes", "remarks"].includes(f.key)).map((f: any) => {
                   const wideKeys = ["item_name", "notes", "remarks", "description"];
                   const narrowKeys = ["system_request_no", "admin_request_no", "request_number", "year", "quantity_requested", "quantity_executed", "quantity_remaining", "unit"];
                   const width = wideKeys.includes(f.key) ? "180px" : narrowKeys.includes(f.key) ? "90px" : "110px";
@@ -6627,7 +6627,7 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser, userRole }: {
                       style={{ cursor: "pointer" }}
                     />
                   </th>
-                  {currentSchema.fields.map((f: any) => (
+                  {currentSchema.fields.filter((f: any) => !["requesting_department", "notes", "remarks"].includes(f.key)).map((f: any) => (
                     <SortTh
                       key={f.key}
                       label={f.label}
@@ -6663,7 +6663,7 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser, userRole }: {
                         style={{ cursor: "pointer" }}
                       />
                     </td>
-                    {currentSchema.fields.map((f: any) => {
+                    {currentSchema.fields.filter((f: any) => !["requesting_department", "notes", "remarks"].includes(f.key)).map((f: any) => {
                       const rawVal = f.type === "date" && record[f.key] ? formatDate(record[f.key]) : (record[f.key] ?? "-");
                       const displayVal = rawVal === "" ? "-" : rawVal;
                       const isWideField = ["item_name", "notes", "remarks", "description"].includes(f.key);
