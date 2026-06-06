@@ -309,6 +309,8 @@ const VacationManagementSystem = () => {
   const [empSearch, setEmpSearch] = useState("");
   const [vacSearch, setVacSearch] = useState("");
   const [departmentFilter, setDepartmentFilter] = useState("all");
+  const [selectedDepartments, setSelectedDepartments] = useState<string[]>([]); // للمالك: أقسام متعددة
+  const [showDeptMultiSelect, setShowDeptMultiSelect] = useState(false); // لعرض/إخفاء قائمة الأقسام
   const [vacationTypeFilter, setVacationTypeFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [empStatusFilter, setEmpStatusFilter] = useState("all");
@@ -399,6 +401,10 @@ const VacationManagementSystem = () => {
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, []);
+  useEffect(() => {
+    setSelectedDepartments([]);
+  }, [currentUser]);
+
   // ===== States للميزات الجديدة =====
   const [showEditRequestModal, setShowEditRequestModal] = useState(false);
   const [empEditReq, setEmpEditReq] = useState<any>(null);
@@ -1980,11 +1986,15 @@ useEffect(() => {
   );
   const myDeptId  = currentUser?.dept_id ?? null;
 
-  // Owner يرى الكل — مدير القسم يرى قسمه فقط
+  // Owner يرى الكل (أو أقسام محددة إذا اختار) — مدير القسم يرى قسمه فقط
   const scopedEmployees = isDeptMgr
     ? employees.filter(e => e.department_id === myDeptId)
+    : isOwner && selectedDepartments.length > 0
+    ? employees.filter(e => selectedDepartments.includes(e.department_id || ""))
     : employees;
   const scopedRequests = isDeptMgr
+    ? requests.filter(r => scopedEmployees.some(e => e.id === r.employee_id))
+    : isOwner && selectedDepartments.length > 0
     ? requests.filter(r => scopedEmployees.some(e => e.id === r.employee_id))
     : requests;
 
@@ -2972,8 +2982,105 @@ useEffect(() => {
                         onChange={(e) => setEmpSearch(e.target.value)}
                       />
                     </div>
-                    {/* فلاتر - المالك فقط يرى dropdown الأقسام */}
-                    {!isDeptMgr && departments.length > 0 && (
+                    {/* فلاتر - المالك يرى multi-select للأقسام */}
+                    {isOwner && departments.length > 0 && (
+                      <div style={{ position:"relative" }}>
+                        <button
+                          onClick={() => setShowDeptMultiSelect(!showDeptMultiSelect)}
+                          style={{
+                            padding:"10px 14px",
+                            background:"#f8fafc",
+                            border:"1px solid #e2e8f0",
+                            borderRadius:"12px",
+                            fontSize:"13px",
+                            outline:"none",
+                            color:"#475569",
+                            cursor:"pointer",
+                            fontWeight:"600",
+                            display:"flex",
+                            alignItems:"center",
+                            gap:"6px",
+                            whiteSpace:"nowrap"
+                          }}
+                        >
+                          📋 {selectedDepartments.length > 0 ? `${selectedDepartments.length} قسم` : "اختر الأقسام"}
+                        </button>
+                        {showDeptMultiSelect && (
+                          <div
+                            style={{
+                              position:"absolute",
+                              top:"100%",
+                              right:0,
+                              background:"white",
+                              border:"1px solid #e2e8f0",
+                              borderRadius:"12px",
+                              boxShadow:"0 8px 24px rgba(0,0,0,0.15)",
+                              zIndex:100,
+                              minWidth:"220px",
+                              marginTop:"4px",
+                              overflow:"hidden"
+                            }}
+                            onClick={e => e.stopPropagation()}
+                          >
+                            <div style={{ padding:"8px" }}>
+                              <button
+                                onClick={() => {
+                                  if (selectedDepartments.length === departments.length) {
+                                    setSelectedDepartments([]);
+                                  } else {
+                                    setSelectedDepartments(departments.map(d => d.id));
+                                  }
+                                }}
+                                style={{
+                                  width:"100%",
+                                  padding:"8px 12px",
+                                  background:"#f1f5f9",
+                                  border:"1px solid #e2e8f0",
+                                  borderRadius:"8px",
+                                  fontSize:"12px",
+                                  fontWeight:"700",
+                                  cursor:"pointer",
+                                  marginBottom:"8px",
+                                  color:"#475569"
+                                }}
+                              >
+                                {selectedDepartments.length === departments.length ? "إلغاء التحديث" : "تحديث الكل"}
+                              </button>
+                              {departments.map(dept => (
+                                <label
+                                  key={dept.id}
+                                  style={{
+                                    display:"flex",
+                                    alignItems:"center",
+                                    gap:"8px",
+                                    padding:"8px 12px",
+                                    cursor:"pointer",
+                                    background: selectedDepartments.includes(dept.id) ? "#eef2ff" : "white",
+                                    borderRadius:"6px",
+                                    marginBottom:"4px"
+                                  }}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedDepartments.includes(dept.id)}
+                                    onChange={(e) => {
+                                      if (e.target.checked) {
+                                        setSelectedDepartments([...selectedDepartments, dept.id]);
+                                      } else {
+                                        setSelectedDepartments(selectedDepartments.filter(id => id !== dept.id));
+                                      }
+                                    }}
+                                    style={{ cursor:"pointer" }}
+                                  />
+                                  <span style={{ fontSize:"13px", fontWeight:"600", color:"#1e293b" }}>{dept.name}</span>
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    {!isOwner && !isDeptMgr && departments.length > 0 && (
                       <select style={{ padding:"10px 14px", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:"12px", fontSize:"13px", outline:"none", color:"#475569" }} value={departmentFilter} onChange={(e) => setDepartmentFilter(e.target.value)}>
                         <option value="all">كل الأقسام</option>
                         {departments.map(dept => <option key={dept.id} value={dept.id}>{dept.name}</option>)}
@@ -3000,6 +3107,13 @@ useEffect(() => {
                       </button>
                     </div>
                   </div>
+
+                  {/* رسالة المالك عند اختيار أقسام */}
+                  {isOwner && selectedDepartments.length > 0 && (
+                    <div style={{ background:"#eff6ff", border:"1px solid #bfdbfe", borderRadius:"12px", padding:"12px 14px", fontSize:"13px", color:"#1e40af", fontWeight:"600", display:"flex", alignItems:"center", gap:"8px" }}>
+                      📋 تعرض بيانات {selectedDepartments.length} قسم محدد
+                    </div>
+                  )}
 
                   {/* عداد النتائج */}
                   <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 4px" }}>
@@ -3121,6 +3235,9 @@ useEffect(() => {
                     </button>
                   </div>
                       {isDeptMgr && <p className="text-sm text-emerald-600 font-bold mt-1">🏢 تعرض طلبات قسم: {currentUser?.dept_name}</p>}
+                      {isOwner && selectedDepartments.length > 0 && (
+                        <p className="text-sm text-blue-600 font-bold mt-1">📋 تعرض طلبات {selectedDepartments.length} قسم محدد</p>
+                      )}
                     </div>
                   </div>
                   {/* شريط بحث وفلتر في الطلبات */}
