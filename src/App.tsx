@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import ReactDOM from "react-dom";
 import { createClient } from "@supabase/supabase-js";
 import * as XLSX from "xlsx";
 import emailjs from "@emailjs/browser";
@@ -180,6 +181,7 @@ const calculateWorkDaysBetween = (fromDate: string, toDate: string, holidays: st
 
 // ==================== MAIN COMPONENT ====================
 // ===== SortTh - عنوان عمود قابل للفرز بقائمة Excel =====
+// يستخدم Portal لرسم الـ dropdown خارج الجدول تماماً لتجنب مشكلة التعليق
 const SortTh = ({ label, field, sortField, sortDir, sortDropdown, onSort, onClear, onToggle, align="center" }: {
   label: string; field: string;
   sortField: string; sortDir: "asc"|"desc"; sortDropdown: string;
@@ -190,38 +192,71 @@ const SortTh = ({ label, field, sortField, sortDir, sortDropdown, onSort, onClea
 }) => {
   const active = sortField === field;
   const open = sortDropdown === field;
+  const thRef = useRef<HTMLTableCellElement>(null);
+  const [dropPos, setDropPos] = useState({ top: 0, left: 0 });
+
+  useEffect(() => {
+    if (open && thRef.current) {
+      const rect = thRef.current.getBoundingClientRect();
+      setDropPos({
+        top: rect.bottom + window.scrollY,
+        left: rect.left + rect.width / 2 + window.scrollX,
+      });
+    }
+  }, [open]);
+
+  const dropdown = open ? ReactDOM.createPortal(
+    <div
+      style={{
+        position: "absolute",
+        top: dropPos.top,
+        left: dropPos.left,
+        transform: "translateX(-50%)",
+        background: "white",
+        border: "1px solid #e2e8f0",
+        borderRadius: "10px",
+        boxShadow: "0 8px 24px rgba(0,0,0,0.18)",
+        zIndex: 99999,
+        minWidth: "155px",
+        overflow: "hidden",
+        direction: "rtl",
+      }}
+      onClick={e => e.stopPropagation()}
+    >
+      <button onClick={() => onSort(field, "desc")}
+        style={{ display:"flex", alignItems:"center", gap:"8px", width:"100%", padding:"10px 14px", background: active && sortDir==="desc" ? "#eef2ff" : "white", border:"none", borderBottom:"1px solid #f1f5f9", cursor:"pointer", fontSize:"13px", fontWeight:"700", color:"#1e293b", fontFamily:"inherit" }}>
+        ↓ من الأعلى للأقل
+      </button>
+      <button onClick={() => onSort(field, "asc")}
+        style={{ display:"flex", alignItems:"center", gap:"8px", width:"100%", padding:"10px 14px", background: active && sortDir==="asc" ? "#eef2ff" : "white", border:"none", borderBottom: active ? "1px solid #f1f5f9" : "none", cursor:"pointer", fontSize:"13px", fontWeight:"700", color:"#1e293b", fontFamily:"inherit" }}>
+        ↑ من الأقل للأعلى
+      </button>
+      {active && (
+        <button onClick={onClear}
+          style={{ display:"flex", alignItems:"center", gap:"8px", width:"100%", padding:"9px 14px", background:"#fff1f2", border:"none", cursor:"pointer", fontSize:"12px", fontWeight:"700", color:"#dc2626", fontFamily:"inherit" }}>
+          ✕ إلغاء الفرز
+        </button>
+      )}
+    </div>,
+    document.body
+  ) : null;
+
   return (
-        <th style={{ border:"1px solid #94a3b8", padding:"12px 8px", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center", position:"relative" }}>
+    <th
+      ref={thRef}
+      style={{ border:"1px solid #94a3b8", padding:"12px 8px", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center", position:"relative" }}
+    >
       <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:"8px", cursor:"pointer" }} onClick={() => onToggle(field)}>
         <span style={{ fontSize:"13px" }}>{label}</span>
-        <span style={{ 
-            background: active ? "#ffffff33" : "transparent", 
+        <span style={{
+            background: active ? "#ffffff33" : "transparent",
             padding:"2px 4px", borderRadius:"4px", fontSize:"10px",
             border: active ? "1px solid white" : "1px solid #ffffff66"
         }}>
           {active ? (sortDir === "desc" ? "↓" : "↑") : "⇅"}
         </span>
       </div>
-      {open && (
-        <div
-          style={{ position:"absolute", top:"100%", left:"50%", transform:"translateX(-50%)", background:"white", border:"1px solid #e2e8f0", borderRadius:"10px", boxShadow:"0 8px 24px rgba(0, 0, 0, 0.15)", zIndex:100, minWidth:"155px", overflow:"hidden" }}
-          onClick={e => e.stopPropagation()}>
-          <button onClick={() => onSort(field, "desc")}
-            style={{ display:"flex", alignItems:"center", gap:"8px", width:"100%", padding:"10px 14px", background: active && sortDir==="desc" ? "#eef2ff" : "white", border:"none", borderBottom:"1px solid #f1f5f9", cursor:"pointer", fontSize:"13px", fontWeight:"700", color:"#1e293b", fontFamily:"inherit" }}>
-            ↓ من الأعلى للأقل
-          </button>
-          <button onClick={() => onSort(field, "asc")}
-            style={{ display:"flex", alignItems:"center", gap:"8px", width:"100%", padding:"10px 14px", background: active && sortDir==="asc" ? "#eef2ff" : "white", border:"none", borderBottom: active ? "1px solid #f1f5f9" : "none", cursor:"pointer", fontSize:"13px", fontWeight:"700", color:"#1e293b", fontFamily:"inherit" }}>
-            ↑ من الأقل للأعلى
-          </button>
-          {active && (
-            <button onClick={onClear}
-              style={{ display:"flex", alignItems:"center", gap:"8px", width:"100%", padding:"9px 14px", background:"#fff1f2", border:"none", cursor:"pointer", fontSize:"12px", fontWeight:"700", color:"#dc2626", fontFamily:"inherit" }}>
-              ✕ إلغاء الفرز
-            </button>
-          )}
-        </div>
-      )}
+      {dropdown}
     </th>
   );
 };
