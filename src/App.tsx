@@ -3633,7 +3633,7 @@ useEffect(() => {
                                       <div style={{ fontWeight:"700", color:"#1e293b" }}>{emp.name}</div>
                                       <div style={{ fontSize:"11px", color:"#94a3b8" }}>{emp.code}</div>
                                     </td>
-                                    <td style={{ padding:"12px 14px", border:"1px solid #cbd5e1", color:"#334155", color:"#64748b", fontSize:"12px" }}>{dept?.name || "-"}</td>
+                                    <td style={{ padding:"12px 14px", border:"1px solid #cbd5e1", color:"#334155", fontSize:"12px" }}>{dept?.name || "-"}</td>
                                     <td style={{ padding:"12px 14px", border:"1px solid #cbd5e1", color:"#334155" }}>
                                       {vacType
                                         ? <span style={{ padding:"3px 10px", borderRadius:"20px", fontSize:"11px", fontWeight:"700", background:(vacType as any).color+"22", color:(vacType as any).color }}>{(vacType as any).name}</span>
