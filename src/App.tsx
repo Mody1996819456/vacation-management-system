@@ -6660,7 +6660,7 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser, userRole }: {
               </thead>
               <tbody>
                 {filtered.map((record: any) => (
-                  <tr key={record.id} style={{ borderBottom: "1px solid #f1f5f9", height: "44px" }}
+                  <tr key={record.id} style={{ height: "44px" }}
                     onMouseEnter={e => (e.currentTarget.style.background = "#f8fafc")}
                     onMouseLeave={e => (e.currentTarget.style.background = "white")}>
                     <td style={{ border:"1px solid #94a3b8", padding:"10px 8px", color:"#1e293b", textAlign:"center" }}>
@@ -6683,6 +6683,7 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser, userRole }: {
                       const isWideField = ["item_name", "notes", "remarks", "description"].includes(f.key);
                       return (
                         <td key={f.key} title={String(displayVal).length > 20 ? String(displayVal) : undefined} style={{
+                          border: "1px solid #94a3b8",
                           padding: "8px 8px",
                           textAlign: "right",
                           fontSize: "12px",
