@@ -181,7 +181,7 @@ const calculateWorkDaysBetween = (fromDate: string, toDate: string, holidays: st
 
 // ==================== MAIN COMPONENT ====================
 // ===== SortTh - عنوان عمود قابل للفرز بقائمة Excel =====
-// يستخدم Portal لرسم الـ dropdown خارج الجدول تماماً لتجنب مشكلة التعليق
+// يستخدم Portal مع position:fixed لرسم الـ dropdown فوق كل شيء في النظام
 const SortTh = ({ label, field, sortField, sortDir, sortDropdown, onSort, onClear, onToggle, align="center" }: {
   label: string; field: string;
   sortField: string; sortDir: "asc"|"desc"; sortDropdown: string;
@@ -193,14 +193,19 @@ const SortTh = ({ label, field, sortField, sortDir, sortDropdown, onSort, onClea
   const active = sortField === field;
   const open = sortDropdown === field;
   const thRef = useRef<HTMLTableCellElement>(null);
-  const [dropPos, setDropPos] = useState({ top: 0, left: 0 });
+  const [dropPos, setDropPos] = useState({ top: 0, left: 0, alignRight: false });
 
   useEffect(() => {
     if (open && thRef.current) {
       const rect = thRef.current.getBoundingClientRect();
+      const dropW = 160;
+      const centered = rect.left + rect.width / 2;
+      // هل الـ dropdown هيخرج من شمال الشاشة؟
+      const alignRight = centered - dropW / 2 < 0;
       setDropPos({
-        top: rect.bottom + window.scrollY,
-        left: rect.left + rect.width / 2 + window.scrollX,
+        top: rect.bottom + 2,
+        left: alignRight ? rect.left : centered,
+        alignRight,
       });
     }
   }, [open]);
@@ -208,31 +213,35 @@ const SortTh = ({ label, field, sortField, sortDir, sortDropdown, onSort, onClea
   const dropdown = open ? ReactDOM.createPortal(
     <div
       style={{
-        position: "absolute",
+        position: "fixed",
         top: dropPos.top,
         left: dropPos.left,
-        transform: "translateX(-50%)",
+        transform: dropPos.alignRight ? "none" : "translateX(-50%)",
         background: "white",
         border: "1px solid #e2e8f0",
         borderRadius: "10px",
         boxShadow: "0 8px 24px rgba(0,0,0,0.18)",
         zIndex: 99999,
-        minWidth: "155px",
+        minWidth: "160px",
         overflow: "hidden",
         direction: "rtl",
       }}
+      // نمنع الـ click من الوصول للـ global handler داخل الـ dropdown فقط
       onClick={e => e.stopPropagation()}
     >
-      <button onClick={() => onSort(field, "desc")}
+      <button
+        onClick={() => { onSort(field, "desc"); }}
         style={{ display:"flex", alignItems:"center", gap:"8px", width:"100%", padding:"10px 14px", background: active && sortDir==="desc" ? "#eef2ff" : "white", border:"none", borderBottom:"1px solid #f1f5f9", cursor:"pointer", fontSize:"13px", fontWeight:"700", color:"#1e293b", fontFamily:"inherit" }}>
         ↓ من الأعلى للأقل
       </button>
-      <button onClick={() => onSort(field, "asc")}
+      <button
+        onClick={() => { onSort(field, "asc"); }}
         style={{ display:"flex", alignItems:"center", gap:"8px", width:"100%", padding:"10px 14px", background: active && sortDir==="asc" ? "#eef2ff" : "white", border:"none", borderBottom: active ? "1px solid #f1f5f9" : "none", cursor:"pointer", fontSize:"13px", fontWeight:"700", color:"#1e293b", fontFamily:"inherit" }}>
         ↑ من الأقل للأعلى
       </button>
       {active && (
-        <button onClick={onClear}
+        <button
+          onClick={() => { onClear(); }}
           style={{ display:"flex", alignItems:"center", gap:"8px", width:"100%", padding:"9px 14px", background:"#fff1f2", border:"none", cursor:"pointer", fontSize:"12px", fontWeight:"700", color:"#dc2626", fontFamily:"inherit" }}>
           ✕ إلغاء الفرز
         </button>
@@ -246,7 +255,10 @@ const SortTh = ({ label, field, sortField, sortDir, sortDropdown, onSort, onClea
       ref={thRef}
       style={{ border:"1px solid #94a3b8", padding:"12px 8px", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center", position:"relative" }}
     >
-      <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:"8px", cursor:"pointer" }} onClick={() => onToggle(field)}>
+      <div
+        style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:"8px", cursor:"pointer" }}
+        onClick={e => { e.stopPropagation(); onToggle(field); }}
+      >
         <span style={{ fontSize:"13px" }}>{label}</span>
         <span style={{
             background: active ? "#ffffff33" : "transparent",
@@ -474,12 +486,16 @@ const VacationManagementSystem = () => {
   const [histSortDir, setHistSortDir] = useState<"asc"|"desc">("desc");
   const [histSortDropdown, setHistSortDropdown] = useState("");
 
-  // إغلاق dropdown الفرز عند الضغط خارجه
+  // إغلاق dropdown الفرز عند الضغط خارجه أو عند التمرير
   useEffect(() => {
     if (!empSortDropdown && !reqSortDropdown && !histSortDropdown && !activeVacSortDropdown) return;
     const handler = () => { setEmpSortDropdown(""); setReqSortDropdown(""); setHistSortDropdown(""); setActiveVacSortDropdown(""); };
-    document.addEventListener("click", handler);
-    return () => document.removeEventListener("click", handler);
+    document.addEventListener("click", handler, true);
+    window.addEventListener("scroll", handler, true);
+    return () => {
+      document.removeEventListener("click", handler, true);
+      window.removeEventListener("scroll", handler, true);
+    };
   }, [empSortDropdown, reqSortDropdown, histSortDropdown, activeVacSortDropdown]);
 
   // تحديث الساعة كل ثانية
@@ -5576,6 +5592,18 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser, userRole }: {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const tableScrollRef = useRef<HTMLDivElement>(null);
   const [sortDropdown, setSortDropdown] = useState("");
+
+  // إغلاق dropdown الفرز عند الضغط خارجه أو عند التمرير
+  useEffect(() => {
+    if (!sortDropdown) return;
+    const close = () => setSortDropdown("");
+    document.addEventListener("click", close, true);
+    window.addEventListener("scroll", close, true);
+    return () => {
+      document.removeEventListener("click", close, true);
+      window.removeEventListener("scroll", close, true);
+    };
+  }, [sortDropdown]);
 
   // ===== CONSTANTS =====
   const departments = ["الإدارة", "المطبخ", "الصيانة", "النظافة", "الأمن", "الموارد البشرية", "المالية", "أخرى"];
