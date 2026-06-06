@@ -181,7 +181,6 @@ const calculateWorkDaysBetween = (fromDate: string, toDate: string, holidays: st
 
 // ==================== MAIN COMPONENT ====================
 // ===== SortTh - عنوان عمود قابل للفرز بقائمة Excel =====
-// يستخدم Portal مع position:fixed لرسم الـ dropdown فوق كل شيء في النظام
 const SortTh = ({ label, field, sortField, sortDir, sortDropdown, onSort, onClear, onToggle, align="center" }: {
   label: string; field: string;
   sortField: string; sortDir: "asc"|"desc"; sortDropdown: string;
@@ -193,55 +192,62 @@ const SortTh = ({ label, field, sortField, sortDir, sortDropdown, onSort, onClea
   const active = sortField === field;
   const open = sortDropdown === field;
   const thRef = useRef<HTMLTableCellElement>(null);
-  const [dropPos, setDropPos] = useState({ top: 0, left: 0, alignRight: false });
+  const [dropPos, setDropPos] = useState<{ top: number; left: number; transform: string } | null>(null);
 
-  useEffect(() => {
-    if (open && thRef.current) {
+  // نحسب الموضع مباشرة لما نفتح الـ dropdown
+  const handleToggle = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!open && thRef.current) {
       const rect = thRef.current.getBoundingClientRect();
-      const dropW = 160;
+      const dropW = 165;
       const centered = rect.left + rect.width / 2;
-      // هل الـ dropdown هيخرج من شمال الشاشة؟
-      const alignRight = centered - dropW / 2 < 0;
-      setDropPos({
-        top: rect.bottom + 2,
-        left: alignRight ? rect.left : centered,
-        alignRight,
-      });
+      const vw = window.innerWidth;
+      let left = centered;
+      let transform = "translateX(-50%)";
+      if (centered - dropW / 2 < 8) {
+        left = rect.left;
+        transform = "none";
+      } else if (centered + dropW / 2 > vw - 8) {
+        left = rect.right;
+        transform = "translateX(-100%)";
+      }
+      setDropPos({ top: rect.bottom + 4, left, transform });
     }
-  }, [open]);
+    onToggle(field);
+  };
 
-  const dropdown = open ? ReactDOM.createPortal(
+  const dropdown = open && dropPos ? ReactDOM.createPortal(
     <div
       style={{
         position: "fixed",
         top: dropPos.top,
         left: dropPos.left,
-        transform: dropPos.alignRight ? "none" : "translateX(-50%)",
+        transform: dropPos.transform,
         background: "white",
         border: "1px solid #e2e8f0",
         borderRadius: "10px",
-        boxShadow: "0 8px 24px rgba(0,0,0,0.18)",
+        boxShadow: "0 8px 24px rgba(0,0,0,0.2)",
         zIndex: 99999,
-        minWidth: "160px",
+        minWidth: "165px",
         overflow: "hidden",
         direction: "rtl",
       }}
-      // نمنع الـ click من الوصول للـ global handler داخل الـ dropdown فقط
+      onMouseDown={e => e.stopPropagation()}
       onClick={e => e.stopPropagation()}
     >
       <button
-        onClick={() => { onSort(field, "desc"); }}
+        onMouseDown={e => { e.stopPropagation(); onSort(field, "desc"); }}
         style={{ display:"flex", alignItems:"center", gap:"8px", width:"100%", padding:"10px 14px", background: active && sortDir==="desc" ? "#eef2ff" : "white", border:"none", borderBottom:"1px solid #f1f5f9", cursor:"pointer", fontSize:"13px", fontWeight:"700", color:"#1e293b", fontFamily:"inherit" }}>
         ↓ من الأعلى للأقل
       </button>
       <button
-        onClick={() => { onSort(field, "asc"); }}
+        onMouseDown={e => { e.stopPropagation(); onSort(field, "asc"); }}
         style={{ display:"flex", alignItems:"center", gap:"8px", width:"100%", padding:"10px 14px", background: active && sortDir==="asc" ? "#eef2ff" : "white", border:"none", borderBottom: active ? "1px solid #f1f5f9" : "none", cursor:"pointer", fontSize:"13px", fontWeight:"700", color:"#1e293b", fontFamily:"inherit" }}>
         ↑ من الأقل للأعلى
       </button>
       {active && (
         <button
-          onClick={() => { onClear(); }}
+          onMouseDown={e => { e.stopPropagation(); onClear(); }}
           style={{ display:"flex", alignItems:"center", gap:"8px", width:"100%", padding:"9px 14px", background:"#fff1f2", border:"none", cursor:"pointer", fontSize:"12px", fontWeight:"700", color:"#dc2626", fontFamily:"inherit" }}>
           ✕ إلغاء الفرز
         </button>
@@ -256,8 +262,8 @@ const SortTh = ({ label, field, sortField, sortDir, sortDropdown, onSort, onClea
       style={{ border:"1px solid #94a3b8", padding:"12px 8px", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center", position:"relative" }}
     >
       <div
-        style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:"8px", cursor:"pointer" }}
-        onClick={e => { e.stopPropagation(); onToggle(field); }}
+        style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:"8px", cursor:"pointer", userSelect:"none" }}
+        onClick={handleToggle}
       >
         <span style={{ fontSize:"13px" }}>{label}</span>
         <span style={{
@@ -490,10 +496,10 @@ const VacationManagementSystem = () => {
   useEffect(() => {
     if (!empSortDropdown && !reqSortDropdown && !histSortDropdown && !activeVacSortDropdown) return;
     const handler = () => { setEmpSortDropdown(""); setReqSortDropdown(""); setHistSortDropdown(""); setActiveVacSortDropdown(""); };
-    document.addEventListener("click", handler, true);
+    document.addEventListener("mousedown", handler);
     window.addEventListener("scroll", handler, true);
     return () => {
-      document.removeEventListener("click", handler, true);
+      document.removeEventListener("mousedown", handler);
       window.removeEventListener("scroll", handler, true);
     };
   }, [empSortDropdown, reqSortDropdown, histSortDropdown, activeVacSortDropdown]);
@@ -5597,10 +5603,10 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser, userRole }: {
   useEffect(() => {
     if (!sortDropdown) return;
     const close = () => setSortDropdown("");
-    document.addEventListener("click", close, true);
+    document.addEventListener("mousedown", close);
     window.addEventListener("scroll", close, true);
     return () => {
-      document.removeEventListener("click", close, true);
+      document.removeEventListener("mousedown", close);
       window.removeEventListener("scroll", close, true);
     };
   }, [sortDropdown]);
