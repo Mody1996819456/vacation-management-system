@@ -191,7 +191,7 @@ const SortTh = ({ label, field, sortField, sortDir, sortDropdown, onSort, onClea
   const active = sortField === field;
   const open = sortDropdown === field;
   return (
-        <th style={ border:"1px solid #94a3b8",  padding:"12px 8px", border:"1px solid #94a3b8", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center", position:"relative"  }>
+        <th style={{ border:"1px solid #94a3b8", padding:"12px 8px", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center", position:"relative" }}>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:"8px", cursor:"pointer" }} onClick={() => onToggle(field)}>
         <span style={{ fontSize:"13px" }}>{label}</span>
         <span style={{ 
@@ -3030,7 +3030,7 @@ useEffect(() => {
                   {/* الجدول مع scroll أفقي */}
                   <div style={{ background:"white", borderRadius:"20px", border:"1px solid #e2e8f0", boxShadow:"0 1px 4px rgba(0, 0, 0, 0.05)", overflow:"hidden" }}>
                     <div style={{ overflowX:"auto", overflowY:"auto", maxHeight:"calc(100vh - 280px)" }}>
-                      <table style={ borderCollapse:"collapse", border:"1px solid #94a3b8",  width:"100%", borderCollapse:"collapse", border:"2px solid #94a3b8", fontSize:"13px", backgroundColor:"#ffffff"  }>
+                      <table style={{ width:"100%", borderCollapse:"collapse", border:"2px solid #94a3b8", fontSize:"13px", backgroundColor:"#ffffff" }}>
                         <thead>
                           <tr style={{ background:"linear-gradient(90deg, #3b82f6 0%, #f59e0b 14%, #a855f7 28%, #ef4444 42%, #10b981 56%, #eab308 70%, #06b6d4 84%, #14b8a6 100%)", borderBottom:"2px solid #cbd5e1", position:"sticky", top:0, zIndex:5 }}>
                             <SortTh label="الاسم"      field="name"       align="right"  sortField={empSortField} sortDir={empSortDir} sortDropdown={empSortDropdown} onSort={(f,d)=>{setEmpSortField(f);setEmpSortDir(d);setEmpSortDropdown("");}} onClear={()=>{setEmpSortField("");setEmpSortDropdown("");}} onToggle={f=>setEmpSortDropdown(d=>d===f?"":f)} />
@@ -3041,7 +3041,7 @@ useEffect(() => {
                             <SortTh label="شهري"       field="monthly"    align="center" sortField={empSortField} sortDir={empSortDir} sortDropdown={empSortDropdown} onSort={(f,d)=>{setEmpSortField(f);setEmpSortDir(d);setEmpSortDropdown("");}} onClear={()=>{setEmpSortField("");setEmpSortDropdown("");}} onToggle={f=>setEmpSortDropdown(d=>d===f?"":f)} />
                             <SortTh label="أيام العمل" field="workedDays" align="center" sortField={empSortField} sortDir={empSortDir} sortDropdown={empSortDropdown} onSort={(f,d)=>{setEmpSortField(f);setEmpSortDir(d);setEmpSortDropdown("");}} onClear={()=>{setEmpSortField("");setEmpSortDropdown("");}} onToggle={f=>setEmpSortDropdown(d=>d===f?"":f)} />
                             <SortTh label="الحالة"     field="status"     align="center" sortField={empSortField} sortDir={empSortDir} sortDropdown={empSortDropdown} onSort={(f,d)=>{setEmpSortField(f);setEmpSortDir(d);setEmpSortDropdown("");}} onClear={()=>{setEmpSortField("");setEmpSortDropdown("");}} onToggle={f=>setEmpSortDropdown(d=>d===f?"":f)} />
-                            <th style={ border:"1px solid #94a3b8",  padding:"12px 8px", border:"1px solid #94a3b8", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center"  }>إجراءات</th>
+                            <th style={{ border:"1px solid #94a3b8", padding:"12px 8px", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center" }}>إجراءات</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -3055,41 +3055,41 @@ useEffect(() => {
                                 onMouseEnter={e => (e.currentTarget.style.background = "#f0f4ff")}
                                 onMouseLeave={e => (e.currentTarget.style.background = isOnLeave ? "#fffbeb" : (idx % 2 === 0 ? "white" : "#fafafa"))}>
                                 {/* الاسم */}
-                                <td style={ border:"1px solid #94a3b8",  padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center"  }>
+                                <td style={{ border:"1px solid #94a3b8", padding:"10px 8px", color:"#1e293b", textAlign:"center" }}>
                                   <div style={{ fontWeight:"700", color:"#1e293b", fontSize:"13px" }}>{emp.name}</div>
                                   {emp.email && <a href={`mailto:${emp.email}`} style={{ color:"#6366f1", fontSize:"11px", textDecoration:"none" }}>{emp.email}</a>}
                                 </td>
                                 {/* الكود */}
-                                <td style={ border:"1px solid #94a3b8",  padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center"  }>
+                                <td style={{ border:"1px solid #94a3b8", padding:"10px 8px", color:"#1e293b", textAlign:"center" }}>
                                   <span style={{ fontFamily:"monospace", background:"#f1f5f9", padding:"3px 8px", borderRadius:"6px", fontSize:"12px", color:"#475569", fontWeight:"600" }}>{emp.code}</span>
                                 </td>
                                 {/* المنصب */}
-                                <td style={ border:"1px solid #94a3b8",  padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center"  }>{emp.position || "-"}</td>
+                                <td style={{ border:"1px solid #94a3b8", padding:"10px 8px", color:"#1e293b", textAlign:"center" }}>{emp.position || "-"}</td>
                                 {/* القسم */}
-                                <td style={ border:"1px solid #94a3b8",  padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center"  }>
+                                <td style={{ border:"1px solid #94a3b8", padding:"10px 8px", color:"#1e293b", textAlign:"center" }}>
                                   {dept ? <span style={{ background:"#ede9fe", color:"#7c3aed", padding:"3px 10px", borderRadius:"20px", fontSize:"11px", fontWeight:"700" }}>{dept.name}</span> : <span style={{ color:"#cbd5e1" }}>-</span>}
                                 </td>
                                 {/* الرصيد */}
-                                <td style={ border:"1px solid #94a3b8",  padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center"  }>
+                                <td style={{ border:"1px solid #94a3b8", padding:"10px 8px", color:"#1e293b", textAlign:"center" }}>
                                   <span style={{ fontWeight:"900", fontSize:"16px", color: emp.balance < 5 ? "#dc2626" : emp.balance < 10 ? "#d97706" : "#4f46e5" }}>{emp.balance}</span>
                                   <div style={{ fontSize:"10px", color:"#94a3b8" }}>يوم</div>
                                 </td>
                                 {/* شهري */}
-                                <td style={ border:"1px solid #94a3b8",  padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center"  }>
+                                <td style={{ border:"1px solid #94a3b8", padding:"10px 8px", color:"#1e293b", textAlign:"center" }}>
                                   {emp.monthly_balance > 0
                                     ? <span style={{ background:"#dcfce7", color:"#16a34a", padding:"3px 8px", borderRadius:"20px", fontSize:"11px", fontWeight:"700" }}>+{emp.monthly_balance}</span>
                                     : <span style={{ color:"#cbd5e1", fontSize:"12px" }}>-</span>}
                                 </td>
                                 {/* أيام العمل */}
-                                <td style={ border:"1px solid #94a3b8",  padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center"  }>{workedDays > 0 ? workedDays : "-"}</td>
+                                <td style={{ border:"1px solid #94a3b8", padding:"10px 8px", color:"#1e293b", textAlign:"center" }}>{workedDays > 0 ? workedDays : "-"}</td>
                                 {/* الحالة */}
-                                <td style={ border:"1px solid #94a3b8",  padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center"  }>
+                                <td style={{ border:"1px solid #94a3b8", padding:"10px 8px", color:"#1e293b", textAlign:"center" }}>
                                   <span style={{ padding:"4px 12px", borderRadius:"20px", fontSize:"11px", fontWeight:"800", background: isOnLeave ? "#fef3c7" : "#dcfce7", color: isOnLeave ? "#92400e" : "#166534" }}>
                                     {isOnLeave ? "🟡 إجازة" : "🟢 عمل"}
                                   </span>
                                 </td>
                                 {/* إجراءات */}
-                                <td style={ border:"1px solid #94a3b8",  padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center"  }>
+                                <td style={{ border:"1px solid #94a3b8", padding:"10px 8px", color:"#1e293b", textAlign:"center" }}>
                                   <div style={{ display:"flex", justifyContent:"center", gap:"6px" }}>
                                     <button
                                       title={empStatus === "إجازة" ? "تغيير إلى عمل" : "تغيير إلى إجازة"}
@@ -3176,7 +3176,7 @@ useEffect(() => {
                     <>
                       <h3 className="font-black text-lg text-amber-600">⏳ بانتظار موافقتك ({filteredRequests.filter(r => r.status === "pending").length})</h3>
                       <div style={{ background:"white", borderRadius:"20px", border:"1px solid #e2e8f0", overflowX:"auto" }}>
-                        <table style={ borderCollapse:"collapse", border:"1px solid #94a3b8",  width:"100%", borderCollapse:"collapse", border:"2px solid #94a3b8", fontSize:"13px", backgroundColor:"#ffffff"  }>
+                        <table style={{ width:"100%", borderCollapse:"collapse", border:"2px solid #94a3b8", fontSize:"13px", backgroundColor:"#ffffff" }}>
                           <thead>
                             <tr style={{ background:"linear-gradient(135deg, #fffbeb, #fef3c7)", borderBottom:"2px solid #fde68a" }}>
                               <SortTh label="الموظف"    field="name"     align="right"  sortField={reqSortField} sortDir={reqSortDir} sortDropdown={reqSortDropdown} onSort={(f,d)=>{setReqSortField(f);setReqSortDir(d);setReqSortDropdown("");}} onClear={()=>{setReqSortField("");setReqSortDropdown("");}} onToggle={f=>setReqSortDropdown(d=>d===f?"":f)} />
@@ -3186,7 +3186,7 @@ useEffect(() => {
                               <SortTh label="الأيام"    field="days"     align="center" sortField={reqSortField} sortDir={reqSortDir} sortDropdown={reqSortDropdown} onSort={(f,d)=>{setReqSortField(f);setReqSortDir(d);setReqSortDropdown("");}} onClear={()=>{setReqSortField("");setReqSortDropdown("");}} onToggle={f=>setReqSortDropdown(d=>d===f?"":f)} />
                               <SortTh label="أيام العمل" field="workdays" align="center" sortField={reqSortField} sortDir={reqSortDir} sortDropdown={reqSortDropdown} onSort={(f,d)=>{setReqSortField(f);setReqSortDir(d);setReqSortDropdown("");}} onClear={()=>{setReqSortField("");setReqSortDropdown("");}} onToggle={f=>setReqSortDropdown(d=>d===f?"":f)} />
                               <SortTh label="الحالة"    field="status"   align="center" sortField={reqSortField} sortDir={reqSortDir} sortDropdown={reqSortDropdown} onSort={(f,d)=>{setReqSortField(f);setReqSortDir(d);setReqSortDropdown("");}} onClear={()=>{setReqSortField("");setReqSortDropdown("");}} onToggle={f=>setReqSortDropdown(d=>d===f?"":f)} />
-                              <th style={ border:"1px solid #94a3b8",  padding:"12px 8px", border:"1px solid #94a3b8", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center"  }>الإجراءات</th>
+                              <th style={{ border:"1px solid #94a3b8", padding:"12px 8px", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center" }}>الإجراءات</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -3199,33 +3199,33 @@ useEffect(() => {
                                   style={{ borderBottom:"1px solid #f1f5f9", background: idx % 2 === 0 ? "white" : "#fafafa" }}
                                   onMouseEnter={e => (e.currentTarget.style.background = "#fffbeb")}
                                   onMouseLeave={e => (e.currentTarget.style.background = idx % 2 === 0 ? "white" : "#fafafa")}>
-                                  <td style={ border:"1px solid #94a3b8",  padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center"  }>
+                                  <td style={{ border:"1px solid #94a3b8", padding:"10px 8px", color:"#1e293b", textAlign:"center" }}>
                                     <button onClick={() => { setEmpInfoTarget({...emp, req}); setShowEmpInfoModal(true); }}
                                       style={{ background:"none", border:"none", padding:0, cursor:"pointer", textAlign:"right" }}>
                                       <div style={{ fontWeight:"800", color:"#1e293b", fontSize:"13px" }}>{req.employee_name}</div>
                                       {emp?.email && <div style={{ fontSize:"10px", color:"#94a3b8" }}>{emp.email}</div>}
                                     </button>
                                   </td>
-                                  <td style={ border:"1px solid #94a3b8",  padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center"  }>
+                                  <td style={{ border:"1px solid #94a3b8", padding:"10px 8px", color:"#1e293b", textAlign:"center" }}>
                                     {vacType && <span style={{ padding:"3px 10px", borderRadius:"20px", fontSize:"11px", fontWeight:"700", background:(vacType as any).color+"22", color:(vacType as any).color }}>{(vacType as any).name}</span>}
                                   </td>
-                                  <td style={ border:"1px solid #94a3b8",  padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center"  }>{formatDate(req.start_date)}</td>
-                                  <td style={ border:"1px solid #94a3b8",  padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center"  }>{formatDate(back)}</td>
-                                  <td style={ border:"1px solid #94a3b8",  padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center"  }>
+                                  <td style={{ border:"1px solid #94a3b8", padding:"10px 8px", color:"#1e293b", textAlign:"center" }}>{formatDate(req.start_date)}</td>
+                                  <td style={{ border:"1px solid #94a3b8", padding:"10px 8px", color:"#1e293b", textAlign:"center" }}>{formatDate(back)}</td>
+                                  <td style={{ border:"1px solid #94a3b8", padding:"10px 8px", color:"#1e293b", textAlign:"center" }}>
                                     <span style={{ fontWeight:"900", color:"#059669", fontSize:"14px" }}>{req.days}</span>
                                     <span style={{ fontSize:"10px", color:"#94a3b8" }}> يوم</span>
                                   </td>
-                                  <td style={ border:"1px solid #94a3b8",  padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center"  }>
+                                  <td style={{ border:"1px solid #94a3b8", padding:"10px 8px", color:"#1e293b", textAlign:"center" }}>
                                     {(() => {
                                       const holidayDates = publicHolidays.map(h => h.date);
                                       const days = calculateWorkDaysBetween(emp?.return_date || "", req.start_date, holidayDates);
                                       return days > 0 ? days : "-";
                                     })()}
                                   </td>
-                                  <td style={ border:"1px solid #94a3b8",  padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center"  }>
+                                  <td style={{ border:"1px solid #94a3b8", padding:"10px 8px", color:"#1e293b", textAlign:"center" }}>
                                     {req.notes && <div style={{ fontSize:"11px", color:"#64748b", fontStyle:"italic", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", maxWidth:"100px" }} title={req.notes}>"{req.notes}"</div>}
                                   </td>
-                                  <td style={ border:"1px solid #94a3b8",  padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center"  }>
+                                  <td style={{ border:"1px solid #94a3b8", padding:"10px 8px", color:"#1e293b", textAlign:"center" }}>
                                     <div style={{ display:"flex", gap:"6px", justifyContent:"center" }}>
                                       <button onClick={() => openApprovalModal(req, "approved")}
                                         style={{ padding:"6px 14px", background:"linear-gradient(135deg, #f59e0b, #d97706)", color:"white", border:"none", borderRadius:"8px", fontWeight:"800", cursor:"pointer", fontSize:"12px", fontFamily:"inherit" }}>
@@ -3262,7 +3262,7 @@ useEffect(() => {
                         طلبات تحتاج موافقتك ({filteredRequests.filter(r => r.status === "pending" || r.status === "dept_approved").length})
                       </h3>
                        <div style={{ background:"white", borderRadius:"20px", border:"1px solid #e2e8f0", overflowX:"auto" }}>
-                        <table style={ borderCollapse:"collapse", border:"1px solid #94a3b8",  width:"100%", borderCollapse:"collapse", border:"2px solid #94a3b8", fontSize:"13px", backgroundColor:"#ffffff"  }>
+                        <table style={{ width:"100%", borderCollapse:"collapse", border:"2px solid #94a3b8", fontSize:"13px", backgroundColor:"#ffffff" }}>
                           <thead>
                             <tr style={{ background:"linear-gradient(135deg, #f0fdf4, #dcfce7)", borderBottom:"2px solid #bbf7d0" }}>
                               <SortTh label="الموظف"    field="name"     align="right"  sortField={reqSortField} sortDir={reqSortDir} sortDropdown={reqSortDropdown} onSort={(f,d)=>{setReqSortField(f);setReqSortDir(d);setReqSortDropdown("");}} onClear={()=>{setReqSortField("");setReqSortDropdown("");}} onToggle={f=>setReqSortDropdown(d=>d===f?"":f)} />
@@ -3273,7 +3273,7 @@ useEffect(() => {
                               <SortTh label="الأيام"    field="days"     align="center" sortField={reqSortField} sortDir={reqSortDir} sortDropdown={reqSortDropdown} onSort={(f,d)=>{setReqSortField(f);setReqSortDir(d);setReqSortDropdown("");}} onClear={()=>{setReqSortField("");setReqSortDropdown("");}} onToggle={f=>setReqSortDropdown(d=>d===f?"":f)} />
                               <SortTh label="أيام العمل" field="workdays" align="center" sortField={reqSortField} sortDir={reqSortDir} sortDropdown={reqSortDropdown} onSort={(f,d)=>{setReqSortField(f);setReqSortDir(d);setReqSortDropdown("");}} onClear={()=>{setReqSortField("");setReqSortDropdown("");}} onToggle={f=>setReqSortDropdown(d=>d===f?"":f)} />
                               <SortTh label="الحالة"    field="status"   align="center" sortField={reqSortField} sortDir={reqSortDir} sortDropdown={reqSortDropdown} onSort={(f,d)=>{setReqSortField(f);setReqSortDir(d);setReqSortDropdown("");}} onClear={()=>{setReqSortField("");setReqSortDropdown("");}} onToggle={f=>setReqSortDropdown(d=>d===f?"":f)} />
-                              <th style={ border:"1px solid #94a3b8",  padding:"12px 8px", border:"1px solid #94a3b8", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center"  }>الإجراءات</th>
+                              <th style={{ border:"1px solid #94a3b8", padding:"12px 8px", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center" }}>الإجراءات</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -3289,7 +3289,7 @@ useEffect(() => {
                               onMouseEnter={e=>(e.currentTarget.style.background="#f0fdf4")}
                               onMouseLeave={e=>(e.currentTarget.style.background= isDeptApp ? "#faf5ff" : (idx%2===0 ? "white" : "#fafafa"))}>
                               {/* الموظف */}
-                              <td style={ border:"1px solid #94a3b8",  padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center"  }>
+                              <td style={{ border:"1px solid #94a3b8", padding:"10px 8px", color:"#1e293b", textAlign:"center" }}>
                                 <button onClick={() => { setEmpInfoTarget({...emp, req}); setShowEmpInfoModal(true); }}
                                   style={{ background:"none", border:"none", padding:0, cursor:"pointer", textAlign:"right" }}>
                                   <div style={{ fontWeight:"800", color:"#1e293b", fontSize:"13px" }}>{req.employee_name}</div>
@@ -3298,22 +3298,22 @@ useEffect(() => {
                                 </button>
                               </td>
                               {/* النوع */}
-                              <td style={ border:"1px solid #94a3b8",  padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center"  }>
+                              <td style={{ border:"1px solid #94a3b8", padding:"10px 8px", color:"#1e293b", textAlign:"center" }}>
                                 {vacType && <span style={{ padding:"3px 10px", borderRadius:"20px", fontSize:"11px", fontWeight:"700", background: (vacType as any).color+"22", color:(vacType as any).color }}>{(vacType as any).name}</span>}
                               </td>
                               {/* القسم */}
-                              <td style={ border:"1px solid #94a3b8",  padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center"  }>{dept?.name||"-"}</td>
+                              <td style={{ border:"1px solid #94a3b8", padding:"10px 8px", color:"#1e293b", textAlign:"center" }}>{dept?.name||"-"}</td>
                               {/* البداية */}
-                              <td style={ border:"1px solid #94a3b8",  padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center"  }>{formatDate(req.start_date)}</td>
+                              <td style={{ border:"1px solid #94a3b8", padding:"10px 8px", color:"#1e293b", textAlign:"center" }}>{formatDate(req.start_date)}</td>
                               {/* نهاية الإجازة */}
-                              <td style={ border:"1px solid #94a3b8",  padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center"  }>{formatDate(back)}</td>
+                              <td style={{ border:"1px solid #94a3b8", padding:"10px 8px", color:"#1e293b", textAlign:"center" }}>{formatDate(back)}</td>
                               {/* الأيام */}
-                              <td style={ border:"1px solid #94a3b8",  padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center"  }>
+                              <td style={{ border:"1px solid #94a3b8", padding:"10px 8px", color:"#1e293b", textAlign:"center" }}>
                                 <span style={{ fontWeight:"900", color:"#059669", fontSize:"14px" }}>{req.days}</span>
                                 <span style={{ fontSize:"10px", color:"#94a3b8" }}> يوم</span>
                               </td>
                               {/* أيام العمل من العودة للنزول */}
-                              <td style={ border:"1px solid #94a3b8",  padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center"  }>
+                              <td style={{ border:"1px solid #94a3b8", padding:"10px 8px", color:"#1e293b", textAlign:"center" }}>
                                 {(() => {
                                   const holidayDates = publicHolidays.map(h => h.date);
                                   const days = calculateWorkDaysBetween(emp?.return_date || "", req.start_date, holidayDates);
@@ -3321,11 +3321,11 @@ useEffect(() => {
                                 })()}
                               </td>
                               {/* الحالة / ملاحظات */}
-                              <td style={ border:"1px solid #94a3b8",  padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center"  }>
+                              <td style={{ border:"1px solid #94a3b8", padding:"10px 8px", color:"#1e293b", textAlign:"center" }}>
                                 {req.notes && <div style={{ fontSize:"11px", color:"#64748b", fontStyle:"italic", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", maxWidth:"100px" }} title={req.notes}>"{req.notes}"</div>}
                               </td>
                               {/* الإجراءات */}
-                              <td style={ border:"1px solid #94a3b8",  padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center"  }>
+                              <td style={{ border:"1px solid #94a3b8", padding:"10px 8px", color:"#1e293b", textAlign:"center" }}>
                                 <div style={{ display:"flex", gap:"6px", justifyContent:"center", flexWrap:"nowrap" }}>
                                   <button onClick={() => openApprovalModal(req, "approved")}
                                     style={{ padding:"6px 14px", background:"linear-gradient(135deg, #059669, #16a34a)", color:"white", border:"none", borderRadius:"8px", fontWeight:"800", cursor:"pointer", fontSize:"12px", fontFamily:"inherit", whiteSpace:"nowrap" }}>
@@ -3438,7 +3438,7 @@ useEffect(() => {
                     <button onClick={() => setShowAddHoliday(true)} className="bg-indigo-600 text-white px-6 py-3 rounded-2xl flex items-center gap-2 font-bold"><Plus size={20} /> إضافة عطلة</button>
                   </div>
                   <div className="bg-white rounded-[2rem] shadow-sm border overflow-x-auto">
-                    <table className="w-full" style={ borderCollapse:"collapse", border:"1px solid #94a3b8",  width:"100%", borderCollapse:"collapse", border:"2px solid #94a3b8", fontSize:"13px", backgroundColor:"#ffffff"  }>
+                    <table className="w-full" style={{ width:"100%", borderCollapse:"collapse", border:"2px solid #94a3b8", fontSize:"13px", backgroundColor:"#ffffff" }}>
                       <thead className="bg-slate-50 border-b">
                         <tr>
                           <th className="p-4 text-right">اسم العطلة</th>
@@ -3605,18 +3605,18 @@ useEffect(() => {
                         </div>
                       ) : (
                         <div style={{ overflowX:"auto" }}>
-                          <table style={ borderCollapse:"collapse", border:"1px solid #94a3b8",  width:"100%", borderCollapse:"collapse", border:"2px solid #94a3b8", fontSize:"13px", backgroundColor:"#ffffff"  }>
-                            <thead style={ border:"1px solid #94a3b8",  padding:"12px 8px", border:"1px solid #94a3b8", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center"  }>
+                          <table style={{ width:"100%", borderCollapse:"collapse", border:"2px solid #94a3b8", fontSize:"13px", backgroundColor:"#ffffff" }}>
+                            <thead style={{ border:"1px solid #94a3b8", padding:"12px 8px", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center" }}>
                               <tr>
                                 <SortTh label="الموظف"        field="name"  align="right"  sortField={activeVacSortField} sortDir={activeVacSortDir} sortDropdown={activeVacSortDropdown} onSort={(f,d)=>{setActiveVacSortField(f);setActiveVacSortDir(d);setActiveVacSortDropdown("");}} onClear={()=>{setActiveVacSortField("");setActiveVacSortDropdown("");}} onToggle={f=>setActiveVacSortDropdown(d=>d===f?"":f)} />
-                              <th style={ border:"1px solid #94a3b8",  padding:"12px 8px", border:"1px solid #94a3b8", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center"  }>القسم</th>
-                              <th style={ border:"1px solid #94a3b8",  padding:"12px 8px", border:"1px solid #94a3b8", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center"  }>نوع الإجازة</th>
+                              <th style={{ border:"1px solid #94a3b8", padding:"12px 8px", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center" }}>القسم</th>
+                              <th style={{ border:"1px solid #94a3b8", padding:"12px 8px", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center" }}>نوع الإجازة</th>
                               <SortTh label="تاريخ البداية" field="start" align="center" sortField={activeVacSortField} sortDir={activeVacSortDir} sortDropdown={activeVacSortDropdown} onSort={(f,d)=>{setActiveVacSortField(f);setActiveVacSortDir(d);setActiveVacSortDropdown("");}} onClear={()=>{setActiveVacSortField("");setActiveVacSortDropdown("");}} onToggle={f=>setActiveVacSortDropdown(d=>d===f?"":f)} />
                               <SortTh label="المدة"         field="days"  align="center" sortField={activeVacSortField} sortDir={activeVacSortDir} sortDropdown={activeVacSortDropdown} onSort={(f,d)=>{setActiveVacSortField(f);setActiveVacSortDir(d);setActiveVacSortDropdown("");}} onClear={()=>{setActiveVacSortField("");setActiveVacSortDropdown("");}} onToggle={f=>setActiveVacSortDropdown(d=>d===f?"":f)} />
                               <SortTh label="نهاية الإجازة" field="back" align="center" sortField={activeVacSortField} sortDir={activeVacSortDir} sortDropdown={activeVacSortDropdown} onSort={(f,d)=>{setActiveVacSortField(f);setActiveVacSortDir(d);setActiveVacSortDropdown("");}} onClear={()=>{setActiveVacSortField("");setActiveVacSortDropdown("");}} onToggle={f=>setActiveVacSortDropdown(d=>d===f?"":f)} />
-                              <th style={ border:"1px solid #94a3b8",  padding:"12px 8px", border:"1px solid #94a3b8", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center"  }>الرصيد</th>
-                              <th style={ border:"1px solid #94a3b8",  padding:"12px 8px", border:"1px solid #94a3b8", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center"  }>المصدر</th>
-                              <th style={ border:"1px solid #94a3b8",  padding:"12px 8px", border:"1px solid #94a3b8", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center"  }>الإجراءات</th>
+                              <th style={{ border:"1px solid #94a3b8", padding:"12px 8px", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center" }}>الرصيد</th>
+                              <th style={{ border:"1px solid #94a3b8", padding:"12px 8px", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center" }}>المصدر</th>
+                              <th style={{ border:"1px solid #94a3b8", padding:"12px 8px", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center" }}>الإجراءات</th>
                               </tr>
                             </thead>
                             <tbody>
@@ -3626,23 +3626,23 @@ useEffect(() => {
                                   <tr key={emp.id} style={{ borderBottom:"1px solid #f1f5f9" }}
                                     onMouseEnter={e => (e.currentTarget.style.background="#f8fafc")}
                                     onMouseLeave={e => (e.currentTarget.style.background="white")}>
-                                    <td style={ border:"1px solid #94a3b8",  padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center"  }>
+                                    <td style={{ border:"1px solid #94a3b8", padding:"10px 8px", color:"#1e293b", textAlign:"center" }}>
                                       <div style={{ fontWeight:"700", color:"#1e293b" }}>{emp.name}</div>
                                       <div style={{ fontSize:"11px", color:"#94a3b8" }}>{emp.code}</div>
                                     </td>
-                                    <td style={ border:"1px solid #94a3b8",  padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center"  }>{dept?.name || "-"}</td>
-                                    <td style={ border:"1px solid #94a3b8",  padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center"  }>
+                                    <td style={{ border:"1px solid #94a3b8", padding:"10px 8px", color:"#1e293b", textAlign:"center" }}>{dept?.name || "-"}</td>
+                                    <td style={{ border:"1px solid #94a3b8", padding:"10px 8px", color:"#1e293b", textAlign:"center" }}>
                                       {vacType
                                         ? <span style={{ padding:"3px 10px", borderRadius:"20px", fontSize:"11px", fontWeight:"700", background:(vacType as any).color+"22", color:(vacType as any).color }}>{(vacType as any).name}</span>
                                         : <span style={{ color:"#94a3b8", fontSize:"11px" }}>غير محدد</span>}
                                     </td>
-                                    <td style={ border:"1px solid #94a3b8",  padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center"  }>
+                                    <td style={{ border:"1px solid #94a3b8", padding:"10px 8px", color:"#1e293b", textAlign:"center" }}>
                                       {lastReq ? formatDate(lastReq.start_date) : "-"}
                                     </td>
-                                    <td style={ border:"1px solid #94a3b8",  padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center"  }>
+                                    <td style={{ border:"1px solid #94a3b8", padding:"10px 8px", color:"#1e293b", textAlign:"center" }}>
                                       {lastReq ? `${lastReq.days} يوم` : "-"}
                                     </td>
-                                    <td style={ border:"1px solid #94a3b8",  padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center"  }>
+                                    <td style={{ border:"1px solid #94a3b8", padding:"10px 8px", color:"#1e293b", textAlign:"center" }}>
                                       {back ? (
                                         <>
                                           <div style={{ fontWeight:"700", color:"#4f46e5" }}>{formatDate(back)}</div>
@@ -3654,17 +3654,17 @@ useEffect(() => {
                                         </>
                                       ) : <span style={{ color:"#94a3b8" }}>-</span>}
                                     </td>
-                                    <td style={ border:"1px solid #94a3b8",  padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center"  }>
+                                    <td style={{ border:"1px solid #94a3b8", padding:"10px 8px", color:"#1e293b", textAlign:"center" }}>
                                       <span style={{ fontWeight:"700", color: (emp.balance || 0) < 5 ? "#ef4444" : "#374151" }}>{emp.balance}</span>
                                     </td>
-                                    <td style={ border:"1px solid #94a3b8",  padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center"  }>
+                                    <td style={{ border:"1px solid #94a3b8", padding:"10px 8px", color:"#1e293b", textAlign:"center" }}>
                                       <span style={{
                                         padding:"3px 10px", borderRadius:"20px", fontSize:"11px", fontWeight:"700",
                                         background: source === "طلب" ? "#eef2ff" : "#fef3c7",
                                         color: source === "طلب" ? "#4f46e5" : "#d97706"
                                       }}>{source}</span>
                                     </td>
-                                    <td style={ border:"1px solid #94a3b8",  padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center"  }>
+                                    <td style={{ border:"1px solid #94a3b8", padding:"10px 8px", color:"#1e293b", textAlign:"center" }}>
                                       <div style={{ display:"flex", gap:"6px", justifyContent:"center" }}>
                                         {lastReq && (
                                           <button onClick={() => openReturnModal(lastReq)}
@@ -4078,19 +4078,19 @@ useEffect(() => {
                     </span>
                   </div>
                   <div className="bg-white rounded-[2rem] shadow-sm border overflow-x-auto">
-                    <table className="w-full text-sm" style={ borderCollapse:"collapse", border:"1px solid #94a3b8",  width:"100%", borderCollapse:"collapse", border:"2px solid #94a3b8", fontSize:"13px", backgroundColor:"#ffffff"  }>
+                    <table className="w-full text-sm" style={{ width:"100%", borderCollapse:"collapse", border:"2px solid #94a3b8", fontSize:"13px", backgroundColor:"#ffffff" }}>
                       <thead className="bg-slate-50 border-b text-xs">
                         <tr>
                           <SortTh label="الموظف"         field="name"     align="right"  sortField={histSortField} sortDir={histSortDir} sortDropdown={histSortDropdown} onSort={(f,d)=>{setHistSortField(f);setHistSortDir(d);setHistSortDropdown("");}} onClear={()=>{setHistSortField("");setHistSortDropdown("");}} onToggle={f=>setHistSortDropdown(d=>d===f?"":f)} />
                           <SortTh label="نوع الإجازة"    field="type"     align="center" sortField={histSortField} sortDir={histSortDir} sortDropdown={histSortDropdown} onSort={(f,d)=>{setHistSortField(f);setHistSortDir(d);setHistSortDropdown("");}} onClear={()=>{setHistSortField("");setHistSortDropdown("");}} onToggle={f=>setHistSortDropdown(d=>d===f?"":f)} />
                           <SortTh label="تاريخ البداية"  field="start"    align="center" sortField={histSortField} sortDir={histSortDir} sortDropdown={histSortDropdown} onSort={(f,d)=>{setHistSortField(f);setHistSortDir(d);setHistSortDropdown("");}} onClear={()=>{setHistSortField("");setHistSortDropdown("");}} onToggle={f=>setHistSortDropdown(d=>d===f?"":f)} />
                           <SortTh label="المدة"          field="days"     align="center" sortField={histSortField} sortDir={histSortDir} sortDropdown={histSortDropdown} onSort={(f,d)=>{setHistSortField(f);setHistSortDir(d);setHistSortDropdown("");}} onClear={()=>{setHistSortField("");setHistSortDropdown("");}} onToggle={f=>setHistSortDropdown(d=>d===f?"":f)} />
-                          <th className="p-4 text-center" style={ border:"1px solid #94a3b8",  padding:"12px 8px", border:"1px solid #94a3b8", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center"  }>تاريخ العودة المتوقع</th>
+                          <th className="p-4 text-center" style={{ border:"1px solid #94a3b8", padding:"12px 8px", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center" }}>تاريخ العودة المتوقع</th>
                           <SortTh label="أيام العمل"     field="workdays" align="center" sortField={histSortField} sortDir={histSortDir} sortDropdown={histSortDropdown} onSort={(f,d)=>{setHistSortField(f);setHistSortDir(d);setHistSortDropdown("");}} onClear={()=>{setHistSortField("");setHistSortDropdown("");}} onToggle={f=>setHistSortDropdown(d=>d===f?"":f)} />
-                          <th className="p-4 text-center" style={ border:"1px solid #94a3b8",  padding:"12px 8px", border:"1px solid #94a3b8", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center"  }>تاريخ العودة الفعلي</th>
+                          <th className="p-4 text-center" style={{ border:"1px solid #94a3b8", padding:"12px 8px", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center" }}>تاريخ العودة الفعلي</th>
                           <SortTh label="الحالة"         field="status"   align="center" sortField={histSortField} sortDir={histSortDir} sortDropdown={histSortDropdown} onSort={(f,d)=>{setHistSortField(f);setHistSortDir(d);setHistSortDropdown("");}} onClear={()=>{setHistSortField("");setHistSortDropdown("");}} onToggle={f=>setHistSortDropdown(d=>d===f?"":f)} />
-                          <th className="p-4 text-center" style={ border:"1px solid #94a3b8",  padding:"12px 8px", border:"1px solid #94a3b8", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center"  }>ملاحظات</th>
-                          <th className="p-4 text-center" style={ border:"1px solid #94a3b8",  padding:"12px 8px", border:"1px solid #94a3b8", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center"  }>إجراءات</th>
+                          <th className="p-4 text-center" style={{ border:"1px solid #94a3b8", padding:"12px 8px", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center" }}>ملاحظات</th>
+                          <th className="p-4 text-center" style={{ border:"1px solid #94a3b8", padding:"12px 8px", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center" }}>إجراءات</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -4101,14 +4101,14 @@ useEffect(() => {
                           const isOnVacation = req.status === "approved" && req.start_date <= today && back > today;
                           return (
                             <tr key={req.id} style={{ border:"1px solid #cbd5e1", backgroundColor:"#ffffff" }} className="hover:bg-slate-50">
-                              <td className="p-4" style={ border:"1px solid #94a3b8",  padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center"  }>
+                              <td className="p-4" style={{ border:"1px solid #94a3b8", padding:"10px 8px", color:"#1e293b", textAlign:"center" }}>
                                 <button onClick={() => { const e=employees.find(em=>em.id===req.employee_id); setEmpInfoTarget({...e, req}); setShowEmpInfoModal(true); }}
                                   style={{ background:"none", border:"none", cursor:"pointer", textAlign:"right", padding:0 }}>
                                   <span style={{ fontWeight:"800", color:"#1e293b" }}>{req.employee_name}</span>
                                   <span style={{ display:"block", fontSize:"10px", color:"#4f46e5", fontWeight:"700" }}>👁 عرض البيانات</span>
                                 </button>
                               </td>
-                              <td className="p-4" style={ border:"1px solid #94a3b8",  padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center"  }>{vacType && <span className="px-2 py-1 rounded-full text-xs font-bold" style={{ backgroundColor: vacType.color+'20', color: vacType.color }}>{vacType.name}</span>}{req.is_extension && <span className="mr-1 px-2 py-1 rounded-full text-xs font-bold" style={{ background: "#ede9fe", color: "#7c3aed" }}>🔗 امتداد</span>}</td>
+                              <td className="p-4" style={{ border:"1px solid #94a3b8", padding:"10px 8px", color:"#1e293b", textAlign:"center" }}>{vacType && <span className="px-2 py-1 rounded-full text-xs font-bold" style={{ backgroundColor: vacType.color+'20', color: vacType.color }}>{vacType.name}</span>}{req.is_extension && <span className="mr-1 px-2 py-1 rounded-full text-xs font-bold" style={{ background: "#ede9fe", color: "#7c3aed" }}>🔗 امتداد</span>}</td>
                               <td className="p-4 text-center">{formatDate(req.start_date)}</td>
                               <td className="p-4 text-center font-bold">{req.days}</td>
                               <td className="p-4 text-center text-indigo-600 font-bold">{formatDate(back)}</td>
@@ -6614,7 +6614,7 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser, userRole }: {
               font-size: 12px;
             }
           `}</style>
-          <table style={ borderCollapse:"collapse", border:"1px solid #94a3b8",  width:"100%", borderCollapse:"collapse", border:"2px solid #94a3b8", fontSize:"13px", backgroundColor:"#ffffff"  }>
+          <table style={{ width:"100%", borderCollapse:"collapse", border:"2px solid #94a3b8", fontSize:"13px", backgroundColor:"#ffffff" }}>
               <colgroup>
                 <col style={{ width: "40px" }} />
                 {currentSchema.fields.filter((f: any) => !["requesting_department", "notes", "remarks"].includes(f.key)).map((f: any) => {
@@ -6625,9 +6625,9 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser, userRole }: {
                 })}
                 <col style={{ width: "80px" }} />
               </colgroup>
-              <thead style={ border:"1px solid #94a3b8",  padding:"12px 8px", border:"1px solid #94a3b8", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center"  }>
+              <thead style={{ border:"1px solid #94a3b8", padding:"12px 8px", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center" }}>
                 <tr>
-                  <th style={ border:"1px solid #94a3b8",  padding:"12px 8px", border:"1px solid #94a3b8", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center"  }>
+                  <th style={{ border:"1px solid #94a3b8", padding:"12px 8px", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center" }}>
                     <input
                       type="checkbox"
                       checked={selectedIds.length === filtered.length && filtered.length > 0}
@@ -6655,7 +6655,7 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser, userRole }: {
                       align="right"
                     />
                   ))}
-                  <th style={ border:"1px solid #94a3b8",  padding:"12px 8px", border:"1px solid #94a3b8", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center"  }>الإجراءات</th>
+                  <th style={{ border:"1px solid #94a3b8", padding:"12px 8px", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center" }}>الإجراءات</th>
                 </tr>
               </thead>
               <tbody>
@@ -6663,7 +6663,7 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser, userRole }: {
                   <tr key={record.id} style={{ borderBottom: "1px solid #f1f5f9", height: "44px" }}
                     onMouseEnter={e => (e.currentTarget.style.background = "#f8fafc")}
                     onMouseLeave={e => (e.currentTarget.style.background = "white")}>
-                    <td style={ border:"1px solid #94a3b8",  padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center"  }>
+                    <td style={{ border:"1px solid #94a3b8", padding:"10px 8px", color:"#1e293b", textAlign:"center" }}>
                       <input
                         type="checkbox"
                         checked={selectedIds.includes(record.id)}
@@ -6698,7 +6698,7 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser, userRole }: {
                         </td>
                       );
                     })}
-                    <td style={ border:"1px solid #94a3b8",  padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center"  }>
+                    <td style={{ border:"1px solid #94a3b8", padding:"10px 8px", color:"#1e293b", textAlign:"center" }}>
                       <div style={{ display: "flex", gap: "4px", justifyContent: "center" }}>
                         <button onClick={() => openEdit(record)} style={{
                           padding: "5px 8px", background: "#eff6ff", color: "#0284c7",
