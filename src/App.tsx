@@ -191,23 +191,20 @@ const SortTh = ({ label, field, sortField, sortDir, sortDropdown, onSort, onClea
   const active = sortField === field;
   const open = sortDropdown === field;
   return (
-    <th style={{ padding:"12px 8px", border:"1px solid #94a3b8", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center" }}>
-      <div style={{ display:"flex", alignItems:"center", justifyContent: align==="right" ? "flex-start" : "center", gap:"4px" }}>
+        <th style={ border:"1px solid #94a3b8",  padding:"12px 8px", border:"1px solid #94a3b8", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center", position:"relative"  }>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:"8px", cursor:"pointer" }} onClick={() => onToggle(field)}>
         <span style={{ fontSize:"13px" }}>{label}</span>
-        <button
-          onClick={e => { e.stopPropagation(); onToggle(field); }}
-          style={{
-            background: active ? "#4f46e5" : "#e2e8f0",
-            border:"none", borderRadius:"4px", padding:"2px 5px",
-            cursor:"pointer", fontSize:"11px", lineHeight:"1.4",
-            color: active ? "white" : "#64748b", flexShrink:0,
-          }}>
+        <span style={{ 
+            background: active ? "#ffffff33" : "transparent", 
+            padding:"2px 4px", borderRadius:"4px", fontSize:"10px",
+            border: active ? "1px solid white" : "1px solid #ffffff66"
+        }}>
           {active ? (sortDir === "desc" ? "↓" : "↑") : "⇅"}
-        </button>
+        </span>
       </div>
       {open && (
         <div
-          style={{ position:"absolute", top:"100%", left:"50%", transform:"translateX(-50%)", background:"white", border:"1px solid #e2e8f0", borderRadius:"10px", boxShadow:"0 8px 24px rgba(0,0,0,0.15)", zIndex:100, minWidth:"155px", overflow:"hidden" }}
+          style={{ position:"absolute", top:"100%", left:"50%", transform:"translateX(-50%)", background:"white", border:"1px solid #e2e8f0", borderRadius:"10px", boxShadow:"0 8px 24px rgba(0, 0, 0, 0.15)", zIndex:100, minWidth:"155px", overflow:"hidden" }}
           onClick={e => e.stopPropagation()}>
           <button onClick={() => onSort(field, "desc")}
             style={{ display:"flex", alignItems:"center", gap:"8px", width:"100%", padding:"10px 14px", background: active && sortDir==="desc" ? "#eef2ff" : "white", border:"none", borderBottom:"1px solid #f1f5f9", cursor:"pointer", fontSize:"13px", fontWeight:"700", color:"#1e293b", fontFamily:"inherit" }}>
@@ -246,9 +243,9 @@ const EmpEditModal = ({ req, vacationTypes, onClose, onChange, onSave }: {
     fontSize:"13px", background:"white", direction:"rtl",
   };
   return (
-    <div style={{ position:"fixed", top:0, left:0, right:0, bottom:0, background:"rgba(0,0,0,0.65)", backdropFilter:"blur(6px)", display:"flex", alignItems:"center", justifyContent:"center", padding:"16px", zIndex:9999 }}
+    <div style={{ position:"fixed", top:0, left:0, right:0, bottom:0, background:"rgba(0, 0, 0, 0.65)", backdropFilter:"blur(6px)", display:"flex", alignItems:"center", justifyContent:"center", padding:"16px", zIndex:9999 }}
       onClick={onClose}>
-      <div style={{ background:"white", borderRadius:"24px", width:"100%", maxWidth:"430px", padding:"24px", boxShadow:"0 32px 80px rgba(0,0,0,0.3)" }}
+      <div style={{ background:"white", borderRadius:"24px", width:"100%", maxWidth:"430px", padding:"24px", boxShadow:"0 32px 80px rgba(0, 0, 0, 0.3)" }}
         dir="rtl" onClick={e => e.stopPropagation()}>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"18px" }}>
           <h3 style={{ margin:0, fontWeight:"900", fontSize:"17px" }}>✏️ تعديل طلبي</h3>
@@ -282,7 +279,7 @@ const EmpEditModal = ({ req, vacationTypes, onClose, onChange, onSave }: {
               <label style={{ fontSize:"12px", color:"#64748b", fontWeight:"700", display:"block", marginBottom:"5px" }}>ملاحظات</label>
               <textarea style={{ ...inp, resize:"none" } as any} rows={2} value={req.notes || ""} onChange={e => onChange({...req, notes: e.target.value})} />
             </div>
-            <button onClick={onSave} style={{ padding:"13px", background:"linear-gradient(135deg,#4f46e5,#7c3aed)", color:"white", border:"none", borderRadius:"12px", fontWeight:"900", cursor:"pointer", fontSize:"14px" }}>
+            <button onClick={onSave} style={{ padding:"13px", background:"linear-gradient(135deg, #4f46e5, #7c3aed)", color:"white", border:"none", borderRadius:"12px", fontWeight:"900", cursor:"pointer", fontSize:"14px" }}>
               💾 حفظ التعديل
             </button>
           </div>
@@ -2161,7 +2158,7 @@ useEffect(() => {
     return (
       <div dir="rtl" style={{
         minHeight: "100vh",
-        background: "#f0f2f5",
+        background: currentView === "login" ? "linear-gradient(135deg, #0f0c29, #302b63, #24243e)" : "#f0f2f5",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -2191,27 +2188,27 @@ useEffect(() => {
         `}</style>
 
         {/* كرات ضوئية في الخلفية */}
-        <div className="orb1" style={{ position:"absolute", top:"-10%", right:"-5%", width:"500px", height:"500px", borderRadius:"50%", background:"radial-gradient(circle, rgba(99,102,241,0.4) 0%, transparent 70%)", filter:"blur(40px)" }} />
-        <div className="orb2" style={{ position:"absolute", bottom:"-15%", left:"-10%", width:"600px", height:"600px", borderRadius:"50%", background:"radial-gradient(circle, rgba(16,185,129,0.3) 0%, transparent 70%)", filter:"blur(50px)" }} />
-        <div className="orb3" style={{ position:"absolute", top:"40%", left:"30%", width:"300px", height:"300px", borderRadius:"50%", background:"radial-gradient(circle, rgba(139,92,246,0.25) 0%, transparent 70%)", filter:"blur(30px)" }} />
+        <div className="orb1" style={{ position:"absolute", top:"-10%", right:"-5%", width:"500px", height:"500px", borderRadius:"50%", background:"radial-gradient(circle, rgba(99, 102, 241, 0.4) 0%, transparent 70%)", filter:"blur(40px)" }} />
+        <div className="orb2" style={{ position:"absolute", bottom:"-15%", left:"-10%", width:"600px", height:"600px", borderRadius:"50%", background:"radial-gradient(circle, rgba(16, 185, 129, 0.3) 0%, transparent 70%)", filter:"blur(50px)" }} />
+        <div className="orb3" style={{ position:"absolute", top:"40%", left:"30%", width:"300px", height:"300px", borderRadius:"50%", background:"radial-gradient(circle, rgba(139, 92, 246, 0.25) 0%, transparent 70%)", filter:"blur(30px)" }} />
 
         {/* شبكة نقاط خلفية */}
-        <div style={{ position:"absolute", inset:0, backgroundImage:"radial-gradient(rgba(255,255,255,0.05) 1px, transparent 1px)", backgroundSize:"40px 40px", pointerEvents:"none" }} />
+        <div style={{ position:"absolute", inset:0, backgroundImage:"radial-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px)", backgroundSize:"40px 40px", pointerEvents:"none" }} />
 
         {/* الكارت الرئيسي */}
-        <div className="login-main-grid" style={{ width:"100%", maxWidth:"900px", display:"grid", gridTemplateColumns:"1fr 1fr", borderRadius:"32px", overflow:"hidden", boxShadow:"0 30px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.05)", position:"relative", zIndex:10 }}>
+        <div className="login-main-grid" style={{ width:"100%", maxWidth:"900px", display:"grid", gridTemplateColumns:"1fr 1fr", borderRadius:"32px", overflow:"hidden", boxShadow:"0 30px 80px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.05)", position:"relative", zIndex:10 }}>
           
           {/* قسم الموظفين - يمين */}
-          <div className="login-card" style={{ padding:"52px 40px", background:"rgba(255,255,255,0.04)", borderLeft:"1px solid rgba(255,255,255,0.08)" }}>
-            <div style={{ width:"60px", height:"60px", borderRadius:"18px", background:"linear-gradient(135deg, #6366f1, #8b5cf6)", display:"flex", alignItems:"center", justifyContent:"center", marginBottom:"24px", boxShadow:"0 8px 20px rgba(99,102,241,0.4)" }}>
+          <div className="login-card" style={{ padding:"52px 40px", background:"rgba(255, 255, 255, 0.04)", borderLeft:"1px solid rgba(255, 255, 255, 0.08)" }}>
+            <div style={{ width:"60px", height:"60px", borderRadius:"18px", background:"linear-gradient(135deg, #6366f1, #8b5cf6)", display:"flex", alignItems:"center", justifyContent:"center", marginBottom:"24px", boxShadow:"0 8px 20px rgba(99, 102, 241, 0.4)" }}>
               <Users className="text-white" size={28} />
             </div>
             <h2 style={{ color:"white", fontSize:"26px", fontWeight:"900", marginBottom:"8px", fontFamily:"Cairo, sans-serif" }}>دخول الموظفين</h2>
-            <p style={{ color:"rgba(255,255,255,0.4)", fontSize:"14px", marginBottom:"32px" }}>أدخل كودك الوظيفي للمتابعة</p>
+            <p style={{ color:"rgba(255, 255, 255, 0.4)", fontSize:"14px", marginBottom:"32px" }}>أدخل كودك الوظيفي للمتابعة</p>
             <div style={{ position:"relative", marginBottom:"16px" }}>
               <input
                 className="login-input"
-                style={{ width:"100%", background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.12)", borderRadius:"14px", padding:"14px 18px", color:"white", fontSize:"15px", boxSizing:"border-box", fontFamily:"Cairo, sans-serif" }}
+                style={{ width:"100%", background:"rgba(255, 255, 255, 0.07)", border:"1px solid rgba(255, 255, 255, 0.12)", borderRadius:"14px", padding:"14px 18px", color:"white", fontSize:"15px", boxSizing:"border-box", fontFamily:"Cairo, sans-serif" }}
                 placeholder="الكود الوظيفي"
                 value={empCodeInput}
                 onChange={(e) => setEmpCodeInput(e.target.value)}
@@ -2223,7 +2220,7 @@ useEffect(() => {
               type="password"
               inputMode="numeric"
               maxLength={4}
-              style={{ width:"100%", background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.12)", borderRadius:"14px", padding:"14px 18px", color:"white", fontSize:"15px", marginBottom:"16px", boxSizing:"border-box", fontFamily:"Cairo, sans-serif" }}
+              style={{ width:"100%", background:"rgba(255, 255, 255, 0.07)", border:"1px solid rgba(255, 255, 255, 0.12)", borderRadius:"14px", padding:"14px 18px", color:"white", fontSize:"15px", marginBottom:"16px", boxSizing:"border-box", fontFamily:"Cairo, sans-serif" }}
               placeholder="PIN (4 أرقام)"
               value={empPinInput}
               onChange={(e) => setEmpPinInput(e.target.value.replace(/\D/g, "").slice(0,4))}
@@ -2235,15 +2232,15 @@ useEffect(() => {
           </div>
 
           {/* قسم الإدارة - يسار */}
-          <div className="login-card" style={{ padding:"52px 40px", background:"rgba(0,0,0,0.25)" }}>
-            <div style={{ width:"60px", height:"60px", borderRadius:"18px", background:"linear-gradient(135deg, #10b981, #059669)", display:"flex", alignItems:"center", justifyContent:"center", marginBottom:"24px", boxShadow:"0 8px 20px rgba(16,185,129,0.4)" }}>
+          <div className="login-card" style={{ padding:"52px 40px", background:"rgba(0, 0, 0, 0.25)" }}>
+            <div style={{ width:"60px", height:"60px", borderRadius:"18px", background:"linear-gradient(135deg, #10b981, #059669)", display:"flex", alignItems:"center", justifyContent:"center", marginBottom:"24px", boxShadow:"0 8px 20px rgba(16, 185, 129, 0.4)" }}>
               <ShieldCheck className="text-white" size={28} />
             </div>
             <h2 style={{ color:"white", fontSize:"26px", fontWeight:"900", marginBottom:"8px", fontFamily:"Cairo, sans-serif" }}>لوحة الإدارة</h2>
-            <p style={{ color:"rgba(255,255,255,0.4)", fontSize:"14px", marginBottom:"32px" }}>صلاحيات خاصة للمسؤولين فقط</p>
+            <p style={{ color:"rgba(255, 255, 255, 0.4)", fontSize:"14px", marginBottom:"32px" }}>صلاحيات خاصة للمسؤولين فقط</p>
             <input
               className="login-input"
-              style={{ width:"100%", background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.12)", borderRadius:"14px", padding:"14px 18px", color:"white", fontSize:"15px", marginBottom:"12px", display:"block", boxSizing:"border-box", fontFamily:"Cairo, sans-serif" }}
+              style={{ width:"100%", background:"rgba(255, 255, 255, 0.07)", border:"1px solid rgba(255, 255, 255, 0.12)", borderRadius:"14px", padding:"14px 18px", color:"white", fontSize:"15px", marginBottom:"12px", display:"block", boxSizing:"border-box", fontFamily:"Cairo, sans-serif" }}
               placeholder="البريد الإلكتروني"
               value={loginData.email}
               onChange={(e) => setLoginData({ ...loginData, email: e.target.value })}
@@ -2251,7 +2248,7 @@ useEffect(() => {
             <input
               type="password"
               className="login-input"
-              style={{ width:"100%", background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.12)", borderRadius:"14px", padding:"14px 18px", color:"white", fontSize:"15px", marginBottom:"16px", display:"block", boxSizing:"border-box", fontFamily:"Cairo, sans-serif" }}
+              style={{ width:"100%", background:"rgba(255, 255, 255, 0.07)", border:"1px solid rgba(255, 255, 255, 0.12)", borderRadius:"14px", padding:"14px 18px", color:"white", fontSize:"15px", marginBottom:"16px", display:"block", boxSizing:"border-box", fontFamily:"Cairo, sans-serif" }}
               placeholder="كلمة المرور"
               value={loginData.password}
               onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
@@ -2291,7 +2288,7 @@ useEffect(() => {
         <button
           onClick={() => setSidebarOpen(!sidebarOpen)}
           className="fixed top-4 right-4 z-30 text-white p-3 rounded-2xl shadow-lg transition-all"
-          style={{ background: sidebarOpen ? "rgba(99,102,241,0.9)" : "#6366f1", backdropFilter:"blur(10px)" }}
+          style={{ background: sidebarOpen ? "rgba(99, 102, 241, 0.9)" : "#6366f1", backdropFilter:"blur(10px)" }}
           title={sidebarOpen ? "إغلاق القائمة" : "فتح القائمة"}
         >
           {sidebarOpen ? <X size={22} /> : <LayoutDashboard size={22} />}
@@ -2313,7 +2310,7 @@ useEffect(() => {
           boxShadow: sidebarOpen ? "4px 0 24px rgba(0,0,0,0.3)" : "none",
         }}>
           {/* الشعار */}
-          <div style={{ padding:"24px 16px 16px", borderBottom:"1px solid rgba(255,255,255,0.07)", marginTop:"48px" }}>
+          <div style={{ padding:"24px 16px 16px", borderBottom:"1px solid rgba(255, 255, 255, 0.07)", marginTop:"48px" }}>
             <div style={{ display:"flex", alignItems:"center", gap:"10px" }}>
               <div style={{ background: isOwner ? "#4f46e5" : "#059669", borderRadius:"10px", padding:"8px", flexShrink:0 }}>
                 <CalendarDays size={18} className="text-white" />
@@ -2381,7 +2378,7 @@ useEffect(() => {
           </nav>
 
           {/* PWA + خروج */}
-          <div style={{ padding:"10px", borderTop:"1px solid rgba(255,255,255,0.07)", display:"flex", flexDirection:"column", gap:"6px" }}>
+          <div style={{ padding:"10px", borderTop:"1px solid rgba(255, 255, 255, 0.07)", display:"flex", flexDirection:"column", gap:"6px" }}>
             {/* زر تثبيت التطبيق */}
             <button onClick={() => setShowPWAGuide(true)} style={{
               width:"100%", display:"flex", alignItems:"center", gap:"10px",
@@ -2403,7 +2400,7 @@ useEffect(() => {
 
           {/* PWA Guide Modal */}
           {showPWAGuide && (
-            <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", zIndex:999, display:"flex", alignItems:"center", justifyContent:"center", padding:"20px" }} onClick={() => setShowPWAGuide(false)}>
+            <div style={{ position:"fixed", inset:0, background:"rgba(0, 0, 0, 0.7)", zIndex:999, display:"flex", alignItems:"center", justifyContent:"center", padding:"20px" }} onClick={() => setShowPWAGuide(false)}>
               <div style={{ background:"white", borderRadius:"24px", padding:"32px", maxWidth:"440px", width:"100%", direction:"rtl" }} onClick={e => e.stopPropagation()}>
                 <div style={{ textAlign:"center", marginBottom:"24px" }}>
                   <div style={{ fontSize:"48px", marginBottom:"12px" }}>📱</div>
@@ -2509,36 +2506,36 @@ useEffect(() => {
                           boxShadow:"0 20px 60px rgba(99,102,241,0.35)"
                         }}>
                           {/* دوائر زخرفية */}
-                          <div style={{ position:"absolute", top:"-30px", left:"-30px", width:"180px", height:"180px", borderRadius:"50%", background:"rgba(255,255,255,0.04)" }}/>
-                          <div style={{ position:"absolute", bottom:"-50px", left:"20%", width:"220px", height:"220px", borderRadius:"50%", background:"rgba(255,255,255,0.03)" }}/>
-                          <div style={{ position:"absolute", top:"10px", right:"10px", width:"80px", height:"80px", borderRadius:"50%", background:"rgba(255,255,255,0.05)" }}/>
+                          <div style={{ position:"absolute", top:"-30px", left:"-30px", width:"180px", height:"180px", borderRadius:"50%", background:"rgba(255, 255, 255, 0.04)" }}/>
+                          <div style={{ position:"absolute", bottom:"-50px", left:"20%", width:"220px", height:"220px", borderRadius:"50%", background:"rgba(255, 255, 255, 0.03)" }}/>
+                          <div style={{ position:"absolute", top:"10px", right:"10px", width:"80px", height:"80px", borderRadius:"50%", background:"rgba(255, 255, 255, 0.05)" }}/>
 
                           <div style={{ position:"relative", zIndex:1 }}>
                             {/* التحية والاسم */}
                             <div style={{ display:"flex", alignItems:"center", gap:"12px", marginBottom:"6px" }}>
                               <span style={{ fontSize:"32px" }}>{greeting.emoji}</span>
                               <div>
-                                <div style={{ fontSize:"11px", color:"rgba(255,255,255,0.5)", marginBottom:"2px" }}>{greeting.text}</div>
+                                <div style={{ fontSize:"11px", color:"rgba(255, 255, 255, 0.5)", marginBottom:"2px" }}>{greeting.text}</div>
                                 <h2 style={{ margin:0, fontSize:"20px", fontWeight:"900" }}>{currentUser.name}</h2>
                               </div>
                             </div>
-                            <div style={{ display:"inline-flex", alignItems:"center", gap:"6px", background:"rgba(255,255,255,0.12)", borderRadius:"20px", padding:"4px 12px", marginBottom:"20px", border:"1px solid rgba(255,255,255,0.15)" }}>
-                              <Building2 size={13} style={{color:"#a5b4fc"}}/>
+                            <div style={{ display:"inline-flex", alignItems:"center", gap:"6px", background:"rgba(255, 255, 255, 0.12)", borderRadius:"20px", padding:"4px 12px", marginBottom:"20px", border:"1px solid rgba(255, 255, 255, 0.15)" }}>
+                              <Building2 size={13} style={{ color:"#a5b4fc" }}/>
                               <span style={{ fontSize:"12px", color:"#a5b4fc", fontWeight:"700" }}>{currentUser.dept_name}</span>
                             </div>
 
                             {/* الإحصائيات الـ 4 */}
-                            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(100px,1fr))", gap:"10px" }}>
+                            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(100px, 1fr))", gap:"10px" }}>
                               {[
                                 { label:"إجمالي الموظفين", value: deptEmps.length, color:"#a5b4fc", icon:"👥" },
                                 { label:"في عمل الآن",      value: atWork,          color:"#6ee7b7", icon:"✅" },
                                 { label:"في إجازة الآن",   value: onVacNow.length, color:"#fca5a5", icon:"🏖️" },
                                 { label:"طلبات معلقة",     value: pendingDept.length, color: pendingDept.length > 0 ? "#fde68a" : "#6ee7b7", icon:"⏳" },
                               ].map(s => (
-                                <div key={s.label} style={{ background:"rgba(255,255,255,0.09)", borderRadius:"14px", padding:"14px 10px", textAlign:"center", border:"1px solid rgba(255,255,255,0.1)", backdropFilter:"blur(10px)" }}>
+                                <div key={s.label} style={{ background:"rgba(255, 255, 255, 0.09)", borderRadius:"14px", padding:"14px 10px", textAlign:"center", border:"1px solid rgba(255, 255, 255, 0.1)", backdropFilter:"blur(10px)" }}>
                                   <div style={{ fontSize:"20px", marginBottom:"4px" }}>{s.icon}</div>
                                   <div style={{ fontSize:"26px", fontWeight:"900", color:s.color, lineHeight:1 }}>{s.value}</div>
-                                  <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.6)", marginTop:"4px" }}>{s.label}</div>
+                                  <div style={{ fontSize:"10px", color:"rgba(255, 255, 255, 0.6)", marginTop:"4px" }}>{s.label}</div>
                                 </div>
                               ))}
                             </div>
@@ -2546,9 +2543,9 @@ useEffect(() => {
                         </div>
 
                         {/* ===== Pie Chart + شريط نسبة الحضور ===== */}
-                        <div style={{ background:"white", borderRadius:"20px", border:"1px solid #e2e8f0", padding:"20px", boxShadow:"0 2px 8px rgba(0,0,0,0.06)" }}>
+                        <div style={{ background:"white", borderRadius:"20px", border:"1px solid #e2e8f0", padding:"20px", boxShadow:"0 2px 8px rgba(0, 0, 0, 0.06)" }}>
                           <div style={{ fontWeight:"900", fontSize:"15px", marginBottom:"16px", display:"flex", alignItems:"center", gap:"8px" }}>
-                            <PieChart size={18} style={{color:"#4f46e5"}}/> حالة موظفي القسم
+                            <PieChart size={18} style={{ color:"#4f46e5" }}/> حالة موظفي القسم
                           </div>
                           <div style={{ display:"flex", alignItems:"center", gap:"24px", flexWrap:"wrap" }}>
                             <svg width="110" height="110" viewBox="0 0 120 120">
@@ -2582,7 +2579,7 @@ useEffect(() => {
                                   <span style={{ fontSize:"12px", fontWeight:"900", color:"#10b981" }}>{atWork} موظف</span>
                                 </div>
                                 <div style={{ height:"6px", background:"#f1f5f9", borderRadius:"3px" }}>
-                                  <div style={{ height:"100%", width:`${workPct}%`, background:"linear-gradient(90deg,#10b981,#34d399)", borderRadius:"3px" }}/>
+                                  <div style={{ height:"100%", width:`${workPct}%`, background:"linear-gradient(90deg, #10b981, #34d399)", borderRadius:"3px" }}/>
                                 </div>
                               </div>
                               <div>
@@ -2594,7 +2591,7 @@ useEffect(() => {
                                   <span style={{ fontSize:"12px", fontWeight:"900", color:"#ef4444" }}>{onVacNow.length} موظف</span>
                                 </div>
                                 <div style={{ height:"6px", background:"#f1f5f9", borderRadius:"3px" }}>
-                                  <div style={{ height:"100%", width:`${vacPct}%`, background:"linear-gradient(90deg,#ef4444,#f87171)", borderRadius:"3px" }}/>
+                                  <div style={{ height:"100%", width:`${vacPct}%`, background:"linear-gradient(90deg, #ef4444, #f87171)", borderRadius:"3px" }}/>
                                 </div>
                               </div>
                             </div>
@@ -2602,9 +2599,9 @@ useEffect(() => {
                         </div>
 
                         {/* ===== هيكل القسم - قائمة منسدلة ===== */}
-                        <div style={{ background:"white", borderRadius:"20px", border:"1px solid #e2e8f0", overflow:"hidden", boxShadow:"0 2px 8px rgba(0,0,0,0.06)" }}>
+                        <div style={{ background:"white", borderRadius:"20px", border:"1px solid #e2e8f0", overflow:"hidden", boxShadow:"0 2px 8px rgba(0, 0, 0, 0.06)" }}>
                           <div style={{ padding:"16px 20px", borderBottom:"1px solid #e2e8f0", fontWeight:"900", fontSize:"15px", display:"flex", alignItems:"center", gap:"8px" }}>
-                            <Briefcase size={17} style={{color:"#7c3aed"}}/> هيكل القسم
+                            <Briefcase size={17} style={{ color:"#7c3aed" }}/> هيكل القسم
                           </div>
                           <div style={{ padding:"12px", display:"flex", flexDirection:"column", gap:"8px" }}>
                             {grouped.map(group => {
@@ -2631,7 +2628,7 @@ useEffect(() => {
                                       return (
                                         <div key={emp.id} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"8px 12px", borderRadius:"10px", background: isVac ? "#fff1f2" : "#f8fafc", border:`1px solid ${isVac ? "#fecdd3" : "#f1f5f9"}` }}>
                                           <div style={{ display:"flex", alignItems:"center", gap:"8px" }}>
-                                            <div style={{ width:"32px", height:"32px", borderRadius:"50%", background:`linear-gradient(135deg,${group.color}30,${group.color}15)`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:"13px", fontWeight:"900", color:group.color, flexShrink:0 }}>
+                                            <div style={{ width:"32px", height:"32px", borderRadius:"50%", background:`linear-gradient(135deg, ${group.color}30, ${group.color}15)`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:"13px", fontWeight:"900", color:group.color, flexShrink:0 }}>
                                               {emp.name.charAt(0)}
                                             </div>
                                             <div>
@@ -2656,11 +2653,11 @@ useEffect(() => {
                         </div>
 
                         {/* ===== 3 جداول في Row ===== */}
-                        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))", gap:"16px" }}>
+                        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(260px, 1fr))", gap:"16px" }}>
 
                           {/* أعلى رصيد */}
-                          <div style={{ background:"white", borderRadius:"20px", border:"1px solid #e2e8f0", overflow:"hidden", boxShadow:"0 2px 8px rgba(0,0,0,0.06)" }}>
-                            <div style={{ padding:"14px 16px", background:"linear-gradient(135deg,#eef2ff,#e0e7ff)", borderBottom:"1px solid #e2e8f0", fontWeight:"900", fontSize:"13px", color:"#4f46e5", display:"flex", alignItems:"center", gap:"6px" }}>
+                          <div style={{ background:"white", borderRadius:"20px", border:"1px solid #e2e8f0", overflow:"hidden", boxShadow:"0 2px 8px rgba(0, 0, 0, 0.06)" }}>
+                            <div style={{ padding:"14px 16px", background:"linear-gradient(135deg, #eef2ff, #e0e7ff)", borderBottom:"1px solid #e2e8f0", fontWeight:"900", fontSize:"13px", color:"#4f46e5", display:"flex", alignItems:"center", gap:"6px" }}>
                               🏆 أعلى رصيد في القسم
                             </div>
                             {[...deptEmps].sort((a,b) => b.balance - a.balance).slice(0,5).map((emp,i) => (
@@ -2678,8 +2675,8 @@ useEffect(() => {
                           </div>
 
                           {/* أكتر أيام عمل */}
-                          <div style={{ background:"white", borderRadius:"20px", border:"1px solid #e2e8f0", overflow:"hidden", boxShadow:"0 2px 8px rgba(0,0,0,0.06)" }}>
-                            <div style={{ padding:"14px 16px", background:"linear-gradient(135deg,#f0fdf4,#dcfce7)", borderBottom:"1px solid #e2e8f0", fontWeight:"900", fontSize:"13px", color:"#16a34a", display:"flex", alignItems:"center", gap:"6px" }}>
+                          <div style={{ background:"white", borderRadius:"20px", border:"1px solid #e2e8f0", overflow:"hidden", boxShadow:"0 2px 8px rgba(0, 0, 0, 0.06)" }}>
+                            <div style={{ padding:"14px 16px", background:"linear-gradient(135deg, #f0fdf4, #dcfce7)", borderBottom:"1px solid #e2e8f0", fontWeight:"900", fontSize:"13px", color:"#16a34a", display:"flex", alignItems:"center", gap:"6px" }}>
                               💪 أكثر أيام عمل بعد العودة
                             </div>
                             {(() => {
@@ -2704,8 +2701,8 @@ useEffect(() => {
                           </div>
 
                           {/* أقرب عودة */}
-                          <div style={{ background:"white", borderRadius:"20px", border:"1px solid #e2e8f0", overflow:"hidden", boxShadow:"0 2px 8px rgba(0,0,0,0.06)" }}>
-                            <div style={{ padding:"14px 16px", background:"linear-gradient(135deg,#fff7ed,#fef3c7)", borderBottom:"1px solid #e2e8f0", fontWeight:"900", fontSize:"13px", color:"#ea580c", display:"flex", alignItems:"center", gap:"6px" }}>
+                          <div style={{ background:"white", borderRadius:"20px", border:"1px solid #e2e8f0", overflow:"hidden", boxShadow:"0 2px 8px rgba(0, 0, 0, 0.06)" }}>
+                            <div style={{ padding:"14px 16px", background:"linear-gradient(135deg, #fff7ed, #fef3c7)", borderBottom:"1px solid #e2e8f0", fontWeight:"900", fontSize:"13px", color:"#ea580c", display:"flex", alignItems:"center", gap:"6px" }}>
                               📅 أقرب مواعيد العودة
                             </div>
                             {upcoming.length > 0 ? upcoming.map((r,i) => (
@@ -2739,8 +2736,8 @@ useEffect(() => {
                         boxShadow: "0 20px 60px rgba(99,102,241,0.3)",
                       }}>
                         {/* دوائر زخرفية */}
-                        <div style={{ position:"absolute", top:"-40px", left:"-40px", width:"200px", height:"200px", borderRadius:"50%", background:"rgba(255,255,255,0.04)" }} />
-                        <div style={{ position:"absolute", bottom:"-60px", left:"30%", width:"250px", height:"250px", borderRadius:"50%", background:"rgba(255,255,255,0.03)" }} />
+                        <div style={{ position:"absolute", top:"-40px", left:"-40px", width:"200px", height:"200px", borderRadius:"50%", background:"rgba(255, 255, 255, 0.04)" }} />
+                        <div style={{ position:"absolute", bottom:"-60px", left:"30%", width:"250px", height:"250px", borderRadius:"50%", background:"rgba(255, 255, 255, 0.03)" }} />
 
                         <div style={{ position:"relative", zIndex:1, display:"flex", justifyContent:"space-between", alignItems:"flex-start", flexWrap:"wrap", gap:"24px" }}>
                           {/* يمين - الترحيب */}
@@ -2749,35 +2746,35 @@ useEffect(() => {
                               <span style={{ fontSize:"36px" }}>{greeting.emoji}</span>
                               <h2 style={{ color:"white", fontSize:"28px", fontWeight:"900", margin:0 }}>{greeting.text}، {currentUser.name}</h2>
                             </div>
-                            <p style={{ color:"rgba(255,255,255,0.6)", fontSize:"15px", marginBottom:"20px" }}>نظرة عامة على حالة الإجازات</p>
+                            <p style={{ color:"rgba(255, 255, 255, 0.6)", fontSize:"15px", marginBottom:"20px" }}>نظرة عامة على حالة الإجازات</p>
 
                             {/* التاريخ والوقت */}
                             <div style={{ display:"flex", gap:"16px", flexWrap:"wrap" }}>
-                              <div style={{ background:"rgba(255,255,255,0.1)", backdropFilter:"blur(10px)", borderRadius:"12px", padding:"10px 18px", border:"1px solid rgba(255,255,255,0.15)" }}>
-                                <div style={{ color:"rgba(255,255,255,0.5)", fontSize:"11px", marginBottom:"2px" }}>الوقت</div>
+                              <div style={{ background:"rgba(255, 255, 255, 0.1)", backdropFilter:"blur(10px)", borderRadius:"12px", padding:"10px 18px", border:"1px solid rgba(255, 255, 255, 0.15)" }}>
+                                <div style={{ color:"rgba(255, 255, 255, 0.5)", fontSize:"11px", marginBottom:"2px" }}>الوقت</div>
                                 <div style={{ color:"white", fontSize:"22px", fontWeight:"900", fontVariantNumeric:"tabular-nums", direction:"ltr" }}>
                                   {currentTime.toLocaleTimeString("ar-EG", { hour:"2-digit", minute:"2-digit", second:"2-digit" })}
                                 </div>
                               </div>
-                              <div style={{ background:"rgba(255,255,255,0.1)", backdropFilter:"blur(10px)", borderRadius:"12px", padding:"10px 18px", border:"1px solid rgba(255,255,255,0.15)" }}>
-                                <div style={{ color:"rgba(255,255,255,0.5)", fontSize:"11px", marginBottom:"2px" }}>ميلادي</div>
+                              <div style={{ background:"rgba(255, 255, 255, 0.1)", backdropFilter:"blur(10px)", borderRadius:"12px", padding:"10px 18px", border:"1px solid rgba(255, 255, 255, 0.15)" }}>
+                                <div style={{ color:"rgba(255, 255, 255, 0.5)", fontSize:"11px", marginBottom:"2px" }}>ميلادي</div>
                                 <div style={{ color:"white", fontSize:"14px", fontWeight:"700" }}>
                                   {currentTime.toLocaleDateString("ar-EG", { weekday:"long", year:"numeric", month:"long", day:"numeric" })}
                                 </div>
                               </div>
-                              <div style={{ background:"rgba(255,255,255,0.1)", backdropFilter:"blur(10px)", borderRadius:"12px", padding:"10px 18px", border:"1px solid rgba(255,255,255,0.15)" }}>
-                                <div style={{ color:"rgba(255,255,255,0.5)", fontSize:"11px", marginBottom:"2px" }}>هجري</div>
+                              <div style={{ background:"rgba(255, 255, 255, 0.1)", backdropFilter:"blur(10px)", borderRadius:"12px", padding:"10px 18px", border:"1px solid rgba(255, 255, 255, 0.15)" }}>
+                                <div style={{ color:"rgba(255, 255, 255, 0.5)", fontSize:"11px", marginBottom:"2px" }}>هجري</div>
                                 <div style={{ color:"#a5b4fc", fontSize:"14px", fontWeight:"700" }}>{getHijriDate()}</div>
                               </div>
                             </div>
                           </div>
 
                           {/* يسار - الحكمة اليومية */}
-                          <div style={{ maxWidth:"340px", background:"rgba(255,255,255,0.07)", borderRadius:"16px", padding:"20px 24px", border:"1px solid rgba(255,255,255,0.12)", backdropFilter:"blur(10px)" }}>
+                          <div style={{ maxWidth:"340px", background:"rgba(255, 255, 255, 0.07)", borderRadius:"16px", padding:"20px 24px", border:"1px solid rgba(255, 255, 255, 0.12)", backdropFilter:"blur(10px)" }}>
                             <div style={{ color:"#fbbf24", fontSize:"12px", fontWeight:"700", marginBottom:"10px", display:"flex", alignItems:"center", gap:"6px" }}>
                               <span>💡</span> حكمة اليوم
                             </div>
-                            <p style={{ color:"rgba(255,255,255,0.85)", fontSize:"14px", lineHeight:"1.8", margin:0 }}>
+                            <p style={{ color:"rgba(255, 255, 255, 0.85)", fontSize:"14px", lineHeight:"1.8", margin:0 }}>
                               "{getDailyWisdom()}"
                             </p>
                           </div>
@@ -2823,7 +2820,7 @@ useEffect(() => {
                         padding:"10px 18px", fontWeight:"700", cursor: backupLoading ? "not-allowed" : "pointer",
                         fontSize:"13px", fontFamily:"inherit",
                       }}>
-                        {backupLoading ? <><RefreshCw size={16} style={{animation:"spin 1s linear infinite"}}/> جاري...</> : <><Download size={16}/> Google Sheets</>}
+                        {backupLoading ? <><RefreshCw size={16} style={{ animation:"spin 1s linear infinite" }}/> جاري...</> : <><Download size={16}/> Google Sheets</>}
                       </button>
                     </div>
                   </div>
@@ -2853,22 +2850,22 @@ useEffect(() => {
                     {(() => {
                       const attendRate = stats.totalEmployees > 0 ? Math.round((stats.atWorkNow / stats.totalEmployees) * 100) : 0;
                       return (
-                        <div style={{ background:"white", borderRadius:"16px", padding:"20px", border:"1px solid #e2e8f0", boxShadow:"0 1px 4px rgba(0,0,0,0.05)" }}>
+                        <div style={{ background:"white", borderRadius:"16px", padding:"20px", border:"1px solid #e2e8f0", boxShadow:"0 1px 4px rgba(0, 0, 0, 0.05)" }}>
                           <div style={{ display:"flex", alignItems:"center", gap:"8px", marginBottom:"12px" }}>
-                            <Target size={16} style={{color:"#4f46e5"}}/>
+                            <Target size={16} style={{ color:"#4f46e5" }}/>
                             <span style={{ fontSize:"12px", color:"#64748b", fontWeight:"700" }}>نسبة الحضور</span>
                           </div>
                           <div style={{ fontSize:"28px", fontWeight:"900", color:"#4f46e5" }}>{attendRate}%</div>
                           <div style={{ marginTop:"8px", height:"6px", background:"#e2e8f0", borderRadius:"3px" }}>
-                            <div style={{ height:"100%", width:`${attendRate}%`, background:"linear-gradient(90deg,#4f46e5,#7c3aed)", borderRadius:"3px" }}/>
+                            <div style={{ height:"100%", width:`${attendRate}%`, background:"linear-gradient(90deg, #4f46e5, #7c3aed)", borderRadius:"3px" }}/>
                           </div>
                         </div>
                       );
                     })()}
                     {/* إجمالي أيام الإجازات */}
-                    <div style={{ background:"white", borderRadius:"16px", padding:"20px", border:"1px solid #e2e8f0", boxShadow:"0 1px 4px rgba(0,0,0,0.05)" }}>
+                    <div style={{ background:"white", borderRadius:"16px", padding:"20px", border:"1px solid #e2e8f0", boxShadow:"0 1px 4px rgba(0, 0, 0, 0.05)" }}>
                       <div style={{ display:"flex", alignItems:"center", gap:"8px", marginBottom:"12px" }}>
-                        <Award size={16} style={{color:"#f59e0b"}}/>
+                        <Award size={16} style={{ color:"#f59e0b" }}/>
                         <span style={{ fontSize:"12px", color:"#64748b", fontWeight:"700" }}>إجمالي أيام الإجازات</span>
                       </div>
                       <div style={{ fontSize:"28px", fontWeight:"900", color:"#f59e0b" }}>{stats.totalVacationDays}</div>
@@ -2878,9 +2875,9 @@ useEffect(() => {
                     {(() => {
                       const lowCount = employees.filter(e => e.balance < 5).length;
                       return (
-                        <div style={{ background: lowCount > 0 ? "#fff7ed" : "white", borderRadius:"16px", padding:"20px", border:`1px solid ${lowCount > 0 ? "#fed7aa" : "#e2e8f0"}`, boxShadow:"0 1px 4px rgba(0,0,0,0.05)" }}>
+                        <div style={{ background: lowCount > 0 ? "#fff7ed" : "white", borderRadius:"16px", padding:"20px", border:`1px solid ${lowCount > 0 ? "#fed7aa" : "#e2e8f0"}`, boxShadow:"0 1px 4px rgba(0, 0, 0, 0.05)" }}>
                           <div style={{ display:"flex", alignItems:"center", gap:"8px", marginBottom:"12px" }}>
-                            <Flame size={16} style={{color: lowCount > 0 ? "#ea580c" : "#64748b"}}/>
+                            <Flame size={16} style={{ color: lowCount > 0 ? "#ea580c" : "#64748b" }}/>
                             <span style={{ fontSize:"12px", color:"#64748b", fontWeight:"700" }}>رصيد منخفض</span>
                           </div>
                           <div style={{ fontSize:"28px", fontWeight:"900", color: lowCount > 0 ? "#ea580c" : "#10b981" }}>{lowCount}</div>
@@ -2894,9 +2891,9 @@ useEffect(() => {
                       const approved = requests.filter(r => r.status === "approved").length;
                       const rate = total > 0 ? Math.round((approved / total) * 100) : 0;
                       return (
-                        <div style={{ background:"white", borderRadius:"16px", padding:"20px", border:"1px solid #e2e8f0", boxShadow:"0 1px 4px rgba(0,0,0,0.05)" }}>
+                        <div style={{ background:"white", borderRadius:"16px", padding:"20px", border:"1px solid #e2e8f0", boxShadow:"0 1px 4px rgba(0, 0, 0, 0.05)" }}>
                           <div style={{ display:"flex", alignItems:"center", gap:"8px", marginBottom:"12px" }}>
-                            <Eye size={16} style={{color:"#10b981"}}/>
+                            <Eye size={16} style={{ color:"#10b981" }}/>
                             <span style={{ fontSize:"12px", color:"#64748b", fontWeight:"700" }}>معدل الموافقة</span>
                           </div>
                           <div style={{ fontSize:"28px", fontWeight:"900", color:"#10b981" }}>{rate}%</div>
@@ -2950,7 +2947,7 @@ useEffect(() => {
                                   <span style={{ color:"#4f46e5", fontWeight:"800", fontSize:"13px" }}>{emp.workedDays} يوم</span>
                                 </div>
                                 <div style={{ height:"8px", background:"#e2e8f0", borderRadius:"99px", overflow:"hidden" }}>
-                                  <div style={{ height:"100%", background:"linear-gradient(90deg,#6366f1,#8b5cf6)", borderRadius:"99px", width:`${(emp.workedDays / maxDays) * 100}%`, transition:"width 0.4s" }}></div>
+                                  <div style={{ height:"100%", background:"linear-gradient(90deg, #6366f1, #8b5cf6)", borderRadius:"99px", width:`${(emp.workedDays / maxDays) * 100}%`, transition:"width 0.4s" }}></div>
                                 </div>
                               </div>
                             </div>
@@ -2978,7 +2975,7 @@ useEffect(() => {
               {activeTab === "employees" && (
                 <div className="space-y-5">
                   {/* شريط الأدوات */}
-                  <div style={{ background:"white", borderRadius:"20px", padding:"16px 20px", border:"1px solid #e2e8f0", display:"flex", alignItems:"center", gap:"12px", flexWrap:"wrap", boxShadow:"0 1px 4px rgba(0,0,0,0.05)" }}>
+                  <div style={{ background:"white", borderRadius:"20px", padding:"16px 20px", border:"1px solid #e2e8f0", display:"flex", alignItems:"center", gap:"12px", flexWrap:"wrap", boxShadow:"0 1px 4px rgba(0, 0, 0, 0.05)" }}>
                     {/* بحث */}
                     <div style={{ position:"relative", flex:"1", minWidth:"200px" }}>
                       <Search style={{ position:"absolute", right:"14px", top:"50%", transform:"translateY(-50%)", color:"#94a3b8" }} size={16} />
@@ -3031,9 +3028,9 @@ useEffect(() => {
                   </div>
 
                   {/* الجدول مع scroll أفقي */}
-                  <div style={{ background:"white", borderRadius:"20px", border:"1px solid #e2e8f0", boxShadow:"0 1px 4px rgba(0,0,0,0.05)", overflow:"hidden" }}>
+                  <div style={{ background:"white", borderRadius:"20px", border:"1px solid #e2e8f0", boxShadow:"0 1px 4px rgba(0, 0, 0, 0.05)", overflow:"hidden" }}>
                     <div style={{ overflowX:"auto", overflowY:"auto", maxHeight:"calc(100vh - 280px)" }}>
-                      <table style={{ width:"100%", borderCollapse:"collapse", border:"2px solid #94a3b8", fontSize:"13px", backgroundColor:"#ffffff" }}>
+                      <table style={ borderCollapse:"collapse", border:"1px solid #94a3b8",  width:"100%", borderCollapse:"collapse", border:"2px solid #94a3b8", fontSize:"13px", backgroundColor:"#ffffff"  }>
                         <thead>
                           <tr style={{ background:"linear-gradient(90deg, #3b82f6 0%, #f59e0b 14%, #a855f7 28%, #ef4444 42%, #10b981 56%, #eab308 70%, #06b6d4 84%, #14b8a6 100%)", borderBottom:"2px solid #cbd5e1", position:"sticky", top:0, zIndex:5 }}>
                             <SortTh label="الاسم"      field="name"       align="right"  sortField={empSortField} sortDir={empSortDir} sortDropdown={empSortDropdown} onSort={(f,d)=>{setEmpSortField(f);setEmpSortDir(d);setEmpSortDropdown("");}} onClear={()=>{setEmpSortField("");setEmpSortDropdown("");}} onToggle={f=>setEmpSortDropdown(d=>d===f?"":f)} />
@@ -3044,7 +3041,7 @@ useEffect(() => {
                             <SortTh label="شهري"       field="monthly"    align="center" sortField={empSortField} sortDir={empSortDir} sortDropdown={empSortDropdown} onSort={(f,d)=>{setEmpSortField(f);setEmpSortDir(d);setEmpSortDropdown("");}} onClear={()=>{setEmpSortField("");setEmpSortDropdown("");}} onToggle={f=>setEmpSortDropdown(d=>d===f?"":f)} />
                             <SortTh label="أيام العمل" field="workedDays" align="center" sortField={empSortField} sortDir={empSortDir} sortDropdown={empSortDropdown} onSort={(f,d)=>{setEmpSortField(f);setEmpSortDir(d);setEmpSortDropdown("");}} onClear={()=>{setEmpSortField("");setEmpSortDropdown("");}} onToggle={f=>setEmpSortDropdown(d=>d===f?"":f)} />
                             <SortTh label="الحالة"     field="status"     align="center" sortField={empSortField} sortDir={empSortDir} sortDropdown={empSortDropdown} onSort={(f,d)=>{setEmpSortField(f);setEmpSortDir(d);setEmpSortDropdown("");}} onClear={()=>{setEmpSortField("");setEmpSortDropdown("");}} onToggle={f=>setEmpSortDropdown(d=>d===f?"":f)} />
-                            <th style={{ padding:"12px 8px", border:"1px solid #94a3b8", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center" }}>إجراءات</th>
+                            <th style={ border:"1px solid #94a3b8",  padding:"12px 8px", border:"1px solid #94a3b8", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center"  }>إجراءات</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -3058,41 +3055,41 @@ useEffect(() => {
                                 onMouseEnter={e => (e.currentTarget.style.background = "#f0f4ff")}
                                 onMouseLeave={e => (e.currentTarget.style.background = isOnLeave ? "#fffbeb" : (idx % 2 === 0 ? "white" : "#fafafa"))}>
                                 {/* الاسم */}
-                                <td style={{ padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center" }}>
+                                <td style={ border:"1px solid #94a3b8",  padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center"  }>
                                   <div style={{ fontWeight:"700", color:"#1e293b", fontSize:"13px" }}>{emp.name}</div>
                                   {emp.email && <a href={`mailto:${emp.email}`} style={{ color:"#6366f1", fontSize:"11px", textDecoration:"none" }}>{emp.email}</a>}
                                 </td>
                                 {/* الكود */}
-                                <td style={{ padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center" }}>
+                                <td style={ border:"1px solid #94a3b8",  padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center"  }>
                                   <span style={{ fontFamily:"monospace", background:"#f1f5f9", padding:"3px 8px", borderRadius:"6px", fontSize:"12px", color:"#475569", fontWeight:"600" }}>{emp.code}</span>
                                 </td>
                                 {/* المنصب */}
-                                <td style={{ padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center" }}>{emp.position || "-"}</td>
+                                <td style={ border:"1px solid #94a3b8",  padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center"  }>{emp.position || "-"}</td>
                                 {/* القسم */}
-                                <td style={{ padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center" }}>
+                                <td style={ border:"1px solid #94a3b8",  padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center"  }>
                                   {dept ? <span style={{ background:"#ede9fe", color:"#7c3aed", padding:"3px 10px", borderRadius:"20px", fontSize:"11px", fontWeight:"700" }}>{dept.name}</span> : <span style={{ color:"#cbd5e1" }}>-</span>}
                                 </td>
                                 {/* الرصيد */}
-                                <td style={{ padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center" }}>
+                                <td style={ border:"1px solid #94a3b8",  padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center"  }>
                                   <span style={{ fontWeight:"900", fontSize:"16px", color: emp.balance < 5 ? "#dc2626" : emp.balance < 10 ? "#d97706" : "#4f46e5" }}>{emp.balance}</span>
                                   <div style={{ fontSize:"10px", color:"#94a3b8" }}>يوم</div>
                                 </td>
                                 {/* شهري */}
-                                <td style={{ padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center" }}>
+                                <td style={ border:"1px solid #94a3b8",  padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center"  }>
                                   {emp.monthly_balance > 0
                                     ? <span style={{ background:"#dcfce7", color:"#16a34a", padding:"3px 8px", borderRadius:"20px", fontSize:"11px", fontWeight:"700" }}>+{emp.monthly_balance}</span>
                                     : <span style={{ color:"#cbd5e1", fontSize:"12px" }}>-</span>}
                                 </td>
                                 {/* أيام العمل */}
-                                <td style={{ padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center" }}>{workedDays > 0 ? workedDays : "-"}</td>
+                                <td style={ border:"1px solid #94a3b8",  padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center"  }>{workedDays > 0 ? workedDays : "-"}</td>
                                 {/* الحالة */}
-                                <td style={{ padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center" }}>
+                                <td style={ border:"1px solid #94a3b8",  padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center"  }>
                                   <span style={{ padding:"4px 12px", borderRadius:"20px", fontSize:"11px", fontWeight:"800", background: isOnLeave ? "#fef3c7" : "#dcfce7", color: isOnLeave ? "#92400e" : "#166534" }}>
                                     {isOnLeave ? "🟡 إجازة" : "🟢 عمل"}
                                   </span>
                                 </td>
                                 {/* إجراءات */}
-                                <td style={{ padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center" }}>
+                                <td style={ border:"1px solid #94a3b8",  padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center"  }>
                                   <div style={{ display:"flex", justifyContent:"center", gap:"6px" }}>
                                     <button
                                       title={empStatus === "إجازة" ? "تغيير إلى عمل" : "تغيير إلى إجازة"}
@@ -3133,7 +3130,7 @@ useEffect(() => {
                       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
                     <h2 className="text-2xl font-black">طلبات الإجازات</h2>
                     <button onClick={() => { setPrintSelected([]); setPrintFrom(""); setPrintTo(""); setShowPrintModal(true); }}
-                      style={{ padding:"10px 16px", background:"linear-gradient(135deg,#1d4ed8,#3b82f6)", color:"white", border:"none", borderRadius:"12px", fontWeight:"700", cursor:"pointer", fontSize:"13px", display:"flex", alignItems:"center", gap:"6px", whiteSpace:"nowrap" }}>
+                      style={{ padding:"10px 16px", background:"linear-gradient(135deg, #1d4ed8, #3b82f6)", color:"white", border:"none", borderRadius:"12px", fontWeight:"700", cursor:"pointer", fontSize:"13px", display:"flex", alignItems:"center", gap:"6px", whiteSpace:"nowrap" }}>
                       🖨️ طباعة / مشاركة
                     </button>
                   </div>
@@ -3179,9 +3176,9 @@ useEffect(() => {
                     <>
                       <h3 className="font-black text-lg text-amber-600">⏳ بانتظار موافقتك ({filteredRequests.filter(r => r.status === "pending").length})</h3>
                       <div style={{ background:"white", borderRadius:"20px", border:"1px solid #e2e8f0", overflowX:"auto" }}>
-                        <table style={{ width:"100%", borderCollapse:"collapse", border:"2px solid #94a3b8", fontSize:"13px", backgroundColor:"#ffffff" }}>
+                        <table style={ borderCollapse:"collapse", border:"1px solid #94a3b8",  width:"100%", borderCollapse:"collapse", border:"2px solid #94a3b8", fontSize:"13px", backgroundColor:"#ffffff"  }>
                           <thead>
-                            <tr style={{ background:"linear-gradient(135deg,#fffbeb,#fef3c7)", borderBottom:"2px solid #fde68a" }}>
+                            <tr style={{ background:"linear-gradient(135deg, #fffbeb, #fef3c7)", borderBottom:"2px solid #fde68a" }}>
                               <SortTh label="الموظف"    field="name"     align="right"  sortField={reqSortField} sortDir={reqSortDir} sortDropdown={reqSortDropdown} onSort={(f,d)=>{setReqSortField(f);setReqSortDir(d);setReqSortDropdown("");}} onClear={()=>{setReqSortField("");setReqSortDropdown("");}} onToggle={f=>setReqSortDropdown(d=>d===f?"":f)} />
                               <SortTh label="النوع"     field="type"     align="center" sortField={reqSortField} sortDir={reqSortDir} sortDropdown={reqSortDropdown} onSort={(f,d)=>{setReqSortField(f);setReqSortDir(d);setReqSortDropdown("");}} onClear={()=>{setReqSortField("");setReqSortDropdown("");}} onToggle={f=>setReqSortDropdown(d=>d===f?"":f)} />
                               <SortTh label="البداية"   field="start"    align="center" sortField={reqSortField} sortDir={reqSortDir} sortDropdown={reqSortDropdown} onSort={(f,d)=>{setReqSortField(f);setReqSortDir(d);setReqSortDropdown("");}} onClear={()=>{setReqSortField("");setReqSortDropdown("");}} onToggle={f=>setReqSortDropdown(d=>d===f?"":f)} />
@@ -3189,7 +3186,7 @@ useEffect(() => {
                               <SortTh label="الأيام"    field="days"     align="center" sortField={reqSortField} sortDir={reqSortDir} sortDropdown={reqSortDropdown} onSort={(f,d)=>{setReqSortField(f);setReqSortDir(d);setReqSortDropdown("");}} onClear={()=>{setReqSortField("");setReqSortDropdown("");}} onToggle={f=>setReqSortDropdown(d=>d===f?"":f)} />
                               <SortTh label="أيام العمل" field="workdays" align="center" sortField={reqSortField} sortDir={reqSortDir} sortDropdown={reqSortDropdown} onSort={(f,d)=>{setReqSortField(f);setReqSortDir(d);setReqSortDropdown("");}} onClear={()=>{setReqSortField("");setReqSortDropdown("");}} onToggle={f=>setReqSortDropdown(d=>d===f?"":f)} />
                               <SortTh label="الحالة"    field="status"   align="center" sortField={reqSortField} sortDir={reqSortDir} sortDropdown={reqSortDropdown} onSort={(f,d)=>{setReqSortField(f);setReqSortDir(d);setReqSortDropdown("");}} onClear={()=>{setReqSortField("");setReqSortDropdown("");}} onToggle={f=>setReqSortDropdown(d=>d===f?"":f)} />
-                              <th style={{ padding:"12px 8px", border:"1px solid #94a3b8", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center" }}>الإجراءات</th>
+                              <th style={ border:"1px solid #94a3b8",  padding:"12px 8px", border:"1px solid #94a3b8", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center"  }>الإجراءات</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -3202,36 +3199,36 @@ useEffect(() => {
                                   style={{ borderBottom:"1px solid #f1f5f9", background: idx % 2 === 0 ? "white" : "#fafafa" }}
                                   onMouseEnter={e => (e.currentTarget.style.background = "#fffbeb")}
                                   onMouseLeave={e => (e.currentTarget.style.background = idx % 2 === 0 ? "white" : "#fafafa")}>
-                                  <td style={{ padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center" }}>
+                                  <td style={ border:"1px solid #94a3b8",  padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center"  }>
                                     <button onClick={() => { setEmpInfoTarget({...emp, req}); setShowEmpInfoModal(true); }}
                                       style={{ background:"none", border:"none", padding:0, cursor:"pointer", textAlign:"right" }}>
                                       <div style={{ fontWeight:"800", color:"#1e293b", fontSize:"13px" }}>{req.employee_name}</div>
                                       {emp?.email && <div style={{ fontSize:"10px", color:"#94a3b8" }}>{emp.email}</div>}
                                     </button>
                                   </td>
-                                  <td style={{ padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center" }}>
+                                  <td style={ border:"1px solid #94a3b8",  padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center"  }>
                                     {vacType && <span style={{ padding:"3px 10px", borderRadius:"20px", fontSize:"11px", fontWeight:"700", background:(vacType as any).color+"22", color:(vacType as any).color }}>{(vacType as any).name}</span>}
                                   </td>
-                                  <td style={{ padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center" }}>{formatDate(req.start_date)}</td>
-                                  <td style={{ padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center" }}>{formatDate(back)}</td>
-                                  <td style={{ padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center" }}>
+                                  <td style={ border:"1px solid #94a3b8",  padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center"  }>{formatDate(req.start_date)}</td>
+                                  <td style={ border:"1px solid #94a3b8",  padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center"  }>{formatDate(back)}</td>
+                                  <td style={ border:"1px solid #94a3b8",  padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center"  }>
                                     <span style={{ fontWeight:"900", color:"#059669", fontSize:"14px" }}>{req.days}</span>
                                     <span style={{ fontSize:"10px", color:"#94a3b8" }}> يوم</span>
                                   </td>
-                                  <td style={{ padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center" }}>
+                                  <td style={ border:"1px solid #94a3b8",  padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center"  }>
                                     {(() => {
                                       const holidayDates = publicHolidays.map(h => h.date);
                                       const days = calculateWorkDaysBetween(emp?.return_date || "", req.start_date, holidayDates);
                                       return days > 0 ? days : "-";
                                     })()}
                                   </td>
-                                  <td style={{ padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center" }}>
+                                  <td style={ border:"1px solid #94a3b8",  padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center"  }>
                                     {req.notes && <div style={{ fontSize:"11px", color:"#64748b", fontStyle:"italic", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", maxWidth:"100px" }} title={req.notes}>"{req.notes}"</div>}
                                   </td>
-                                  <td style={{ padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center" }}>
+                                  <td style={ border:"1px solid #94a3b8",  padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center"  }>
                                     <div style={{ display:"flex", gap:"6px", justifyContent:"center" }}>
                                       <button onClick={() => openApprovalModal(req, "approved")}
-                                        style={{ padding:"6px 14px", background:"linear-gradient(135deg,#f59e0b,#d97706)", color:"white", border:"none", borderRadius:"8px", fontWeight:"800", cursor:"pointer", fontSize:"12px", fontFamily:"inherit" }}>
+                                        style={{ padding:"6px 14px", background:"linear-gradient(135deg, #f59e0b, #d97706)", color:"white", border:"none", borderRadius:"8px", fontWeight:"800", cursor:"pointer", fontSize:"12px", fontFamily:"inherit" }}>
                                         ✓ موافقة
                                       </button>
                                       <button onClick={() => openApprovalModal(req, "rejected")}
@@ -3265,9 +3262,9 @@ useEffect(() => {
                         طلبات تحتاج موافقتك ({filteredRequests.filter(r => r.status === "pending" || r.status === "dept_approved").length})
                       </h3>
                        <div style={{ background:"white", borderRadius:"20px", border:"1px solid #e2e8f0", overflowX:"auto" }}>
-                        <table style={{ width:"100%", borderCollapse:"collapse", border:"2px solid #94a3b8", fontSize:"13px", backgroundColor:"#ffffff" }}>
+                        <table style={ borderCollapse:"collapse", border:"1px solid #94a3b8",  width:"100%", borderCollapse:"collapse", border:"2px solid #94a3b8", fontSize:"13px", backgroundColor:"#ffffff"  }>
                           <thead>
-                            <tr style={{ background:"linear-gradient(135deg,#f0fdf4,#dcfce7)", borderBottom:"2px solid #bbf7d0" }}>
+                            <tr style={{ background:"linear-gradient(135deg, #f0fdf4, #dcfce7)", borderBottom:"2px solid #bbf7d0" }}>
                               <SortTh label="الموظف"    field="name"     align="right"  sortField={reqSortField} sortDir={reqSortDir} sortDropdown={reqSortDropdown} onSort={(f,d)=>{setReqSortField(f);setReqSortDir(d);setReqSortDropdown("");}} onClear={()=>{setReqSortField("");setReqSortDropdown("");}} onToggle={f=>setReqSortDropdown(d=>d===f?"":f)} />
                               <SortTh label="النوع"     field="type"     align="center" sortField={reqSortField} sortDir={reqSortDir} sortDropdown={reqSortDropdown} onSort={(f,d)=>{setReqSortField(f);setReqSortDir(d);setReqSortDropdown("");}} onClear={()=>{setReqSortField("");setReqSortDropdown("");}} onToggle={f=>setReqSortDropdown(d=>d===f?"":f)} />
                               <SortTh label="القسم"     field="dept"     align="center" sortField={reqSortField} sortDir={reqSortDir} sortDropdown={reqSortDropdown} onSort={(f,d)=>{setReqSortField(f);setReqSortDir(d);setReqSortDropdown("");}} onClear={()=>{setReqSortField("");setReqSortDropdown("");}} onToggle={f=>setReqSortDropdown(d=>d===f?"":f)} />
@@ -3276,7 +3273,7 @@ useEffect(() => {
                               <SortTh label="الأيام"    field="days"     align="center" sortField={reqSortField} sortDir={reqSortDir} sortDropdown={reqSortDropdown} onSort={(f,d)=>{setReqSortField(f);setReqSortDir(d);setReqSortDropdown("");}} onClear={()=>{setReqSortField("");setReqSortDropdown("");}} onToggle={f=>setReqSortDropdown(d=>d===f?"":f)} />
                               <SortTh label="أيام العمل" field="workdays" align="center" sortField={reqSortField} sortDir={reqSortDir} sortDropdown={reqSortDropdown} onSort={(f,d)=>{setReqSortField(f);setReqSortDir(d);setReqSortDropdown("");}} onClear={()=>{setReqSortField("");setReqSortDropdown("");}} onToggle={f=>setReqSortDropdown(d=>d===f?"":f)} />
                               <SortTh label="الحالة"    field="status"   align="center" sortField={reqSortField} sortDir={reqSortDir} sortDropdown={reqSortDropdown} onSort={(f,d)=>{setReqSortField(f);setReqSortDir(d);setReqSortDropdown("");}} onClear={()=>{setReqSortField("");setReqSortDropdown("");}} onToggle={f=>setReqSortDropdown(d=>d===f?"":f)} />
-                              <th style={{ padding:"12px 8px", border:"1px solid #94a3b8", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center" }}>الإجراءات</th>
+                              <th style={ border:"1px solid #94a3b8",  padding:"12px 8px", border:"1px solid #94a3b8", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center"  }>الإجراءات</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -3292,7 +3289,7 @@ useEffect(() => {
                               onMouseEnter={e=>(e.currentTarget.style.background="#f0fdf4")}
                               onMouseLeave={e=>(e.currentTarget.style.background= isDeptApp ? "#faf5ff" : (idx%2===0 ? "white" : "#fafafa"))}>
                               {/* الموظف */}
-                              <td style={{ padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center" }}>
+                              <td style={ border:"1px solid #94a3b8",  padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center"  }>
                                 <button onClick={() => { setEmpInfoTarget({...emp, req}); setShowEmpInfoModal(true); }}
                                   style={{ background:"none", border:"none", padding:0, cursor:"pointer", textAlign:"right" }}>
                                   <div style={{ fontWeight:"800", color:"#1e293b", fontSize:"13px" }}>{req.employee_name}</div>
@@ -3301,22 +3298,22 @@ useEffect(() => {
                                 </button>
                               </td>
                               {/* النوع */}
-                              <td style={{ padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center" }}>
+                              <td style={ border:"1px solid #94a3b8",  padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center"  }>
                                 {vacType && <span style={{ padding:"3px 10px", borderRadius:"20px", fontSize:"11px", fontWeight:"700", background: (vacType as any).color+"22", color:(vacType as any).color }}>{(vacType as any).name}</span>}
                               </td>
                               {/* القسم */}
-                              <td style={{ padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center" }}>{dept?.name||"-"}</td>
+                              <td style={ border:"1px solid #94a3b8",  padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center"  }>{dept?.name||"-"}</td>
                               {/* البداية */}
-                              <td style={{ padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center" }}>{formatDate(req.start_date)}</td>
+                              <td style={ border:"1px solid #94a3b8",  padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center"  }>{formatDate(req.start_date)}</td>
                               {/* نهاية الإجازة */}
-                              <td style={{ padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center" }}>{formatDate(back)}</td>
+                              <td style={ border:"1px solid #94a3b8",  padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center"  }>{formatDate(back)}</td>
                               {/* الأيام */}
-                              <td style={{ padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center" }}>
+                              <td style={ border:"1px solid #94a3b8",  padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center"  }>
                                 <span style={{ fontWeight:"900", color:"#059669", fontSize:"14px" }}>{req.days}</span>
                                 <span style={{ fontSize:"10px", color:"#94a3b8" }}> يوم</span>
                               </td>
                               {/* أيام العمل من العودة للنزول */}
-                              <td style={{ padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center" }}>
+                              <td style={ border:"1px solid #94a3b8",  padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center"  }>
                                 {(() => {
                                   const holidayDates = publicHolidays.map(h => h.date);
                                   const days = calculateWorkDaysBetween(emp?.return_date || "", req.start_date, holidayDates);
@@ -3324,14 +3321,14 @@ useEffect(() => {
                                 })()}
                               </td>
                               {/* الحالة / ملاحظات */}
-                              <td style={{ padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center" }}>
+                              <td style={ border:"1px solid #94a3b8",  padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center"  }>
                                 {req.notes && <div style={{ fontSize:"11px", color:"#64748b", fontStyle:"italic", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", maxWidth:"100px" }} title={req.notes}>"{req.notes}"</div>}
                               </td>
                               {/* الإجراءات */}
-                              <td style={{ padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center" }}>
+                              <td style={ border:"1px solid #94a3b8",  padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center"  }>
                                 <div style={{ display:"flex", gap:"6px", justifyContent:"center", flexWrap:"nowrap" }}>
                                   <button onClick={() => openApprovalModal(req, "approved")}
-                                    style={{ padding:"6px 14px", background:"linear-gradient(135deg,#059669,#16a34a)", color:"white", border:"none", borderRadius:"8px", fontWeight:"800", cursor:"pointer", fontSize:"12px", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+                                    style={{ padding:"6px 14px", background:"linear-gradient(135deg, #059669, #16a34a)", color:"white", border:"none", borderRadius:"8px", fontWeight:"800", cursor:"pointer", fontSize:"12px", fontFamily:"inherit", whiteSpace:"nowrap" }}>
                                     ✓ موافقة
                                   </button>
                                   <button onClick={() => openApprovalModal(req, "rejected")}
@@ -3441,7 +3438,7 @@ useEffect(() => {
                     <button onClick={() => setShowAddHoliday(true)} className="bg-indigo-600 text-white px-6 py-3 rounded-2xl flex items-center gap-2 font-bold"><Plus size={20} /> إضافة عطلة</button>
                   </div>
                   <div className="bg-white rounded-[2rem] shadow-sm border overflow-x-auto">
-                    <table className="w-full" style={{ width:"100%", borderCollapse:"collapse", border:"2px solid #94a3b8", fontSize:"13px", backgroundColor:"#ffffff" }}>
+                    <table className="w-full" style={ borderCollapse:"collapse", border:"1px solid #94a3b8",  width:"100%", borderCollapse:"collapse", border:"2px solid #94a3b8", fontSize:"13px", backgroundColor:"#ffffff"  }>
                       <thead className="bg-slate-50 border-b">
                         <tr>
                           <th className="p-4 text-right">اسم العطلة</th>
@@ -3541,11 +3538,11 @@ useEffect(() => {
                       </div>
                       <div style={{ display:"flex", gap:"10px", flexWrap:"wrap" }}>
                         <button onClick={exportActiveToExcel}
-                          style={{ display:"flex", alignItems:"center", gap:"6px", padding:"10px 16px", background:"linear-gradient(135deg,#059669,#16a34a)", color:"white", border:"none", borderRadius:"12px", fontWeight:"700", cursor:"pointer", fontSize:"13px", fontFamily:"inherit" }}>
+                          style={{ display:"flex", alignItems:"center", gap:"6px", padding:"10px 16px", background:"linear-gradient(135deg, #059669, #16a34a)", color:"white", border:"none", borderRadius:"12px", fontWeight:"700", cursor:"pointer", fontSize:"13px", fontFamily:"inherit" }}>
                           <FileDown size={16}/> تصدير الإجازات الحالية
                         </button>
                         <button onClick={() => setShowDirectVacModal(true)}
-                          style={{ display:"flex", alignItems:"center", gap:"6px", padding:"10px 16px", background:"linear-gradient(135deg,#f59e0b,#d97706)", color:"white", border:"none", borderRadius:"12px", fontWeight:"700", cursor:"pointer", fontSize:"13px", fontFamily:"inherit" }}>
+                          style={{ display:"flex", alignItems:"center", gap:"6px", padding:"10px 16px", background:"linear-gradient(135deg, #f59e0b, #d97706)", color:"white", border:"none", borderRadius:"12px", fontWeight:"700", cursor:"pointer", fontSize:"13px", fontFamily:"inherit" }}>
                           <Plus size={16}/> إضافة إجازة مباشرة
                         </button>
                       </div>
@@ -3608,18 +3605,18 @@ useEffect(() => {
                         </div>
                       ) : (
                         <div style={{ overflowX:"auto" }}>
-                          <table style={{ width:"100%", borderCollapse:"collapse", border:"2px solid #94a3b8", fontSize:"13px", backgroundColor:"#ffffff" }}>
-                            <thead style={{ padding:"12px 8px", border:"1px solid #94a3b8", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center" }}>
+                          <table style={ borderCollapse:"collapse", border:"1px solid #94a3b8",  width:"100%", borderCollapse:"collapse", border:"2px solid #94a3b8", fontSize:"13px", backgroundColor:"#ffffff"  }>
+                            <thead style={ border:"1px solid #94a3b8",  padding:"12px 8px", border:"1px solid #94a3b8", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center"  }>
                               <tr>
                                 <SortTh label="الموظف"        field="name"  align="right"  sortField={activeVacSortField} sortDir={activeVacSortDir} sortDropdown={activeVacSortDropdown} onSort={(f,d)=>{setActiveVacSortField(f);setActiveVacSortDir(d);setActiveVacSortDropdown("");}} onClear={()=>{setActiveVacSortField("");setActiveVacSortDropdown("");}} onToggle={f=>setActiveVacSortDropdown(d=>d===f?"":f)} />
-                              <th style={{ padding:"12px 8px", border:"1px solid #94a3b8", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center" }}>القسم</th>
-                              <th style={{ padding:"12px 8px", border:"1px solid #94a3b8", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center" }}>نوع الإجازة</th>
+                              <th style={ border:"1px solid #94a3b8",  padding:"12px 8px", border:"1px solid #94a3b8", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center"  }>القسم</th>
+                              <th style={ border:"1px solid #94a3b8",  padding:"12px 8px", border:"1px solid #94a3b8", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center"  }>نوع الإجازة</th>
                               <SortTh label="تاريخ البداية" field="start" align="center" sortField={activeVacSortField} sortDir={activeVacSortDir} sortDropdown={activeVacSortDropdown} onSort={(f,d)=>{setActiveVacSortField(f);setActiveVacSortDir(d);setActiveVacSortDropdown("");}} onClear={()=>{setActiveVacSortField("");setActiveVacSortDropdown("");}} onToggle={f=>setActiveVacSortDropdown(d=>d===f?"":f)} />
                               <SortTh label="المدة"         field="days"  align="center" sortField={activeVacSortField} sortDir={activeVacSortDir} sortDropdown={activeVacSortDropdown} onSort={(f,d)=>{setActiveVacSortField(f);setActiveVacSortDir(d);setActiveVacSortDropdown("");}} onClear={()=>{setActiveVacSortField("");setActiveVacSortDropdown("");}} onToggle={f=>setActiveVacSortDropdown(d=>d===f?"":f)} />
                               <SortTh label="نهاية الإجازة" field="back" align="center" sortField={activeVacSortField} sortDir={activeVacSortDir} sortDropdown={activeVacSortDropdown} onSort={(f,d)=>{setActiveVacSortField(f);setActiveVacSortDir(d);setActiveVacSortDropdown("");}} onClear={()=>{setActiveVacSortField("");setActiveVacSortDropdown("");}} onToggle={f=>setActiveVacSortDropdown(d=>d===f?"":f)} />
-                              <th style={{ padding:"12px 8px", border:"1px solid #94a3b8", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center" }}>الرصيد</th>
-                              <th style={{ padding:"12px 8px", border:"1px solid #94a3b8", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center" }}>المصدر</th>
-                              <th style={{ padding:"12px 8px", border:"1px solid #94a3b8", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center" }}>الإجراءات</th>
+                              <th style={ border:"1px solid #94a3b8",  padding:"12px 8px", border:"1px solid #94a3b8", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center"  }>الرصيد</th>
+                              <th style={ border:"1px solid #94a3b8",  padding:"12px 8px", border:"1px solid #94a3b8", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center"  }>المصدر</th>
+                              <th style={ border:"1px solid #94a3b8",  padding:"12px 8px", border:"1px solid #94a3b8", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center"  }>الإجراءات</th>
                               </tr>
                             </thead>
                             <tbody>
@@ -3629,23 +3626,23 @@ useEffect(() => {
                                   <tr key={emp.id} style={{ borderBottom:"1px solid #f1f5f9" }}
                                     onMouseEnter={e => (e.currentTarget.style.background="#f8fafc")}
                                     onMouseLeave={e => (e.currentTarget.style.background="white")}>
-                                    <td style={{ padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center" }}>
+                                    <td style={ border:"1px solid #94a3b8",  padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center"  }>
                                       <div style={{ fontWeight:"700", color:"#1e293b" }}>{emp.name}</div>
                                       <div style={{ fontSize:"11px", color:"#94a3b8" }}>{emp.code}</div>
                                     </td>
-                                    <td style={{ padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center" }}>{dept?.name || "-"}</td>
-                                    <td style={{ padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center" }}>
+                                    <td style={ border:"1px solid #94a3b8",  padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center"  }>{dept?.name || "-"}</td>
+                                    <td style={ border:"1px solid #94a3b8",  padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center"  }>
                                       {vacType
                                         ? <span style={{ padding:"3px 10px", borderRadius:"20px", fontSize:"11px", fontWeight:"700", background:(vacType as any).color+"22", color:(vacType as any).color }}>{(vacType as any).name}</span>
                                         : <span style={{ color:"#94a3b8", fontSize:"11px" }}>غير محدد</span>}
                                     </td>
-                                    <td style={{ padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center" }}>
+                                    <td style={ border:"1px solid #94a3b8",  padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center"  }>
                                       {lastReq ? formatDate(lastReq.start_date) : "-"}
                                     </td>
-                                    <td style={{ padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center" }}>
+                                    <td style={ border:"1px solid #94a3b8",  padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center"  }>
                                       {lastReq ? `${lastReq.days} يوم` : "-"}
                                     </td>
-                                    <td style={{ padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center" }}>
+                                    <td style={ border:"1px solid #94a3b8",  padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center"  }>
                                       {back ? (
                                         <>
                                           <div style={{ fontWeight:"700", color:"#4f46e5" }}>{formatDate(back)}</div>
@@ -3657,17 +3654,17 @@ useEffect(() => {
                                         </>
                                       ) : <span style={{ color:"#94a3b8" }}>-</span>}
                                     </td>
-                                    <td style={{ padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center" }}>
+                                    <td style={ border:"1px solid #94a3b8",  padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center"  }>
                                       <span style={{ fontWeight:"700", color: (emp.balance || 0) < 5 ? "#ef4444" : "#374151" }}>{emp.balance}</span>
                                     </td>
-                                    <td style={{ padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center" }}>
+                                    <td style={ border:"1px solid #94a3b8",  padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center"  }>
                                       <span style={{
                                         padding:"3px 10px", borderRadius:"20px", fontSize:"11px", fontWeight:"700",
                                         background: source === "طلب" ? "#eef2ff" : "#fef3c7",
                                         color: source === "طلب" ? "#4f46e5" : "#d97706"
                                       }}>{source}</span>
                                     </td>
-                                    <td style={{ padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center" }}>
+                                    <td style={ border:"1px solid #94a3b8",  padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center"  }>
                                       <div style={{ display:"flex", gap:"6px", justifyContent:"center" }}>
                                         {lastReq && (
                                           <button onClick={() => openReturnModal(lastReq)}
@@ -3702,8 +3699,8 @@ useEffect(() => {
 
               {/* Modal إضافة إجازة مباشرة */}
               {showDirectVacModal && (
-                <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", backdropFilter:"blur(4px)", display:"flex", alignItems:"center", justifyContent:"center", padding:"20px", zIndex:200 }} onClick={() => { setShowDirectVacModal(false); setEmpSearchDirect(""); setShowEmpDropdown(false); }}>
-                  <div style={{ background:"white", borderRadius:"24px", width:"100%", maxWidth:"480px", padding:"28px", boxShadow:"0 20px 60px rgba(0,0,0,0.2)" }} dir="rtl" onClick={e => e.stopPropagation()}>
+                <div style={{ position:"fixed", inset:0, background:"rgba(0, 0, 0, 0.5)", backdropFilter:"blur(4px)", display:"flex", alignItems:"center", justifyContent:"center", padding:"20px", zIndex:200 }} onClick={() => { setShowDirectVacModal(false); setEmpSearchDirect(""); setShowEmpDropdown(false); }}>
+                  <div style={{ background:"white", borderRadius:"24px", width:"100%", maxWidth:"480px", padding:"28px", boxShadow:"0 20px 60px rgba(0, 0, 0, 0.2)" }} dir="rtl" onClick={e => e.stopPropagation()}>
                     <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"20px" }}>
                       <h3 style={{ margin:0, fontWeight:"900", fontSize:"18px" }}>➕ إضافة إجازة مباشرة</h3>
                       <button onClick={() => { setShowDirectVacModal(false); setEmpSearchDirect(""); setShowEmpDropdown(false); }} style={{ background:"#f1f5f9", border:"none", borderRadius:"8px", padding:"6px 10px", cursor:"pointer" }}><X size={18}/></button>
@@ -3726,7 +3723,7 @@ useEffect(() => {
                             .filter(e => e.name.includes(empSearchDirect) || e.code.includes(empSearchDirect))
                             .slice(0, 6);
                           return filtered.length > 0 ? (
-                            <div style={{ position:"absolute", top:"100%", right:0, left:0, background:"white", border:"1px solid #e2e8f0", borderRadius:"12px", boxShadow:"0 8px 24px rgba(0,0,0,0.12)", zIndex:300, maxHeight:"200px", overflowY:"auto", marginTop:"4px" }}>
+                            <div style={{ position:"absolute", top:"100%", right:0, left:0, background:"white", border:"1px solid #e2e8f0", borderRadius:"12px", boxShadow:"0 8px 24px rgba(0, 0, 0, 0.12)", zIndex:300, maxHeight:"200px", overflowY:"auto", marginTop:"4px" }}>
                               {filtered.map(e => (
                                 <div key={e.id}
                                   onClick={() => { setDirectVacForm({...directVacForm, employee_id: e.id}); setEmpSearchDirect(e.name + " (" + e.code + ")"); setShowEmpDropdown(false); }}
@@ -3803,8 +3800,8 @@ useEffect(() => {
                   return r.start_date <= selectedCalendarDay && back > selectedCalendarDay;
                 });
                 return (
-                  <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", backdropFilter:"blur(4px)", display:"flex", alignItems:"center", justifyContent:"center", padding:"20px", zIndex:200 }} onClick={() => setSelectedCalendarDay(null)}>
-                    <div style={{ background:"white", borderRadius:"24px", width:"100%", maxWidth:"480px", padding:"24px", boxShadow:"0 20px 60px rgba(0,0,0,0.2)", maxHeight:"80vh", overflow:"hidden", display:"flex", flexDirection:"column" }} onClick={e => e.stopPropagation()}>
+                  <div style={{ position:"fixed", inset:0, background:"rgba(0, 0, 0, 0.5)", backdropFilter:"blur(4px)", display:"flex", alignItems:"center", justifyContent:"center", padding:"20px", zIndex:200 }} onClick={() => setSelectedCalendarDay(null)}>
+                    <div style={{ background:"white", borderRadius:"24px", width:"100%", maxWidth:"480px", padding:"24px", boxShadow:"0 20px 60px rgba(0, 0, 0, 0.2)", maxHeight:"80vh", overflow:"hidden", display:"flex", flexDirection:"column" }} onClick={e => e.stopPropagation()}>
                       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"16px" }}>
                         <div>
                           <h3 style={{ margin:0, fontWeight:"900", fontSize:"17px" }}>📅 موظفو الإجازة</h3>
@@ -3821,7 +3818,7 @@ useEffect(() => {
                           return (
                             <div key={req.id} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"12px 14px", borderRadius:"12px", background:"#f8fafc", border:"1px solid #e2e8f0" }}>
                               <div style={{ display:"flex", alignItems:"center", gap:"10px" }}>
-                                <div style={{ width:"36px", height:"36px", borderRadius:"50%", background:"linear-gradient(135deg,#4f46e5,#7c3aed)", display:"flex", alignItems:"center", justifyContent:"center", color:"white", fontWeight:"900", fontSize:"14px", flexShrink:0 }}>
+                                <div style={{ width:"36px", height:"36px", borderRadius:"50%", background:"linear-gradient(135deg, #4f46e5, #7c3aed)", display:"flex", alignItems:"center", justifyContent:"center", color:"white", fontWeight:"900", fontSize:"14px", flexShrink:0 }}>
                                   {req.employee_name?.charAt(0)}
                                 </div>
                                 <div>
@@ -3964,7 +3961,7 @@ useEffect(() => {
                               </div>
 
                               {/* تفاصيل الطلب */}
-                              <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(130px,1fr))", gap:"8px" }}>
+                              <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(130px, 1fr))", gap:"8px" }}>
                                 {[
                                   { label:"تاريخ البداية", val: formatDate(r.start_date) },
                                   { label:"المدة", val: `${r.days} يوم` },
@@ -4032,7 +4029,7 @@ useEffect(() => {
                         XLSX.utils.book_append_sheet(wb, ws, "سجل الإجازات");
                         XLSX.writeFile(wb, `سجل-الإجازات-${new Date().toISOString().split("T")[0]}.xlsx`);
                       }}
-                        style={{ padding:"8px 16px", background:"linear-gradient(135deg,#4f46e5,#7c3aed)", color:"white", border:"none", borderRadius:"10px", fontWeight:"700", cursor:"pointer", fontSize:"13px", display:"flex", alignItems:"center", gap:"6px", fontFamily:"inherit" }}>
+                        style={{ padding:"8px 16px", background:"linear-gradient(135deg, #4f46e5, #7c3aed)", color:"white", border:"none", borderRadius:"10px", fontWeight:"700", cursor:"pointer", fontSize:"13px", display:"flex", alignItems:"center", gap:"6px", fontFamily:"inherit" }}>
                         <FileDown size={15}/> تصدير السجل
                       </button>
                       {isOwner && <button onClick={() => setShowAuditLog(true)} className="bg-purple-600 text-white px-4 py-2 rounded-xl flex items-center gap-2 font-bold text-sm"><History size={16} /> سجل التعديلات</button>}
@@ -4081,19 +4078,19 @@ useEffect(() => {
                     </span>
                   </div>
                   <div className="bg-white rounded-[2rem] shadow-sm border overflow-x-auto">
-                    <table className="w-full text-sm" style={{ width:"100%", borderCollapse:"collapse", border:"2px solid #94a3b8", fontSize:"13px", backgroundColor:"#ffffff" }}>
+                    <table className="w-full text-sm" style={ borderCollapse:"collapse", border:"1px solid #94a3b8",  width:"100%", borderCollapse:"collapse", border:"2px solid #94a3b8", fontSize:"13px", backgroundColor:"#ffffff"  }>
                       <thead className="bg-slate-50 border-b text-xs">
                         <tr>
                           <SortTh label="الموظف"         field="name"     align="right"  sortField={histSortField} sortDir={histSortDir} sortDropdown={histSortDropdown} onSort={(f,d)=>{setHistSortField(f);setHistSortDir(d);setHistSortDropdown("");}} onClear={()=>{setHistSortField("");setHistSortDropdown("");}} onToggle={f=>setHistSortDropdown(d=>d===f?"":f)} />
                           <SortTh label="نوع الإجازة"    field="type"     align="center" sortField={histSortField} sortDir={histSortDir} sortDropdown={histSortDropdown} onSort={(f,d)=>{setHistSortField(f);setHistSortDir(d);setHistSortDropdown("");}} onClear={()=>{setHistSortField("");setHistSortDropdown("");}} onToggle={f=>setHistSortDropdown(d=>d===f?"":f)} />
                           <SortTh label="تاريخ البداية"  field="start"    align="center" sortField={histSortField} sortDir={histSortDir} sortDropdown={histSortDropdown} onSort={(f,d)=>{setHistSortField(f);setHistSortDir(d);setHistSortDropdown("");}} onClear={()=>{setHistSortField("");setHistSortDropdown("");}} onToggle={f=>setHistSortDropdown(d=>d===f?"":f)} />
                           <SortTh label="المدة"          field="days"     align="center" sortField={histSortField} sortDir={histSortDir} sortDropdown={histSortDropdown} onSort={(f,d)=>{setHistSortField(f);setHistSortDir(d);setHistSortDropdown("");}} onClear={()=>{setHistSortField("");setHistSortDropdown("");}} onToggle={f=>setHistSortDropdown(d=>d===f?"":f)} />
-                          <th className="p-4 text-center" style={{ padding:"12px 8px", border:"1px solid #94a3b8", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center" }}>تاريخ العودة المتوقع</th>
+                          <th className="p-4 text-center" style={ border:"1px solid #94a3b8",  padding:"12px 8px", border:"1px solid #94a3b8", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center"  }>تاريخ العودة المتوقع</th>
                           <SortTh label="أيام العمل"     field="workdays" align="center" sortField={histSortField} sortDir={histSortDir} sortDropdown={histSortDropdown} onSort={(f,d)=>{setHistSortField(f);setHistSortDir(d);setHistSortDropdown("");}} onClear={()=>{setHistSortField("");setHistSortDropdown("");}} onToggle={f=>setHistSortDropdown(d=>d===f?"":f)} />
-                          <th className="p-4 text-center" style={{ padding:"12px 8px", border:"1px solid #94a3b8", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center" }}>تاريخ العودة الفعلي</th>
+                          <th className="p-4 text-center" style={ border:"1px solid #94a3b8",  padding:"12px 8px", border:"1px solid #94a3b8", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center"  }>تاريخ العودة الفعلي</th>
                           <SortTh label="الحالة"         field="status"   align="center" sortField={histSortField} sortDir={histSortDir} sortDropdown={histSortDropdown} onSort={(f,d)=>{setHistSortField(f);setHistSortDir(d);setHistSortDropdown("");}} onClear={()=>{setHistSortField("");setHistSortDropdown("");}} onToggle={f=>setHistSortDropdown(d=>d===f?"":f)} />
-                          <th className="p-4 text-center" style={{ padding:"12px 8px", border:"1px solid #94a3b8", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center" }}>ملاحظات</th>
-                          <th className="p-4 text-center" style={{ padding:"12px 8px", border:"1px solid #94a3b8", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center" }}>إجراءات</th>
+                          <th className="p-4 text-center" style={ border:"1px solid #94a3b8",  padding:"12px 8px", border:"1px solid #94a3b8", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center"  }>ملاحظات</th>
+                          <th className="p-4 text-center" style={ border:"1px solid #94a3b8",  padding:"12px 8px", border:"1px solid #94a3b8", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center"  }>إجراءات</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -4104,14 +4101,14 @@ useEffect(() => {
                           const isOnVacation = req.status === "approved" && req.start_date <= today && back > today;
                           return (
                             <tr key={req.id} style={{ border:"1px solid #cbd5e1", backgroundColor:"#ffffff" }} className="hover:bg-slate-50">
-                              <td className="p-4" style={{ padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center" }}>
+                              <td className="p-4" style={ border:"1px solid #94a3b8",  padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center"  }>
                                 <button onClick={() => { const e=employees.find(em=>em.id===req.employee_id); setEmpInfoTarget({...e, req}); setShowEmpInfoModal(true); }}
                                   style={{ background:"none", border:"none", cursor:"pointer", textAlign:"right", padding:0 }}>
                                   <span style={{ fontWeight:"800", color:"#1e293b" }}>{req.employee_name}</span>
                                   <span style={{ display:"block", fontSize:"10px", color:"#4f46e5", fontWeight:"700" }}>👁 عرض البيانات</span>
                                 </button>
                               </td>
-                              <td className="p-4" style={{ padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center" }}>{vacType && <span className="px-2 py-1 rounded-full text-xs font-bold" style={{ backgroundColor: vacType.color+'20', color: vacType.color }}>{vacType.name}</span>}{req.is_extension && <span className="mr-1 px-2 py-1 rounded-full text-xs font-bold" style={{ background: "#ede9fe", color: "#7c3aed" }}>🔗 امتداد</span>}</td>
+                              <td className="p-4" style={ border:"1px solid #94a3b8",  padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center"  }>{vacType && <span className="px-2 py-1 rounded-full text-xs font-bold" style={{ backgroundColor: vacType.color+'20', color: vacType.color }}>{vacType.name}</span>}{req.is_extension && <span className="mr-1 px-2 py-1 rounded-full text-xs font-bold" style={{ background: "#ede9fe", color: "#7c3aed" }}>🔗 امتداد</span>}</td>
                               <td className="p-4 text-center">{formatDate(req.start_date)}</td>
                               <td className="p-4 text-center font-bold">{req.days}</td>
                               <td className="p-4 text-center text-indigo-600 font-bold">{formatDate(back)}</td>
@@ -4120,7 +4117,7 @@ useEffect(() => {
                                   const emp = employees.find(e => e.id === req.employee_id);
                                   const holidayDates = publicHolidays.map(h => h.date);
                                   const days = calculateWorkDaysBetween(emp?.return_date || "", req.start_date, holidayDates);
-                                  return days > 0 ? <span className="font-bold text-amber-600">{days}</span> : <span style={{color:"#94a3b8"}}>-</span>;
+                                  return days > 0 ? <span className="font-bold text-amber-600">{days}</span> : <span style={{ color:"#94a3b8" }}>-</span>;
                                 })()}
                               </td>
                               <td className="p-4 text-center">
@@ -4255,9 +4252,9 @@ useEffect(() => {
 
         {/* Modal تغيير حالة الموظف يدوياً */}
         {showStatusModal && statusChangeEmp && (
-          <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.6)", backdropFilter:"blur(6px)", display:"flex", alignItems:"center", justifyContent:"center", padding:"16px", zIndex:9999 }}
+          <div style={{ position:"fixed", inset:0, background:"rgba(0, 0, 0, 0.6)", backdropFilter:"blur(6px)", display:"flex", alignItems:"center", justifyContent:"center", padding:"16px", zIndex:9999 }}
             onClick={() => setShowStatusModal(false)}>
-            <div style={{ background:"white", borderRadius:"24px", width:"100%", maxWidth:"420px", padding:"28px", boxShadow:"0 32px 80px rgba(0,0,0,0.25)" }}
+            <div style={{ background:"white", borderRadius:"24px", width:"100%", maxWidth:"420px", padding:"28px", boxShadow:"0 32px 80px rgba(0, 0, 0, 0.25)" }}
               dir="rtl" onClick={e => e.stopPropagation()}>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"20px" }}>
                 <h3 style={{ margin:0, fontWeight:"900", fontSize:"18px" }}>
@@ -4305,7 +4302,7 @@ useEffect(() => {
                       onChange={e => setStatusChangeForm({...statusChangeForm, notes: e.target.value})} />
                   </div>
                   <button onClick={handleManualStatusChange}
-                    style={{ padding:"13px", background:"linear-gradient(135deg,#f59e0b,#d97706)", color:"white", border:"none", borderRadius:"12px", fontWeight:"900", cursor:"pointer", fontSize:"14px", fontFamily:"inherit" }}>
+                    style={{ padding:"13px", background:"linear-gradient(135deg, #f59e0b, #d97706)", color:"white", border:"none", borderRadius:"12px", fontWeight:"900", cursor:"pointer", fontSize:"14px", fontFamily:"inherit" }}>
                     🏖️ تحويل إلى إجازة
                   </button>
                 </div>
@@ -4322,7 +4319,7 @@ useEffect(() => {
                       onChange={e => setStatusChangeForm({...statusChangeForm, notes: e.target.value})} />
                   </div>
                   <button onClick={handleManualStatusChange}
-                    style={{ padding:"13px", background:"linear-gradient(135deg,#059669,#16a34a)", color:"white", border:"none", borderRadius:"12px", fontWeight:"900", cursor:"pointer", fontSize:"14px", fontFamily:"inherit" }}>
+                    style={{ padding:"13px", background:"linear-gradient(135deg, #059669, #16a34a)", color:"white", border:"none", borderRadius:"12px", fontWeight:"900", cursor:"pointer", fontSize:"14px", fontFamily:"inherit" }}>
                     🏢 تحويل إلى عمل
                   </button>
                 </div>
@@ -4422,7 +4419,7 @@ useEffect(() => {
           const balanceOk = Number(empInfo?.balance || 0) >= Number(currentRequest.days);
           return (
           <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 z-[100]" onClick={() => setShowApprovalModal(false)}>
-            <div style={{ background:"white", borderRadius:"24px", width:"100%", maxWidth:"480px", padding:"24px", boxShadow:"0 24px 60px rgba(0,0,0,0.18)", maxHeight:"90vh", overflowY:"auto" }} dir="rtl" onClick={e => e.stopPropagation()}>
+            <div style={{ background:"white", borderRadius:"24px", width:"100%", maxWidth:"480px", padding:"24px", boxShadow:"0 24px 60px rgba(0, 0, 0, 0.18)", maxHeight:"90vh", overflowY:"auto" }} dir="rtl" onClick={e => e.stopPropagation()}>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"18px" }}>
                 <h3 style={{ margin:0, fontWeight:"900", fontSize:"18px" }}>
                   {currentRequest.action === "approved" ? "✅ موافقة على الطلب" : "❌ رفض الطلب"}
@@ -4432,9 +4429,9 @@ useEffect(() => {
 
               {/* بطاقة الموظف */}
               {empInfo && (
-                <div style={{ background:"linear-gradient(135deg,#f8faff,#f0f4ff)", borderRadius:"18px", padding:"16px", marginBottom:"14px", border:"1px solid #e0e7ff" }}>
+                <div style={{ background:"linear-gradient(135deg, #f8faff, #f0f4ff)", borderRadius:"18px", padding:"16px", marginBottom:"14px", border:"1px solid #e0e7ff" }}>
                   <div style={{ display:"flex", alignItems:"center", gap:"12px", marginBottom:"14px" }}>
-                    <div style={{ width:"50px", height:"50px", borderRadius:"50%", background:"linear-gradient(135deg,#4f46e5,#7c3aed)", display:"flex", alignItems:"center", justifyContent:"center", fontWeight:"900", fontSize:"20px", color:"white", flexShrink:0 }}>
+                    <div style={{ width:"50px", height:"50px", borderRadius:"50%", background:"linear-gradient(135deg, #4f46e5, #7c3aed)", display:"flex", alignItems:"center", justifyContent:"center", fontWeight:"900", fontSize:"20px", color:"white", flexShrink:0 }}>
                       {empInfo.name?.charAt(0)}
                     </div>
                     <div>
@@ -4443,7 +4440,7 @@ useEffect(() => {
                       {empInfo.hire_date && <div style={{ fontSize:"11px", color:"#94a3b8" }}>تاريخ التعيين: {formatDate(empInfo.hire_date)}</div>}
                     </div>
                   </div>
-                  <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:"8px" }}>
+                  <div style={{ display:"grid", gridTemplateColumns:"repeat(3, 1fr)", gap:"8px" }}>
                     <div style={{ background: balanceOk ? "#f0fdf4" : "#fff1f2", borderRadius:"12px", padding:"10px", textAlign:"center", border: balanceOk ? "1px solid #bbf7d0" : "2px solid #fecdd3" }}>
                       <div style={{ fontSize:"22px", fontWeight:"900", color: balanceOk ? "#16a34a" : "#dc2626" }}>{empInfo.balance}</div>
                       <div style={{ fontSize:"10px", color:"#64748b", marginTop:"2px" }}>رصيد الإجازة</div>
@@ -4459,10 +4456,10 @@ useEffect(() => {
                     </div>
                   </div>
                   <div style={{ marginTop:"10px", display:"flex", justifyContent:"space-between", fontSize:"11px", color:"#94a3b8" }}>
-                    <span>الرصيد الشهري: <b style={{color:"#059669"}}>{empInfo.monthly_balance || 0} يوم</b></span>
+                    <span>الرصيد الشهري: <b style={{ color:"#059669" }}>{empInfo.monthly_balance || 0} يوم</b></span>
                     {empInfo.email
-                      ? <span style={{color:"#4f46e5", display:"flex", alignItems:"center", gap:"3px"}}><Mail size={11}/> {empInfo.email}</span>
-                      : <span style={{color:"#f59e0b"}}>⚠️ لا يوجد بريد إلكتروني</span>
+                      ? <span style={{ color:"#4f46e5", display:"flex", alignItems:"center", gap:"3px" }}><Mail size={11}/> {empInfo.email}</span>
+                      : <span style={{ color:"#f59e0b" }}>⚠️ لا يوجد بريد إلكتروني</span>
                     }
                   </div>
                 </div>
@@ -4495,7 +4492,7 @@ useEffect(() => {
 
         {/* Modal: المدير يعدّل الإجازة */}
         {showManagerEditModal && (
-          <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", backdropFilter:"blur(4px)", display:"flex", alignItems:"center", justifyContent:"center", padding:"16px", zIndex:200 }} onClick={() => setShowManagerEditModal(false)}>
+          <div style={{ position:"fixed", inset:0, background:"rgba(0, 0, 0, 0.5)", backdropFilter:"blur(4px)", display:"flex", alignItems:"center", justifyContent:"center", padding:"16px", zIndex:200 }} onClick={() => setShowManagerEditModal(false)}>
             <div style={{ background:"white", borderRadius:"24px", width:"100%", maxWidth:"420px", padding:"24px" }} dir="rtl" onClick={e => e.stopPropagation()}>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"18px" }}>
                 <div>
@@ -4516,13 +4513,13 @@ useEffect(() => {
                     value={mgrEditForm.days} onChange={e => setMgrEditForm({...mgrEditForm, days: Number(e.target.value)})}/>
                   <div style={{ display:"flex", justifyContent:"space-between", fontSize:"12px", color:"#94a3b8", marginTop:"5px" }}>
                     <span>كان: <b>{mgrEditForm.oldDays} يوم</b></span>
-                    <span>سيصبح: <b style={{color: mgrEditForm.days > mgrEditForm.oldDays ? "#dc2626" : "#16a34a"}}>{mgrEditForm.days} يوم</b></span>
+                    <span>سيصبح: <b style={{ color: mgrEditForm.days > mgrEditForm.oldDays ? "#dc2626" : "#16a34a" }}>{mgrEditForm.days} يوم</b></span>
                   </div>
                 </div>
                 <div><label style={{ fontSize:"12px", color:"#64748b", fontWeight:"700", display:"block", marginBottom:"5px" }}>سبب التعديل *</label>
                   <textarea style={{ width:"100%", padding:"11px 14px", border:"1px solid #e2e8f0", borderRadius:"12px", outline:"none", resize:"none", boxSizing:"border-box", fontSize:"13px" }}
                     rows={3} placeholder="اكتب سبب التعديل..." value={mgrEditForm.reason} onChange={e => setMgrEditForm({...mgrEditForm, reason: e.target.value})}/></div>
-                <button onClick={handleManagerEditRequest} style={{ padding:"13px", background:"linear-gradient(135deg,#059669,#10b981)", color:"white", border:"none", borderRadius:"12px", fontWeight:"900", cursor:"pointer", fontSize:"14px" }}>
+                <button onClick={handleManagerEditRequest} style={{ padding:"13px", background:"linear-gradient(135deg, #059669, #10b981)", color:"white", border:"none", borderRadius:"12px", fontWeight:"900", cursor:"pointer", fontSize:"14px" }}>
                   💾 حفظ التعديل
                 </button>
               </div>
@@ -4540,7 +4537,7 @@ useEffect(() => {
           });
           const allSel = approvedReqs.length > 0 && printSelected.length === approvedReqs.length;
           return (
-          <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.6)", backdropFilter:"blur(5px)", display:"flex", alignItems:"center", justifyContent:"center", padding:"16px", zIndex:200 }} onClick={() => setShowPrintModal(false)}>
+          <div style={{ position:"fixed", inset:0, background:"rgba(0, 0, 0, 0.6)", backdropFilter:"blur(5px)", display:"flex", alignItems:"center", justifyContent:"center", padding:"16px", zIndex:200 }} onClick={() => setShowPrintModal(false)}>
             <div style={{ background:"white", borderRadius:"24px", width:"100%", maxWidth:"580px", padding:"24px", maxHeight:"90vh", display:"flex", flexDirection:"column" }} dir="rtl" onClick={e => e.stopPropagation()}>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"16px" }}>
                 <h3 style={{ margin:0, fontWeight:"900", fontSize:"17px" }}>🖨️ طباعة ومشاركة الطلبات المقبولة</h3>
@@ -4554,7 +4551,7 @@ useEffect(() => {
                 ))}
               </div>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"8px" }}>
-                <span style={{ fontSize:"12px", color:"#64748b" }}>{approvedReqs.length} طلب · <b style={{color:"#4f46e5"}}>{printSelected.length} محدد</b></span>
+                <span style={{ fontSize:"12px", color:"#64748b" }}>{approvedReqs.length} طلب · <b style={{ color:"#4f46e5" }}>{printSelected.length} محدد</b></span>
                 <button onClick={() => setPrintSelected(allSel ? [] : approvedReqs.map(r => r.id))}
                   style={{ background:"#f1f5f9", border:"1px solid #e2e8f0", borderRadius:"8px", padding:"5px 12px", cursor:"pointer", fontSize:"12px", fontWeight:"700" }}>
                   {allSel ? "إلغاء الكل" : "تحديد الكل"}
@@ -4599,7 +4596,7 @@ useEffect(() => {
                     w.document.write("<html dir=\"rtl\"><head><title>تقرير الإجازات</title><style>*{font-family:Arial,sans-serif}body{padding:30px}h2{color:#1e1b4b;border-bottom:3px solid #4f46e5;padding-bottom:10px}table{width:100%;border-collapse:collapse;margin-top:20px}th{background:#4f46e5;color:white;padding:12px;text-align:right}td{padding:10px;border-bottom:1px solid #e5e7eb;text-align:right}.meta{color:#6b7280;font-size:13px;margin-bottom:20px}</style></head><body><h2>📋 تقرير الإجازات المقبولة</h2><div class=\"meta\">الفترة: " + (printFrom||"الكل") + " — " + (printTo||"الكل") + " | عدد الطلبات: " + sel.length + "</div><table><thead><tr><th>#</th><th>الموظف</th><th>نوع الإجازة</th><th>تاريخ البداية</th><th>المدة</th><th>نهاية الإجازة</th></tr></thead><tbody>" + rows + "</tbody></table><script>window.onload=()=>window.print()<" + "/script></body></html>");
                     w.document.close();
                   }}
-                  style={{ padding:"13px", background:!printSelected.length?"#f1f5f9":"linear-gradient(135deg,#1d4ed8,#3b82f6)", color:!printSelected.length?"#94a3b8":"white", border:"none", borderRadius:"12px", fontWeight:"800", cursor:!printSelected.length?"not-allowed":"pointer", fontSize:"14px" }}>
+                  style={{ padding:"13px", background:!printSelected.length?"#f1f5f9":"linear-gradient(135deg, #1d4ed8, #3b82f6)", color:!printSelected.length?"#94a3b8":"white", border:"none", borderRadius:"12px", fontWeight:"800", cursor:!printSelected.length?"not-allowed":"pointer", fontSize:"14px" }}>
                   🖨️ طباعة ({printSelected.length})
                 </button>
                 <button disabled={!printSelected.length}
@@ -4634,7 +4631,7 @@ useEffect(() => {
                       }
                     } catch(e:any) { alert("خطأ: " + e?.message); }
                   }}
-                  style={{ padding:"13px", background:!printSelected.length?"#f1f5f9":"linear-gradient(135deg,#8b5cf6,#6366f1)", color:!printSelected.length?"#94a3b8":"white", border:"none", borderRadius:"12px", fontWeight:"900", cursor:!printSelected.length?"not-allowed":"pointer", fontSize:"14px", fontFamily:"inherit" }}>
+                  style={{ padding:"13px", background:!printSelected.length?"#f1f5f9":"linear-gradient(135deg, #8b5cf6, #6366f1)", color:!printSelected.length?"#94a3b8":"white", border:"none", borderRadius:"12px", fontWeight:"900", cursor:!printSelected.length?"not-allowed":"pointer", fontSize:"14px", fontFamily:"inherit" }}>
                   📤 مشاركة صورة ({printSelected.length})
                 </button>
               </div>
@@ -4655,25 +4652,25 @@ useEffect(() => {
           const vacType = req ? vacationTypes.find(vt=>vt.id===req.vacation_type_id) : null;
           const reqBack = req ? getCalculatedDates(req.start_date, req.days).back : null;
           return (
-          <div style={{ position:"fixed", inset:0, background:"rgba(15,23,42,0.65)", backdropFilter:"blur(6px)", display:"flex", alignItems:"center", justifyContent:"center", padding:"16px", zIndex:300 }}
+          <div style={{ position:"fixed", inset:0, background:"rgba(15, 23, 42, 0.65)", backdropFilter:"blur(6px)", display:"flex", alignItems:"center", justifyContent:"center", padding:"16px", zIndex:300 }}
             onClick={() => { setShowEmpInfoModal(false); setEmpInfoTarget(null); }}>
-            <div style={{ background:"white", borderRadius:"28px", width:"100%", maxWidth:"440px", overflow:"hidden", boxShadow:"0 32px 80px rgba(0,0,0,0.25)" }}
+            <div style={{ background:"white", borderRadius:"28px", width:"100%", maxWidth:"440px", overflow:"hidden", boxShadow:"0 32px 80px rgba(0, 0, 0, 0.25)" }}
               dir="rtl" onClick={ev => ev.stopPropagation()}>
 
               {/* Header بالـ gradient */}
-              <div style={{ background:"linear-gradient(135deg,#1e1b4b 0%,#4f46e5 60%,#7c3aed 100%)", padding:"24px 24px 20px", position:"relative" }}>
+              <div style={{ background:"linear-gradient(135deg, #1e1b4b 0%, #4f46e5 60%, #7c3aed 100%)", padding:"24px 24px 20px", position:"relative" }}>
                 <button onClick={() => { setShowEmpInfoModal(false); setEmpInfoTarget(null); }}
-                  style={{ position:"absolute", top:"16px", left:"16px", background:"rgba(255,255,255,0.15)", border:"none", borderRadius:"10px", padding:"6px 10px", cursor:"pointer", color:"white", fontSize:"16px" }}>✕</button>
+                  style={{ position:"absolute", top:"16px", left:"16px", background:"rgba(255, 255, 255, 0.15)", border:"none", borderRadius:"10px", padding:"6px 10px", cursor:"pointer", color:"white", fontSize:"16px" }}>✕</button>
                 <div style={{ display:"flex", alignItems:"center", gap:"14px" }}>
-                  <div style={{ width:"58px", height:"58px", borderRadius:"50%", background:"linear-gradient(135deg,rgba(255,255,255,0.3),rgba(255,255,255,0.1))", border:"2px solid rgba(255,255,255,0.4)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:"24px", fontWeight:"900", color:"white", flexShrink:0 }}>
+                  <div style={{ width:"58px", height:"58px", borderRadius:"50%", background:"linear-gradient(135deg, rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0.1))", border:"2px solid rgba(255, 255, 255, 0.4)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:"24px", fontWeight:"900", color:"white", flexShrink:0 }}>
                     {e.name?.charAt(0)}
                   </div>
                   <div>
                     <div style={{ fontWeight:"900", fontSize:"20px", color:"white" }}>{e.name}</div>
-                    <div style={{ fontSize:"12px", color:"rgba(255,255,255,0.75)", marginTop:"3px" }}>{e.position || "—"}</div>
+                    <div style={{ fontSize:"12px", color:"rgba(255, 255, 255, 0.75)", marginTop:"3px" }}>{e.position || "—"}</div>
                     <div style={{ display:"flex", gap:"8px", marginTop:"6px" }}>
-                      {e.code && <span style={{ background:"rgba(255,255,255,0.2)", borderRadius:"20px", padding:"2px 10px", fontSize:"11px", color:"white", fontWeight:"700" }}>#{e.code}</span>}
-                      {dept && <span style={{ background:"rgba(255,255,255,0.2)", borderRadius:"20px", padding:"2px 10px", fontSize:"11px", color:"white", fontWeight:"700" }}>🏢 {dept.name}</span>}
+                      {e.code && <span style={{ background:"rgba(255, 255, 255, 0.2)", borderRadius:"20px", padding:"2px 10px", fontSize:"11px", color:"white", fontWeight:"700" }}>#{e.code}</span>}
+                      {dept && <span style={{ background:"rgba(255, 255, 255, 0.2)", borderRadius:"20px", padding:"2px 10px", fontSize:"11px", color:"white", fontWeight:"700" }}>🏢 {dept.name}</span>}
                     </div>
                   </div>
                 </div>
@@ -4976,7 +4973,7 @@ useEffect(() => {
                 <button
                   onClick={handleResetPin}
                   disabled={resetPinLoading || resetPinValue.length !== 4}
-                  style={{ width:"100%", padding:"14px", background: resetPinValue.length === 4 ? "linear-gradient(135deg,#7c3aed,#9333ea)" : "#e2e8f0", color: resetPinValue.length === 4 ? "white" : "#94a3b8", border:"none", borderRadius:"16px", fontSize:"15px", fontWeight:"800", cursor: resetPinValue.length === 4 ? "pointer" : "not-allowed", display:"flex", alignItems:"center", justifyContent:"center", gap:"8px" }}>
+                  style={{ width:"100%", padding:"14px", background: resetPinValue.length === 4 ? "linear-gradient(135deg, #7c3aed, #9333ea)" : "#e2e8f0", color: resetPinValue.length === 4 ? "white" : "#94a3b8", border:"none", borderRadius:"16px", fontSize:"15px", fontWeight:"800", cursor: resetPinValue.length === 4 ? "pointer" : "not-allowed", display:"flex", alignItems:"center", justifyContent:"center", gap:"8px" }}>
                   {resetPinLoading ? <Loader2 size={18} className="animate-spin" /> : <KeyRound size={18} />}
                   {resetPinLoading ? "جاري الحفظ..." : "حفظ الرقم السري الجديد"}
                 </button>
@@ -5190,7 +5187,7 @@ useEffect(() => {
                   ))}
                 </div>
                 {newRequest.start_date && (
-                  <div style={{ marginTop:"12px", padding:"14px 16px", borderRadius:"14px", background:"linear-gradient(135deg,#ede9fe,#ddd6fe)", border:"1px solid #c4b5fd" }}>
+                  <div style={{ marginTop:"12px", padding:"14px 16px", borderRadius:"14px", background:"linear-gradient(135deg, #ede9fe, #ddd6fe)", border:"1px solid #c4b5fd" }}>
                     <p style={{ fontSize:"11px", color:"#7c3aed", fontWeight:"700", marginBottom:"8px" }}>📅 ملخص الإجازة</p>
                     <div style={{ display:"flex", flexDirection:"column" as const, gap:"5px", fontSize:"13px" }}>
                       <div style={{ display:"flex", justifyContent:"space-between" }}>
@@ -5351,8 +5348,8 @@ useEffect(() => {
         const vacType = selectedReq ? vacationTypes.find(vt => vt.id === selectedReq.vacation_type_id) : null;
 
         return (
-          <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", backdropFilter: "blur(6px)", display: "flex", alignItems: "center", justifyContent: "center", padding: "16px", zIndex: 9999 }} onClick={() => setShowExtensionModal(false)}>
-            <div style={{ background: "white", borderRadius: "24px", width: "100%", maxWidth: "460px", padding: "24px", boxShadow: "0 32px 80px rgba(0,0,0,0.3)" }} dir="rtl" onClick={e => e.stopPropagation()}>
+          <div style={{ position: "fixed", inset: 0, background: "rgba(0, 0, 0, 0.65)", backdropFilter: "blur(6px)", display: "flex", alignItems: "center", justifyContent: "center", padding: "16px", zIndex: 9999 }} onClick={() => setShowExtensionModal(false)}>
+            <div style={{ background: "white", borderRadius: "24px", width: "100%", maxWidth: "460px", padding: "24px", boxShadow: "0 32px 80px rgba(0, 0, 0, 0.3)" }} dir="rtl" onClick={e => e.stopPropagation()}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "18px" }}>
                 <h3 style={{ margin: 0, fontWeight: "900", fontSize: "17px" }}>🔗 طلب امتداد إجازة</h3>
                 <button onClick={() => setShowExtensionModal(false)} style={{ border: "1px solid #e2e8f0", borderRadius: "8px", padding: "6px 12px", cursor: "pointer", background: "white", fontSize: "16px", fontWeight: "700" }}>✕</button>
@@ -5429,7 +5426,7 @@ useEffect(() => {
                 <button 
                   onClick={submitExtensionRequest} 
                   disabled={isSubmitting}
-                  style={{ padding: "13px", background: "linear-gradient(135deg,#7c3aed,#a855f7)", color: "white", border: "none", borderRadius: "12px", fontWeight: "900", cursor: "pointer", fontSize: "14px", opacity: isSubmitting ? 0.7 : 1 }}
+                  style={{ padding: "13px", background: "linear-gradient(135deg, #7c3aed, #a855f7)", color: "white", border: "none", borderRadius: "12px", fontWeight: "900", cursor: "pointer", fontSize: "14px", opacity: isSubmitting ? 0.7 : 1 }}
                 >
                   {isSubmitting ? "جاري الإرسال..." : "📤 إرسال طلب الامتداد"}
                 </button>
@@ -5452,8 +5449,8 @@ useEffect(() => {
 
       {/* Modal تغيير PIN */}
       {showChangePinModal && (
-        <div style={{ position:"fixed", top:0, left:0, right:0, bottom:0, background:"rgba(0,0,0,0.65)", backdropFilter:"blur(6px)", display:"flex", alignItems:"center", justifyContent:"center", padding:"16px", zIndex:9999 }} dir="rtl">
-          <div style={{ background:"white", borderRadius:"24px", width:"100%", maxWidth:"400px", padding:"32px", boxShadow:"0 32px 80px rgba(0,0,0,0.3)" }}>
+        <div style={{ position:"fixed", top:0, left:0, right:0, bottom:0, background:"rgba(0, 0, 0, 0.65)", backdropFilter:"blur(6px)", display:"flex", alignItems:"center", justifyContent:"center", padding:"16px", zIndex:9999 }} dir="rtl">
+          <div style={{ background:"white", borderRadius:"24px", width:"100%", maxWidth:"400px", padding:"32px", boxShadow:"0 32px 80px rgba(0, 0, 0, 0.3)" }}>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"24px" }}>
               <h3 style={{ margin:0, fontSize:"20px", fontWeight:"900", color:"#1e293b" }}>🔑 تغيير PIN</h3>
               <button onClick={() => setShowChangePinModal(false)} style={{ border:"1px solid #e2e8f0", borderRadius:"8px", padding:"6px 12px", cursor:"pointer", background:"white", fontSize:"16px", fontWeight:"700" }}>✕</button>
@@ -5474,7 +5471,7 @@ useEffect(() => {
                 />
               </div>
             ))}
-            <button onClick={handleChangePin} disabled={changePinLoading} style={{ width:"100%", padding:"14px", background:"linear-gradient(135deg,#7c3aed,#6d28d9)", color:"white", border:"none", borderRadius:"12px", fontWeight:"900", cursor:"pointer", fontSize:"15px", marginTop:"8px" }}>
+            <button onClick={handleChangePin} disabled={changePinLoading} style={{ width:"100%", padding:"14px", background:"linear-gradient(135deg, #7c3aed, #6d28d9)", color:"white", border:"none", borderRadius:"12px", fontWeight:"900", cursor:"pointer", fontSize:"15px", marginTop:"8px" }}>
               {changePinLoading ? "جاري الحفظ..." : "حفظ PIN الجديد"}
             </button>
           </div>
@@ -6617,7 +6614,7 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser, userRole }: {
               font-size: 12px;
             }
           `}</style>
-          <table style={{ width:"100%", borderCollapse:"collapse", border:"2px solid #94a3b8", fontSize:"13px", backgroundColor:"#ffffff" }}>
+          <table style={ borderCollapse:"collapse", border:"1px solid #94a3b8",  width:"100%", borderCollapse:"collapse", border:"2px solid #94a3b8", fontSize:"13px", backgroundColor:"#ffffff"  }>
               <colgroup>
                 <col style={{ width: "40px" }} />
                 {currentSchema.fields.filter((f: any) => !["requesting_department", "notes", "remarks"].includes(f.key)).map((f: any) => {
@@ -6628,9 +6625,9 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser, userRole }: {
                 })}
                 <col style={{ width: "80px" }} />
               </colgroup>
-              <thead style={{ padding:"12px 8px", border:"1px solid #94a3b8", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center" }}>
+              <thead style={ border:"1px solid #94a3b8",  padding:"12px 8px", border:"1px solid #94a3b8", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center"  }>
                 <tr>
-                  <th style={{ padding:"12px 8px", border:"1px solid #94a3b8", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center" }}>
+                  <th style={ border:"1px solid #94a3b8",  padding:"12px 8px", border:"1px solid #94a3b8", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center"  }>
                     <input
                       type="checkbox"
                       checked={selectedIds.length === filtered.length && filtered.length > 0}
@@ -6658,7 +6655,7 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser, userRole }: {
                       align="right"
                     />
                   ))}
-                  <th style={{ padding:"12px 8px", border:"1px solid #94a3b8", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center" }}>الإجراءات</th>
+                  <th style={ border:"1px solid #94a3b8",  padding:"12px 8px", border:"1px solid #94a3b8", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center"  }>الإجراءات</th>
                 </tr>
               </thead>
               <tbody>
@@ -6666,7 +6663,7 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser, userRole }: {
                   <tr key={record.id} style={{ borderBottom: "1px solid #f1f5f9", height: "44px" }}
                     onMouseEnter={e => (e.currentTarget.style.background = "#f8fafc")}
                     onMouseLeave={e => (e.currentTarget.style.background = "white")}>
-                    <td style={{ padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center" }}>
+                    <td style={ border:"1px solid #94a3b8",  padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center"  }>
                       <input
                         type="checkbox"
                         checked={selectedIds.includes(record.id)}
@@ -6701,7 +6698,7 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser, userRole }: {
                         </td>
                       );
                     })}
-                    <td style={{ padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center" }}>
+                    <td style={ border:"1px solid #94a3b8",  padding:"10px 8px", border:"1px solid #94a3b8", color:"#1e293b", textAlign:"center"  }>
                       <div style={{ display: "flex", gap: "4px", justifyContent: "center" }}>
                         <button onClick={() => openEdit(record)} style={{
                           padding: "5px 8px", background: "#eff6ff", color: "#0284c7",
@@ -6928,11 +6925,11 @@ const ManagersTab = ({ departments, supabase, logAction, currentUser }: {
           <h2 style={{ fontSize:"24px", fontWeight:"900", margin:0 }}>🏢 مديرو الأقسام</h2>
           <p style={{ color:"#64748b", fontSize:"13px", marginTop:"4px" }}>يدخلون بالإيميل + كلمة السر ويرون أقسامهم فقط. موافقتهم أولى ثم تنتظر موافقتك النهائية.</p>
         </div>
-        <button onClick={openAdd} style={{ background:"linear-gradient(135deg,#4f46e5,#7c3aed)", color:"white", border:"none", borderRadius:"14px", padding:"12px 22px", fontWeight:"800", fontSize:"14px", cursor:"pointer" }}>+ إضافة مدير قسم</button>
+        <button onClick={openAdd} style={{ background:"linear-gradient(135deg, #4f46e5, #7c3aed)", color:"white", border:"none", borderRadius:"14px", padding:"12px 22px", fontWeight:"800", fontSize:"14px", cursor:"pointer" }}>+ إضافة مدير قسم</button>
       </div>
 
       {/* بطاقة الشرح */}
-      <div style={{ background:"linear-gradient(135deg,#ede9fe,#ddd6fe)", borderRadius:"16px", padding:"16px 20px", display:"flex", gap:"16px", alignItems:"center" }}>
+      <div style={{ background:"linear-gradient(135deg, #ede9fe, #ddd6fe)", borderRadius:"16px", padding:"16px 20px", display:"flex", gap:"16px", alignItems:"center" }}>
         <div style={{ fontSize:"36px" }}>🔄</div>
         <div style={{ fontSize:"13px", color:"#4c1d95", lineHeight:"1.8" }}>
           <strong>سير العمل (Double Approval):</strong><br/>
@@ -6941,7 +6938,7 @@ const ManagersTab = ({ departments, supabase, logAction, currentUser }: {
       </div>
 
       {loading ? <div style={{ textAlign:"center", padding:"60px", color:"#94a3b8" }}>جاري التحميل...</div> : (
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))", gap:"16px" }}>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(300px, 1fr))", gap:"16px" }}>
           {managers.map(m => {
             const deptNames = getMgrDeptNames(m);
             const deptIds = parseDeptIds(m);
@@ -6949,7 +6946,7 @@ const ManagersTab = ({ departments, supabase, logAction, currentUser }: {
               <div key={m.id} style={{ background:"white", borderRadius:"20px", padding:"24px", border:"1px solid #e2e8f0" }}>
                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"16px" }}>
                   <div style={{ display:"flex", gap:"12px", alignItems:"center" }}>
-                    <div style={{ width:"46px", height:"46px", borderRadius:"14px", background:"linear-gradient(135deg,#ede9fe,#ddd6fe)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:"22px" }}>🏢</div>
+                    <div style={{ width:"46px", height:"46px", borderRadius:"14px", background:"linear-gradient(135deg, #ede9fe, #ddd6fe)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:"22px" }}>🏢</div>
                     <div>
                       <div style={{ fontWeight:"800", fontSize:"15px" }}>{m.name}</div>
                       <div style={{ fontSize:"11px", color:"#6366f1", fontWeight:"700", maxWidth:"160px", lineHeight:"1.5" }}>{deptNames}</div>
@@ -6994,7 +6991,7 @@ const ManagersTab = ({ departments, supabase, logAction, currentUser }: {
 
       {/* فورم الإضافة / التعديل */}
       {showForm && (
-        <div style={{ position:"fixed", inset:0, background:"rgba(15,23,42,0.6)", backdropFilter:"blur(8px)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:1000, padding:"20px" }} onClick={() => setShowForm(false)}>
+        <div style={{ position:"fixed", inset:0, background:"rgba(15, 23, 42, 0.6)", backdropFilter:"blur(8px)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:1000, padding:"20px" }} onClick={() => setShowForm(false)}>
           <div style={{ background:"white", borderRadius:"28px", padding:"40px", width:"100%", maxWidth:"500px", direction:"rtl", maxHeight:"90vh", overflowY:"auto" }} onClick={e => e.stopPropagation()}>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"28px" }}>
               <h3 style={{ margin:0, fontSize:"20px", fontWeight:"900" }}>{editingMgr ? "تعديل مدير قسم" : "إضافة مدير قسم جديد"}</h3>
@@ -7063,7 +7060,7 @@ const ManagersTab = ({ departments, supabase, logAction, currentUser }: {
               <div style={{ background:"#fef3c7", borderRadius:"12px", padding:"12px", fontSize:"12px", color:"#92400e", fontWeight:"700" }}>
                 ⚠️ احتفظ بكلمة المرور بشكل آمن
               </div>
-              <button onClick={save} disabled={saving} style={{ width:"100%", background:"linear-gradient(135deg,#4f46e5,#7c3aed)", color:"white", border:"none", borderRadius:"14px", padding:"14px", fontWeight:"900", fontSize:"15px", cursor:"pointer", opacity: saving ? 0.6 : 1, fontFamily:"inherit" }}>
+              <button onClick={save} disabled={saving} style={{ width:"100%", background:"linear-gradient(135deg, #4f46e5, #7c3aed)", color:"white", border:"none", borderRadius:"14px", padding:"14px", fontWeight:"900", fontSize:"15px", cursor:"pointer", opacity: saving ? 0.6 : 1, fontFamily:"inherit" }}>
                 {saving ? "جاري الحفظ..." : editingMgr ? "💾 تحديث" : "✅ إضافة"}
               </button>
             </div>
@@ -7135,11 +7132,11 @@ const AdminsTab = ({ supabase, logAction, currentUser }: {
           <h2 style={{ fontSize:"24px", fontWeight:"900", margin:0 }}>⚙️ الادمن</h2>
           <p style={{ color:"#64748b", fontSize:"13px", marginTop:"4px" }}>لهم نفس صلاحيات المالك كاملة. يمكنهم إدارة الموظفين والأقسام والمديرين.</p>
         </div>
-        <button onClick={openAdd} style={{ background:"linear-gradient(135deg,#4f46e5,#7c3aed)", color:"white", border:"none", borderRadius:"14px", padding:"12px 22px", fontWeight:"800", fontSize:"14px", cursor:"pointer" }}>+ إضافة ادمن</button>
+        <button onClick={openAdd} style={{ background:"linear-gradient(135deg, #4f46e5, #7c3aed)", color:"white", border:"none", borderRadius:"14px", padding:"12px 22px", fontWeight:"800", fontSize:"14px", cursor:"pointer" }}>+ إضافة ادمن</button>
       </div>
 
       {/* بطاقة الشرح */}
-      <div style={{ background:"linear-gradient(135deg,#f0fdf4,#dcfce7)", borderRadius:"16px", padding:"16px 20px", display:"flex", gap:"16px", alignItems:"center" }}>
+      <div style={{ background:"linear-gradient(135deg, #f0fdf4, #dcfce7)", borderRadius:"16px", padding:"16px 20px", display:"flex", gap:"16px", alignItems:"center" }}>
         <div style={{ fontSize:"36px" }}>⚙️</div>
         <div style={{ fontSize:"13px", color:"#166534", lineHeight:"1.8" }}>
           <strong>الادمن:</strong><br/>
@@ -7148,12 +7145,12 @@ const AdminsTab = ({ supabase, logAction, currentUser }: {
       </div>
 
       {loading ? <div style={{ textAlign:"center", padding:"60px", color:"#94a3b8" }}>جاري التحميل...</div> : (
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))", gap:"16px" }}>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(300px, 1fr))", gap:"16px" }}>
           {admins.map(a => (
             <div key={a.id} style={{ background:"white", borderRadius:"20px", padding:"24px", border:"1px solid #e2e8f0" }}>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"16px" }}>
                 <div style={{ display:"flex", gap:"12px", alignItems:"center" }}>
-                  <div style={{ width:"46px", height:"46px", borderRadius:"14px", background:"linear-gradient(135deg,#f0fdf4,#dcfce7)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:"22px" }}>⚙️</div>
+                  <div style={{ width:"46px", height:"46px", borderRadius:"14px", background:"linear-gradient(135deg, #f0fdf4, #dcfce7)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:"22px" }}>⚙️</div>
                   <div>
                     <div style={{ fontWeight:"800", fontSize:"15px" }}>{a.name}</div>
                     <div style={{ fontSize:"12px", color:"#16a34a", fontWeight:"700" }}>ادمن النظام</div>
@@ -7183,7 +7180,7 @@ const AdminsTab = ({ supabase, logAction, currentUser }: {
 
       {/* فورم الإضافة / التعديل */}
       {showForm && (
-        <div style={{ position:"fixed", inset:0, background:"rgba(15,23,42,0.6)", backdropFilter:"blur(8px)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:1000, padding:"20px" }} onClick={() => setShowForm(false)}>
+        <div style={{ position:"fixed", inset:0, background:"rgba(15, 23, 42, 0.6)", backdropFilter:"blur(8px)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:1000, padding:"20px" }} onClick={() => setShowForm(false)}>
           <div style={{ background:"white", borderRadius:"28px", padding:"40px", width:"100%", maxWidth:"460px", direction:"rtl" }} onClick={e => e.stopPropagation()}>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"28px" }}>
               <h3 style={{ margin:0, fontSize:"20px", fontWeight:"900" }}>{editingAdmin ? "تعديل ادمن" : "إضافة ادمن جديد"}</h3>
@@ -7210,7 +7207,7 @@ const AdminsTab = ({ supabase, logAction, currentUser }: {
               <div style={{ background:"#fef3c7", borderRadius:"12px", padding:"12px", fontSize:"12px", color:"#92400e", fontWeight:"700" }}>
                 ⚠️ احتفظ بكلمة المرور بشكل آمن - يمكنهم إدارة كل شيء في النظام
               </div>
-              <button onClick={save} disabled={saving} style={{ width:"100%", background:"linear-gradient(135deg,#4f46e5,#7c3aed)", color:"white", border:"none", borderRadius:"14px", padding:"14px", fontWeight:"900", fontSize:"15px", cursor:"pointer", opacity: saving ? 0.6 : 1, fontFamily:"inherit" }}>
+              <button onClick={save} disabled={saving} style={{ width:"100%", background:"linear-gradient(135deg, #4f46e5, #7c3aed)", color:"white", border:"none", borderRadius:"14px", padding:"14px", fontWeight:"900", fontSize:"15px", cursor:"pointer", opacity: saving ? 0.6 : 1, fontFamily:"inherit" }}>
                 {saving ? "جاري الحفظ..." : editingAdmin ? "💾 تحديث" : "✅ إضافة"}
               </button>
             </div>
