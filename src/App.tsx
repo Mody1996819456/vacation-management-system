@@ -909,12 +909,25 @@ useEffect(() => {
         }
       }
       if (mgr) {
+        // Parse multiple department ids if stored
+        let deptIds: string[] = [];
+        if (mgr.department_ids) {
+          try {
+            const parsed = typeof mgr.department_ids === "string"
+              ? JSON.parse(mgr.department_ids)
+              : mgr.department_ids;
+            if (Array.isArray(parsed)) deptIds = parsed.map(String);
+          } catch {}
+        }
+        if (deptIds.length === 0 && mgr.department_id) deptIds = [String(mgr.department_id)];
+
         const mgrUser = {
           role: "dept_manager",
           id: mgr.id,
           name: mgr.name,
           email: mgr.email,
           dept_id: mgr.department_id,
+          dept_ids: deptIds,
           dept_name: mgr.departments?.name || "",
         };
         setCurrentUser(mgrUser);
@@ -1979,10 +1992,14 @@ useEffect(() => {
     currentUser?.dept_name?.includes("شؤون")
   );
   const myDeptId  = currentUser?.dept_id ?? null;
+  // Support multiple departments for a manager
+  const myDeptIds: string[] = currentUser?.dept_ids
+    ? currentUser.dept_ids.map(String)
+    : (myDeptId ? [String(myDeptId)] : []);
 
-  // Owner يرى الكل — مدير القسم يرى قسمه فقط
+  // Owner يرى الكل — مدير القسم يرى أقسامه
   const scopedEmployees = isDeptMgr
-    ? employees.filter(e => e.department_id === myDeptId)
+    ? employees.filter(e => myDeptIds.includes(String(e.department_id)))
     : employees;
   const scopedRequests = isDeptMgr
     ? requests.filter(r => scopedEmployees.some(e => e.id === r.employee_id))
@@ -2444,7 +2461,7 @@ useEffect(() => {
                   {/* ===== داشبورد مدير القسم المخصص ===== */}
                   {isDeptMgr && (() => {
                     const today = new Date().toISOString().split("T")[0];
-                    const deptEmps = employees.filter(e => e.department_id === myDeptId);
+                    const deptEmps = employees.filter(e => myDeptIds.includes(String(e.department_id)));
                     const onVacNow = deptEmps.filter(emp => emp.status === "إجازة");
                     const atWork = deptEmps.filter(emp => emp.status !== "إجازة").length;
                     const pendingDept = requests.filter(r => r.status === "pending" && deptEmps.some(e => e.id === r.employee_id));
@@ -3454,7 +3471,7 @@ useEffect(() => {
                 // ===== بناء قائمة الإجازات الفعلية من مصدرين =====
                 // 1. موظفون حالتهم "إجازة" في DB (سواء يدوي أو بطلب)
                 const empOnVac = (isDeptMgr
-                  ? employees.filter(e => e.department_id === myDeptId)
+                  ? employees.filter(e => myDeptIds.includes(String(e.department_id)))
                   : employees
                 ).filter(e => e.status === "إجازة");
 
@@ -3705,7 +3722,7 @@ useEffect(() => {
                           />
                         </div>
                         {showEmpDropdown && empSearchDirect && (() => {
-                          const filtered = (isDeptMgr ? employees.filter(e => e.department_id === myDeptId) : employees)
+                          const filtered = (isDeptMgr ? employees.filter(e => myDeptIds.includes(String(e.department_id))) : employees)
                             .filter(e => e.name.includes(empSearchDirect) || e.code.includes(empSearchDirect))
                             .slice(0, 6);
                           return filtered.length > 0 ? (
@@ -5785,6 +5802,7 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser, userRole }: {
           .from(currentSchema.tableName)
           .insert([{
             ...dataToSave,
+            created_by: currentUser?.id,
             created_at: new Date().toISOString(),
           }]);
         
@@ -6813,39 +6831,94 @@ const ManagersTab = ({ departments, supabase, logAction, currentUser }: {
   const [showForm, setShowForm]   = useState(false);
   const [editingMgr, setEditingMgr] = useState<any>(null);
   const [saving, setSaving]       = useState(false);
-  const [form, setForm]           = useState({ name:"", email:"", password:"", department_id:"" });
+  // selectedDeptIds: array of selected department ids (strings)
+  const [form, setForm]           = useState({ name:"", email:"", password:"" });
+  const [selectedDeptIds, setSelectedDeptIds] = useState<string[]>([]);
 
-  const fetch = async () => {
+  // Helper: parse department_ids field (stored as JSON array string or null)
+  const parseDeptIds = (m: any): string[] => {
+    if (m.department_ids) {
+      try {
+        const parsed = typeof m.department_ids === "string"
+          ? JSON.parse(m.department_ids)
+          : m.department_ids;
+        if (Array.isArray(parsed)) return parsed.map(String);
+      } catch {}
+    }
+    // fallback: use single department_id
+    if (m.department_id) return [String(m.department_id)];
+    return [];
+  };
+
+  const fetchManagers = async () => {
     setLoading(true);
     const { data } = await supabase.from("department_managers").select("*, departments(name)").order("name");
     if (data) setManagers(data);
     setLoading(false);
   };
-  useEffect(() => { fetch(); }, []);
+  useEffect(() => { fetchManagers(); }, []);
 
-  const openAdd = () => { setEditingMgr(null); setForm({ name:"", email:"", password:"", department_id:"" }); setShowForm(true); };
-  const openEdit = (m: any) => { setEditingMgr(m); setForm({ name:m.name, email:m.email, password:m.password, department_id:m.department_id }); setShowForm(true); };
+  const openAdd = () => {
+    setEditingMgr(null);
+    setForm({ name:"", email:"", password:"" });
+    setSelectedDeptIds([]);
+    setShowForm(true);
+  };
+
+  const openEdit = (m: any) => {
+    setEditingMgr(m);
+    setForm({ name:m.name, email:m.email, password:m.password });
+    setSelectedDeptIds(parseDeptIds(m));
+    setShowForm(true);
+  };
+
+  const toggleDept = (id: string) => {
+    setSelectedDeptIds(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    );
+  };
 
   const save = async () => {
-    if (!form.name || !form.email || !form.password || !form.department_id) return alert("جميع الحقول مطلوبة");
+    if (!form.name || !form.email || !form.password) return alert("الاسم والبريد وكلمة المرور مطلوبة");
+    if (selectedDeptIds.length === 0) return alert("اختر قسماً واحداً على الأقل");
     setSaving(true);
+
+    // primary department_id = first selected, department_ids = full array as JSON
+    const primaryDeptId = selectedDeptIds[0];
+    const deptIdsJson = JSON.stringify(selectedDeptIds);
+
+    const payload = {
+      ...form,
+      department_id: primaryDeptId,
+      department_ids: deptIdsJson,
+    };
+
     if (editingMgr) {
-      await supabase.from("department_managers").update(form).eq("id", editingMgr.id);
+      const { error } = await supabase.from("department_managers").update(payload).eq("id", editingMgr.id);
+      if (error) { alert("خطأ في التحديث: " + error.message); setSaving(false); return; }
     } else {
-      const { error } = await supabase.from("department_managers").insert([form]);
+      const { error } = await supabase.from("department_managers").insert([payload]);
       if (error) { alert("خطأ: " + error.message); setSaving(false); return; }
     }
     await logAction(editingMgr ? "update" : "create", "department_managers", editingMgr?.id ?? null);
     setSaving(false); setShowForm(false); setEditingMgr(null);
-    setForm({ name:"", email:"", password:"", department_id:"" });
-    fetch();
+    setForm({ name:"", email:"", password:"" });
+    setSelectedDeptIds([]);
+    fetchManagers();
   };
 
   const del = async (m: any) => {
     if (!window.confirm(`حذف مدير القسم "${m.name}"؟`)) return;
     await supabase.from("department_managers").delete().eq("id", m.id);
     await logAction("delete", "department_managers", m.id);
-    fetch();
+    fetchManagers();
+  };
+
+  // Get department names for a manager
+  const getMgrDeptNames = (m: any): string => {
+    const ids = parseDeptIds(m);
+    if (ids.length === 0) return "—";
+    return ids.map(id => departments.find(d => String(d.id) === String(id))?.name || id).join(" • ");
   };
 
   return (
@@ -6853,7 +6926,7 @@ const ManagersTab = ({ departments, supabase, logAction, currentUser }: {
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
         <div>
           <h2 style={{ fontSize:"24px", fontWeight:"900", margin:0 }}>🏢 مديرو الأقسام</h2>
-          <p style={{ color:"#64748b", fontSize:"13px", marginTop:"4px" }}>يدخلون بالإيميل + كلمة السر ويرون قسمهم فقط. موافقتهم أولى ثم تنتظر موافقتك النهائية.</p>
+          <p style={{ color:"#64748b", fontSize:"13px", marginTop:"4px" }}>يدخلون بالإيميل + كلمة السر ويرون أقسامهم فقط. موافقتهم أولى ثم تنتظر موافقتك النهائية.</p>
         </div>
         <button onClick={openAdd} style={{ background:"linear-gradient(135deg,#4f46e5,#7c3aed)", color:"white", border:"none", borderRadius:"14px", padding:"12px 22px", fontWeight:"800", fontSize:"14px", cursor:"pointer" }}>+ إضافة مدير قسم</button>
       </div>
@@ -6869,30 +6942,47 @@ const ManagersTab = ({ departments, supabase, logAction, currentUser }: {
 
       {loading ? <div style={{ textAlign:"center", padding:"60px", color:"#94a3b8" }}>جاري التحميل...</div> : (
         <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))", gap:"16px" }}>
-          {managers.map(m => (
-            <div key={m.id} style={{ background:"white", borderRadius:"20px", padding:"24px", border:"1px solid #e2e8f0" }}>
-              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"16px" }}>
-                <div style={{ display:"flex", gap:"12px", alignItems:"center" }}>
-                  <div style={{ width:"46px", height:"46px", borderRadius:"14px", background:"linear-gradient(135deg,#ede9fe,#ddd6fe)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:"22px" }}>🏢</div>
-                  <div>
-                    <div style={{ fontWeight:"800", fontSize:"15px" }}>{m.name}</div>
-                    <div style={{ fontSize:"12px", color:"#6366f1", fontWeight:"700" }}>{m.departments?.name || "—"}</div>
+          {managers.map(m => {
+            const deptNames = getMgrDeptNames(m);
+            const deptIds = parseDeptIds(m);
+            return (
+              <div key={m.id} style={{ background:"white", borderRadius:"20px", padding:"24px", border:"1px solid #e2e8f0" }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"16px" }}>
+                  <div style={{ display:"flex", gap:"12px", alignItems:"center" }}>
+                    <div style={{ width:"46px", height:"46px", borderRadius:"14px", background:"linear-gradient(135deg,#ede9fe,#ddd6fe)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:"22px" }}>🏢</div>
+                    <div>
+                      <div style={{ fontWeight:"800", fontSize:"15px" }}>{m.name}</div>
+                      <div style={{ fontSize:"11px", color:"#6366f1", fontWeight:"700", maxWidth:"160px", lineHeight:"1.5" }}>{deptNames}</div>
+                    </div>
+                  </div>
+                  <div style={{ display:"flex", gap:"6px" }}>
+                    <button onClick={() => openEdit(m)} style={{ padding:"7px", background:"#eff6ff", border:"none", borderRadius:"8px", cursor:"pointer" }}>✏️</button>
+                    <button onClick={() => del(m)}       style={{ padding:"7px", background:"#fff1f2", border:"none", borderRadius:"8px", cursor:"pointer" }}>🗑️</button>
                   </div>
                 </div>
-                <div style={{ display:"flex", gap:"6px" }}>
-                  <button onClick={() => openEdit(m)} style={{ padding:"7px", background:"#eff6ff", border:"none", borderRadius:"8px", cursor:"pointer" }}>✏️</button>
-                  <button onClick={() => del(m)}       style={{ padding:"7px", background:"#fff1f2", border:"none", borderRadius:"8px", cursor:"pointer" }}>🗑️</button>
+                <div style={{ background:"#f8fafc", borderRadius:"12px", padding:"12px 14px", fontSize:"13px" }}>
+                  <div style={{ marginBottom:"6px" }}>📧 {m.email}</div>
+                  <div style={{ color:"#94a3b8" }}>🔑 {"•".repeat(m.password?.length || 6)}</div>
+                </div>
+                {/* عرض الأقسام كـ tags */}
+                {deptIds.length > 1 && (
+                  <div style={{ marginTop:"10px", display:"flex", flexWrap:"wrap", gap:"6px" }}>
+                    {deptIds.map(id => {
+                      const dName = departments.find(d => String(d.id) === String(id))?.name;
+                      return dName ? (
+                        <span key={id} style={{ background:"#ede9fe", color:"#6d28d9", borderRadius:"8px", padding:"3px 10px", fontSize:"11px", fontWeight:"700" }}>
+                          🏷️ {dName}
+                        </span>
+                      ) : null;
+                    })}
+                  </div>
+                )}
+                <div style={{ marginTop:"10px", background:"#f0fdf4", borderRadius:"10px", padding:"8px 12px", fontSize:"12px", color:"#16a34a", fontWeight:"700" }}>
+                  ✅ صلاحية: موافقة مبدئية على طلبات {deptIds.length > 1 ? `${deptIds.length} أقسام` : "قسمه"}
                 </div>
               </div>
-              <div style={{ background:"#f8fafc", borderRadius:"12px", padding:"12px 14px", fontSize:"13px" }}>
-                <div style={{ marginBottom:"6px" }}>📧 {m.email}</div>
-                <div style={{ color:"#94a3b8" }}>🔑 {"•".repeat(m.password?.length || 6)}</div>
-              </div>
-              <div style={{ marginTop:"10px", background:"#f0fdf4", borderRadius:"10px", padding:"8px 12px", fontSize:"12px", color:"#16a34a", fontWeight:"700" }}>
-                ✅ صلاحية: موافقة مبدئية على طلبات قسمه
-              </div>
-            </div>
-          ))}
+            );
+          })}
           {managers.length === 0 && (
             <div style={{ gridColumn:"1/-1", padding:"60px", textAlign:"center", background:"white", borderRadius:"20px", border:"2px dashed #e2e8f0" }}>
               <div style={{ fontSize:"48px", marginBottom:"12px" }}>🏢</div>
@@ -6905,7 +6995,7 @@ const ManagersTab = ({ departments, supabase, logAction, currentUser }: {
       {/* فورم الإضافة / التعديل */}
       {showForm && (
         <div style={{ position:"fixed", inset:0, background:"rgba(15,23,42,0.6)", backdropFilter:"blur(8px)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:1000, padding:"20px" }} onClick={() => setShowForm(false)}>
-          <div style={{ background:"white", borderRadius:"28px", padding:"40px", width:"100%", maxWidth:"460px", direction:"rtl" }} onClick={e => e.stopPropagation()}>
+          <div style={{ background:"white", borderRadius:"28px", padding:"40px", width:"100%", maxWidth:"500px", direction:"rtl", maxHeight:"90vh", overflowY:"auto" }} onClick={e => e.stopPropagation()}>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"28px" }}>
               <h3 style={{ margin:0, fontSize:"20px", fontWeight:"900" }}>{editingMgr ? "تعديل مدير قسم" : "إضافة مدير قسم جديد"}</h3>
               <button onClick={() => setShowForm(false)} style={{ background:"#f1f5f9", border:"none", borderRadius:"10px", padding:"8px 14px", cursor:"pointer", fontSize:"16px" }}>✕</button>
@@ -6922,14 +7012,54 @@ const ManagersTab = ({ departments, supabase, logAction, currentUser }: {
                     style={{ width:"100%", padding:"12px 16px", border:"1.5px solid #e2e8f0", borderRadius:"14px", fontSize:"14px", outline:"none", boxSizing:"border-box" as const, fontFamily:"inherit" }} />
                 </div>
               ))}
+
+              {/* اختيار الأقسام - متعدد */}
               <div>
-                <label style={{ fontSize:"12px", fontWeight:"700", color:"#64748b", display:"block", marginBottom:"6px" }}>القسم المسؤول عنه *</label>
-                <select value={form.department_id} onChange={e => setForm({...form, department_id: e.target.value})}
-                  style={{ width:"100%", padding:"12px 16px", border:"1.5px solid #e2e8f0", borderRadius:"14px", fontSize:"14px", outline:"none", boxSizing:"border-box" as const, fontFamily:"inherit" }}>
-                  <option value="">اختر القسم</option>
-                  {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-                </select>
+                <label style={{ fontSize:"12px", fontWeight:"700", color:"#64748b", display:"block", marginBottom:"8px" }}>
+                  الأقسام المسؤول عنها * <span style={{ color:"#a78bfa", fontWeight:"600" }}>(يمكن اختيار أكثر من قسم)</span>
+                </label>
+                <div style={{ border:"1.5px solid #e2e8f0", borderRadius:"14px", padding:"10px", maxHeight:"200px", overflowY:"auto", display:"flex", flexDirection:"column", gap:"6px" }}>
+                  {departments.length === 0 && (
+                    <div style={{ color:"#94a3b8", fontSize:"13px", padding:"8px" }}>لا توجد أقسام</div>
+                  )}
+                  {departments.map(d => {
+                    const isChecked = selectedDeptIds.includes(String(d.id));
+                    return (
+                      <label key={d.id} style={{
+                        display:"flex", alignItems:"center", gap:"10px", padding:"10px 12px",
+                        borderRadius:"10px", cursor:"pointer", userSelect:"none",
+                        background: isChecked ? "linear-gradient(135deg,#ede9fe,#ddd6fe)" : "#f8fafc",
+                        border: isChecked ? "1.5px solid #a78bfa" : "1.5px solid transparent",
+                        transition:"all 0.15s"
+                      }}>
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => toggleDept(String(d.id))}
+                          style={{ width:"16px", height:"16px", accentColor:"#7c3aed", cursor:"pointer", flexShrink:0 }}
+                        />
+                        <span style={{ fontSize:"13px", fontWeight: isChecked ? "700" : "500", color: isChecked ? "#5b21b6" : "#374151" }}>
+                          {isChecked ? "🏢" : "○"} {d.name}
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+                {selectedDeptIds.length > 0 && (
+                  <div style={{ marginTop:"8px", display:"flex", flexWrap:"wrap", gap:"6px" }}>
+                    {selectedDeptIds.map(id => {
+                      const dName = departments.find(d => String(d.id) === String(id))?.name;
+                      return dName ? (
+                        <span key={id} style={{ background:"#7c3aed", color:"white", borderRadius:"8px", padding:"3px 10px", fontSize:"11px", fontWeight:"700", display:"flex", alignItems:"center", gap:"4px" }}>
+                          {dName}
+                          <span onClick={() => toggleDept(id)} style={{ cursor:"pointer", opacity:0.8, marginRight:"2px" }}>✕</span>
+                        </span>
+                      ) : null;
+                    })}
+                  </div>
+                )}
               </div>
+
               <div style={{ background:"#fef3c7", borderRadius:"12px", padding:"12px", fontSize:"12px", color:"#92400e", fontWeight:"700" }}>
                 ⚠️ احتفظ بكلمة المرور بشكل آمن
               </div>
