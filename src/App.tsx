@@ -262,15 +262,15 @@ const EmpEditModal = ({ req, vacationTypes, onClose, onChange, onSave }: {
             </div>
             <div>
               <label style={{ fontSize:"12px", color:"#64748b", fontWeight:"700", display:"block", marginBottom:"5px" }}>تاريخ البداية</label>
-              <input type="date" style={{inp} value={req.start_date || ""} onChange={e => onChange({...req, start_date: e.target.value})} />
+              <input type="date" style={inp} value={req.start_date || ""} onChange={e => onChange({...req, start_date: e.target.value})} />
             </div>
             <div>
               <label style={{ fontSize:"12px", color:"#64748b", fontWeight:"700", display:"block", marginBottom:"5px" }}>عدد الأيام</label>
-              <input type="number" step="0.5" min="0.5" style={{inp} value={req.days || ""} onChange={e => onChange({...req, days: Number(e.target.value)})} />
+              <input type="number" step="0.5" min="0.5" style={inp} value={req.days || ""} onChange={e => onChange({...req, days: Number(e.target.value)})} />
             </div>
             <div>
               <label style={{ fontSize:"12px", color:"#64748b", fontWeight:"700", display:"block", marginBottom:"5px" }}>نوع الإجازة</label>
-              <select style={{inp} value={req.vacation_type_id || ""} onChange={e => onChange({...req, vacation_type_id: e.target.value})}>
+              <select style={inp} value={req.vacation_type_id || ""} onChange={e => onChange({...req, vacation_type_id: e.target.value})}>
                 <option value="">اختر النوع</option>
                 {vacationTypes.map((vt: any) => <option key={vt.id} value={vt.id}>{vt.name}</option>)}
               </select>
@@ -3041,7 +3041,7 @@ useEffect(() => {
                             <SortTh label="شهري"       field="monthly"    align="center" sortField={empSortField} sortDir={empSortDir} sortDropdown={empSortDropdown} onSort={(f,d)=>{setEmpSortField(f);setEmpSortDir(d);setEmpSortDropdown("");}} onClear={()=>{setEmpSortField("");setEmpSortDropdown("");}} onToggle={f=>setEmpSortDropdown(d=>d===f?"":f)} />
                             <SortTh label="أيام العمل" field="workedDays" align="center" sortField={empSortField} sortDir={empSortDir} sortDropdown={empSortDropdown} onSort={(f,d)=>{setEmpSortField(f);setEmpSortDir(d);setEmpSortDropdown("");}} onClear={()=>{setEmpSortField("");setEmpSortDropdown("");}} onToggle={f=>setEmpSortDropdown(d=>d===f?"":f)} />
                             <SortTh label="الحالة"     field="status"     align="center" sortField={empSortField} sortDir={empSortDir} sortDropdown={empSortDropdown} onSort={(f,d)=>{setEmpSortField(f);setEmpSortDir(d);setEmpSortDropdown("");}} onClear={()=>{setEmpSortField("");setEmpSortDropdown("");}} onToggle={f=>setEmpSortDropdown(d=>d===f?"":f)} />
-                            <th style={{ border:"1px solid #94a3b8",  padding:"12px 8px", border:"1px solid #94a3b8", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center"  } }>إجراءات</th>
+                            <th style={{ border:"1px solid #94a3b8",  padding:"12px 8px", border:"1px solid #94a3b8", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center"   }}>إجراءات</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -3186,7 +3186,7 @@ useEffect(() => {
                               <SortTh label="الأيام"    field="days"     align="center" sortField={reqSortField} sortDir={reqSortDir} sortDropdown={reqSortDropdown} onSort={(f,d)=>{setReqSortField(f);setReqSortDir(d);setReqSortDropdown("");}} onClear={()=>{setReqSortField("");setReqSortDropdown("");}} onToggle={f=>setReqSortDropdown(d=>d===f?"":f)} />
                               <SortTh label="أيام العمل" field="workdays" align="center" sortField={reqSortField} sortDir={reqSortDir} sortDropdown={reqSortDropdown} onSort={(f,d)=>{setReqSortField(f);setReqSortDir(d);setReqSortDropdown("");}} onClear={()=>{setReqSortField("");setReqSortDropdown("");}} onToggle={f=>setReqSortDropdown(d=>d===f?"":f)} />
                               <SortTh label="الحالة"    field="status"   align="center" sortField={reqSortField} sortDir={reqSortDir} sortDropdown={reqSortDropdown} onSort={(f,d)=>{setReqSortField(f);setReqSortDir(d);setReqSortDropdown("");}} onClear={()=>{setReqSortField("");setReqSortDropdown("");}} onToggle={f=>setReqSortDropdown(d=>d===f?"":f)} />
-                              <th style={{ border:"1px solid #94a3b8",  padding:"12px 8px", border:"1px solid #94a3b8", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center"  } }>الإجراءات</th>
+                              <th style={{ border:"1px solid #94a3b8",  padding:"12px 8px", border:"1px solid #94a3b8", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center"   }}>الإجراءات</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -3273,7 +3273,7 @@ useEffect(() => {
                               <SortTh label="الأيام"    field="days"     align="center" sortField={reqSortField} sortDir={reqSortDir} sortDropdown={reqSortDropdown} onSort={(f,d)=>{setReqSortField(f);setReqSortDir(d);setReqSortDropdown("");}} onClear={()=>{setReqSortField("");setReqSortDropdown("");}} onToggle={f=>setReqSortDropdown(d=>d===f?"":f)} />
                               <SortTh label="أيام العمل" field="workdays" align="center" sortField={reqSortField} sortDir={reqSortDir} sortDropdown={reqSortDropdown} onSort={(f,d)=>{setReqSortField(f);setReqSortDir(d);setReqSortDropdown("");}} onClear={()=>{setReqSortField("");setReqSortDropdown("");}} onToggle={f=>setReqSortDropdown(d=>d===f?"":f)} />
                               <SortTh label="الحالة"    field="status"   align="center" sortField={reqSortField} sortDir={reqSortDir} sortDropdown={reqSortDropdown} onSort={(f,d)=>{setReqSortField(f);setReqSortDir(d);setReqSortDropdown("");}} onClear={()=>{setReqSortField("");setReqSortDropdown("");}} onToggle={f=>setReqSortDropdown(d=>d===f?"":f)} />
-                              <th style={{ border:"1px solid #94a3b8",  padding:"12px 8px", border:"1px solid #94a3b8", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center"  } }>الإجراءات</th>
+                              <th style={{ border:"1px solid #94a3b8",  padding:"12px 8px", border:"1px solid #94a3b8", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center"   }}>الإجراءات</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -3609,14 +3609,14 @@ useEffect(() => {
                             <thead style={{ border:"1px solid #94a3b8", padding:"12px 8px", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center" }}>
                               <tr>
                                 <SortTh label="الموظف"        field="name"  align="right"  sortField={activeVacSortField} sortDir={activeVacSortDir} sortDropdown={activeVacSortDropdown} onSort={(f,d)=>{setActiveVacSortField(f);setActiveVacSortDir(d);setActiveVacSortDropdown("");}} onClear={()=>{setActiveVacSortField("");setActiveVacSortDropdown("");}} onToggle={f=>setActiveVacSortDropdown(d=>d===f?"":f)} />
-                              <th style={{ border:"1px solid #94a3b8",  padding:"12px 8px", border:"1px solid #94a3b8", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center"  } }>القسم</th>
-                              <th style={{ border:"1px solid #94a3b8",  padding:"12px 8px", border:"1px solid #94a3b8", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center"  } }>نوع الإجازة</th>
+                              <th style={{ border:"1px solid #94a3b8",  padding:"12px 8px", border:"1px solid #94a3b8", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center"   }}>القسم</th>
+                              <th style={{ border:"1px solid #94a3b8",  padding:"12px 8px", border:"1px solid #94a3b8", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center"   }}>نوع الإجازة</th>
                               <SortTh label="تاريخ البداية" field="start" align="center" sortField={activeVacSortField} sortDir={activeVacSortDir} sortDropdown={activeVacSortDropdown} onSort={(f,d)=>{setActiveVacSortField(f);setActiveVacSortDir(d);setActiveVacSortDropdown("");}} onClear={()=>{setActiveVacSortField("");setActiveVacSortDropdown("");}} onToggle={f=>setActiveVacSortDropdown(d=>d===f?"":f)} />
                               <SortTh label="المدة"         field="days"  align="center" sortField={activeVacSortField} sortDir={activeVacSortDir} sortDropdown={activeVacSortDropdown} onSort={(f,d)=>{setActiveVacSortField(f);setActiveVacSortDir(d);setActiveVacSortDropdown("");}} onClear={()=>{setActiveVacSortField("");setActiveVacSortDropdown("");}} onToggle={f=>setActiveVacSortDropdown(d=>d===f?"":f)} />
                               <SortTh label="نهاية الإجازة" field="back" align="center" sortField={activeVacSortField} sortDir={activeVacSortDir} sortDropdown={activeVacSortDropdown} onSort={(f,d)=>{setActiveVacSortField(f);setActiveVacSortDir(d);setActiveVacSortDropdown("");}} onClear={()=>{setActiveVacSortField("");setActiveVacSortDropdown("");}} onToggle={f=>setActiveVacSortDropdown(d=>d===f?"":f)} />
-                              <th style={{ border:"1px solid #94a3b8",  padding:"12px 8px", border:"1px solid #94a3b8", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center"  } }>الرصيد</th>
-                              <th style={{ border:"1px solid #94a3b8",  padding:"12px 8px", border:"1px solid #94a3b8", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center"  } }>المصدر</th>
-                              <th style={{ border:"1px solid #94a3b8",  padding:"12px 8px", border:"1px solid #94a3b8", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center"  } }>الإجراءات</th>
+                              <th style={{ border:"1px solid #94a3b8",  padding:"12px 8px", border:"1px solid #94a3b8", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center"   }}>الرصيد</th>
+                              <th style={{ border:"1px solid #94a3b8",  padding:"12px 8px", border:"1px solid #94a3b8", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center"   }}>المصدر</th>
+                              <th style={{ border:"1px solid #94a3b8",  padding:"12px 8px", border:"1px solid #94a3b8", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center"   }}>الإجراءات</th>
                               </tr>
                             </thead>
                             <tbody>
@@ -6627,7 +6627,7 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser, userRole }: {
               </colgroup>
               <thead style={{ border:"1px solid #94a3b8", padding:"12px 8px", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center" }}>
                 <tr>
-                  <th style={{ border:"1px solid #94a3b8",  padding:"12px 8px", border:"1px solid #94a3b8", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center"  } }>
+                  <th style={{ border:"1px solid #94a3b8",  padding:"12px 8px", border:"1px solid #94a3b8", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center"   }}>
                     <input
                       type="checkbox"
                       checked={selectedIds.length === filtered.length && filtered.length > 0}
@@ -6655,7 +6655,7 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser, userRole }: {
                       align="right"
                     />
                   ))}
-                  <th style={{ border:"1px solid #94a3b8",  padding:"12px 8px", border:"1px solid #94a3b8", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center"  } }>الإجراءات</th>
+                  <th style={{ border:"1px solid #94a3b8",  padding:"12px 8px", border:"1px solid #94a3b8", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center"   }}>الإجراءات</th>
                 </tr>
               </thead>
               <tbody>
