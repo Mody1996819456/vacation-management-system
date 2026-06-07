@@ -706,6 +706,8 @@ useEffect(() => {
         if (emp.status === "إجازة") continue;
         const activeReq = requests.find(r => {
           if (r.employee_id !== emp.id || r.status !== "approved") return false;
+          // إذا سُجّلت عودة فعلية — لا تعيده إجازة
+          if (r.actual_return_date) return false;
           const actualStart = getActualStartDate(r.start_date, r.departure_time || "actual");
           const { back } = getCalculatedDates(r.start_date, r.days);
           return today >= actualStart && today < back;
