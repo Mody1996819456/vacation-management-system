@@ -3807,7 +3807,7 @@ useEffect(() => {
   <div class="header-top">
     <div class="logo-section">
       <div class="logo-section-content">
-        <div class="company-name">شركة لينة للتنمية السياحية والمعمارية</div>
+        <div class="company-name">شركة لينة للتنمية السياحية والعمرانية</div>
         <div class="company-desc">LINAH TOURISTIC & URBAN DEVELOPMENT</div>
       </div>
     </div>
