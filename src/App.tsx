@@ -3755,32 +3755,30 @@ useEffect(() => {
 <meta charset="UTF-8"/>
 <title>بيان اجازات يومي</title>
 <style>
-  @page { size:A4 landscape; margin:8mm; }
+  @page { size:A4 portrait; margin:10mm; }
   * { box-sizing:border-box; margin:0; padding:0; }
   body { font-family:'Segoe UI', Arial, sans-serif; direction:rtl; background:#fff; }
   
   .container { width:100%; padding:0; }
   
   /* صف العنوان */
-  .header { display:flex; gap:0; border:2px solid #555; margin-bottom:0; }
-  .logo-box { flex:0 0 200px; background:#E3F2FD; display:flex; flex-direction:column; align-items:center; justify-content:center; border-left:2px solid #999; padding:8px; }
-  .logo-box img { max-width:180px; max-height:85px; object-fit:contain; }
-  .title-box { flex:1; background:#fff; display:flex; align-items:center; justify-content:center; padding:12px; border-left:2px solid #999; }
-  .title-box h1 { font-size:24px; font-weight:bold; color:#000; text-align:center; line-height:1.4; }
-  .date-box { flex:0 0 280px; background:#fff; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:8px; border-left:2px solid #999; }
-  .date-box .label { font-size:12px; font-weight:bold; margin-bottom:4px; }
-  .date-box .value { font-size:11px; border-bottom:1px solid #999; padding-top:4px; }
+  .header { display:flex; flex-direction:column; gap:0; border:2px solid #555; margin-bottom:0; }
+  .logo-box { flex:0 0 auto; background:#E3F2FD; display:flex; align-items:center; justify-content:center; border-bottom:2px solid #999; padding:8px; min-height:70px; }
+  .logo-box img { max-width:160px; max-height:65px; object-fit:contain; }
+  .title-box { flex:1; background:#fff; display:flex; align-items:center; justify-content:center; padding:10px; border-bottom:2px solid #999; min-height:60px; }
+  .title-box h1 { font-size:16px; font-weight:bold; color:#000; text-align:center; line-height:1.3; }
+  .date-box { flex:0 0 auto; background:#fff; display:flex; align-items:center; justify-content:center; padding:6px; border-bottom:2px solid #999; min-height:40px; font-size:11px; font-weight:bold; }
   
   /* الجدول */
-  table { width:100%; border-collapse:collapse; margin:0; }
+  table { width:100%; border-collapse:collapse; margin:0; font-size:9px; }
   thead tr { background:#F4B36A; }
-  th { padding:10px 4px; border:1.5px solid #666; font-weight:bold; font-size:10px; text-align:center; color:#000; }
-  td { padding:8px 3px; border:1px solid #999; text-align:center; font-size:9px; }
+  th { padding:7px 3px; border:1.5px solid #666; font-weight:bold; font-size:8px; text-align:center; color:#000; }
+  td { padding:5px 2px; border:1px solid #999; text-align:center; font-size:8px; }
   tbody tr:hover { background:#f9f9f9; }
   
   .col-num { background:#F4B36A; font-weight:bold; }
   tfoot tr { border-top:2px solid #555; }
-  tfoot td { padding:12px 4px; font-weight:bold; font-size:11px; border:1px solid #999; }
+  tfoot td { padding:8px 3px; font-weight:bold; font-size:9px; border:1px solid #999; }
   
   @media print {
     body { margin:0; padding:0; }
@@ -3791,34 +3789,32 @@ useEffect(() => {
 <body>
 <div class="container">
   <div class="header">
-    <div class="date-box">
-      <div class="label">تاريخ اليوم</div>
-      <div class="value">${todayStr}</div>
+    <div class="logo-box">
+      <div style="text-align:center; color:#1B2A87; font-weight:bold;">
+        <div style="font-size:11px; margin-bottom:2px;">LINAH</div>
+        <div style="font-size:7px;">TOURISTIC & URBAN DEVELOPMENT</div>
+      </div>
     </div>
     <div class="title-box">
       <h1>بيان اجازات يومي قسم : الإدارة الفنية</h1>
     </div>
-    <div class="logo-box">
-      <div style="text-align:center; color:#1B2A87; font-weight:bold;">
-        <div style="font-size:14px; margin-bottom:2px;">LINAH</div>
-        <div style="font-size:8px;">TOURISTIC & URBAN DEVELOPMENT</div>
-      </div>
+    <div class="date-box">
+      تاريخ اليوم: ${todayStr}
     </div>
   </div>
 
   <table>
     <thead>
       <tr>
-        <th style="width:3%;">م</th>
-        <th style="width:7%;">الكود</th>
-        <th style="width:18%;">اسم الموظف</th>
-        <th style="width:12%;">الوظيفه</th>
+        <th style="width:5%;">م</th>
+        <th style="width:10%;">الكود</th>
+        <th style="width:20%;">اسم الموظف</th>
+        <th style="width:15%;">الوظيفه</th>
         <th style="width:8%;">الرصيد</th>
-        <th style="width:11%;">بداية الإجازة</th>
-        <th style="width:11%;">نهاية الإجازة</th>
+        <th style="width:12%;">بداية</th>
+        <th style="width:12%;">نهاية</th>
         <th style="width:6%;">المدة</th>
-        <th style="width:10%;">نوع الإجازة</th>
-        <th style="width:14%;">تسجيل</th>
+        <th style="width:12%;">نوع</th>
       </tr>
     </thead>
     <tbody>
@@ -3826,21 +3822,24 @@ useEffect(() => {
       <tr>
         <td class="col-num">${i+1}</td>
         <td>${row?.emp?.code||""}</td>
-        <td style="text-align:right; padding-right:6px;">${row?.emp?.name||""}</td>
+        <td style="text-align:right; padding-right:4px;">${row?.emp?.name||""}</td>
         <td>${row?.emp?.position||""}</td>
         <td>${row?.emp?.balance??""}</td>
         <td>${row?.lastReq?.start_date ? new Date(row.lastReq.start_date).toLocaleDateString("ar-EG") : ""}</td>
         <td>${row?.back ? new Date(row.back).toLocaleDateString("ar-EG") : ""}</td>
         <td>${row?.lastReq?.days ? row.lastReq.days : ""}</td>
         <td>${row?.vacType?.name||""}</td>
-        <td></td>
       </tr>`).join("")}
     </tbody>
     <tfoot>
       <tr>
-        <td colspan="3" style="text-align:right; padding-right:20px;">مدير القسم / ___________</td>
-        <td colspan="3" style="text-align:center;">شئون العاملين / ___________</td>
-        <td colspan="4" style="text-align:left; padding-left:20px;">اعتماد نهائي / ___________</td>
+        <td colspan="9" style="text-align:center; padding:10px; border:1px solid #999;">
+          <div style="display:flex; justify-content:space-around; font-size:9px; font-weight:bold;">
+            <div>مدير القسم / ___________</div>
+            <div>شئون العاملين / ___________</div>
+            <div>اعتماد نهائي / ___________</div>
+          </div>
+        </td>
       </tr>
     </tfoot>
   </table>
