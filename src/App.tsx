@@ -3584,6 +3584,279 @@ useEffect(() => {
                   XLSX.writeFile(wb, `الإجازات-الفعلية-${new Date().toISOString().split("T")[0]}.xlsx`);
                 };
 
+                // ===== تصدير القالب الرسمي (بيان اجازات يومي - لينا) =====
+                const exportLinahTemplate = () => {
+                  const wb = XLSX.utils.book_new();
+                  const todayStr = new Date().toLocaleDateString("ar-EG", { year:"numeric", month:"2-digit", day:"2-digit" });
+
+                  // ---- بناء البيانات بالتنسيق الرسمي ----
+                  // الصف 1: عنوان + تاريخ
+                  // الصف 2: رؤوس الأعمدة
+                  // الصف 3+: بيانات
+                  // آخر صف: توقيعات
+
+                  const headers = ["م","الكود","اسم الموظف","الوظيفه","رصيد الاجازات","تاريخ بدايه الاجازة","تاريخ نهايه الاجازة","مدة الاجازة","نوع الاجازة","تسجيل اودوو"];
+                  const rows: any[][] = filtered.map((row, idx) => {
+                    const endDate = row.back ? row.back : "";
+                    return [
+                      idx + 1,
+                      row.emp.code || "",
+                      row.emp.name || "",
+                      row.emp.position || "",
+                      row.emp.balance ?? "",
+                      row.lastReq?.start_date ? new Date(row.lastReq.start_date).toLocaleDateString("ar-EG") : "",
+                      endDate ? new Date(endDate).toLocaleDateString("ar-EG") : "",
+                      row.lastReq?.days ? `${row.lastReq.days} يوم` : "",
+                      (row.vacType as any)?.name || "",
+                      "",  // تسجيل اودوو - فارغ للتعبئة
+                    ];
+                  });
+
+                  // ضمان 10 صفوف على الأقل في الجدول
+                  while (rows.length < 10) {
+                    rows.push([rows.length + 1, "", "", "", "", "", "", "", "", ""]);
+                  }
+
+                  // بناء الـ worksheet يدوياً عبر aoa (array of arrays)
+                  const aoaData: any[][] = [
+                    // الصف 1: عنوان
+                    ["شركة لينا السياحية والتطوير العمراني", "", `بيان اجازات يومي قسم : الإدارة الفنية`, "", "", "", "", "", `تاريخ اليوم: ${todayStr}`, ""],
+                    // الصف 2: رؤوس الأعمدة
+                    headers,
+                    // الصفوف 3+: البيانات
+                    ...rows,
+                    // صف التوقيعات
+                    ["مدير القسم/", "", "", "شئون العاملين/", "", "", "", "اعتماد نهائي/", "", ""],
+                  ];
+
+                  const ws: XLSX.WorkSheet = XLSX.utils.aoa_to_sheet(aoaData, { cellDates: false });
+
+                  // ---- عرض الأعمدة ----
+                  ws["!cols"] = [
+                    { wch: 5  },  // م
+                    { wch: 12 },  // الكود
+                    { wch: 28 },  // اسم الموظف
+                    { wch: 22 },  // الوظيفه
+                    { wch: 14 },  // رصيد الاجازات
+                    { wch: 20 },  // تاريخ البداية
+                    { wch: 20 },  // تاريخ النهاية
+                    { wch: 12 },  // مدة الاجازة
+                    { wch: 18 },  // نوع الاجازة
+                    { wch: 16 },  // تسجيل اودوو
+                  ];
+
+                  // ---- دمج خلايا العنوان ----
+                  ws["!merges"] = [
+                    { s:{r:0,c:0}, e:{r:0,c:1} },   // لينا (عنوان الشركة)
+                    { s:{r:0,c:2}, e:{r:0,c:7} },   // بيان اجازات يومي
+                    { s:{r:0,c:8}, e:{r:0,c:9} },   // تاريخ اليوم
+                    // صف التوقيعات
+                    { s:{r:aoaData.length-1,c:0}, e:{r:aoaData.length-1,c:2} },
+                    { s:{r:aoaData.length-1,c:3}, e:{r:aoaData.length-1,c:6} },
+                    { s:{r:aoaData.length-1,c:7}, e:{r:aoaData.length-1,c:9} },
+                  ];
+
+                  // ---- تنسيق الخلايا ----
+                  const orange = "F4B36A";
+                  const totalRows = aoaData.length;
+                  const totalCols = 10;
+
+                  for (let r = 0; r < totalRows; r++) {
+                    for (let c = 0; c < totalCols; c++) {
+                      const addr = XLSX.utils.encode_cell({r, c});
+                      if (!ws[addr]) ws[addr] = { t:"s", v:"" };
+                      const cell = ws[addr];
+
+                      // تنسيق مشترك
+                      cell.s = {
+                        alignment: { horizontal:"center", vertical:"center", wrapText:true, readingOrder:2 },
+                        font: { name:"Arial", sz:10, color:{rgb:"000000"} },
+                        border: {
+                          top: { style:"thin", color:{rgb:"AAAAAA"} },
+                          bottom: { style:"thin", color:{rgb:"AAAAAA"} },
+                          left: { style:"thin", color:{rgb:"AAAAAA"} },
+                          right: { style:"thin", color:{rgb:"AAAAAA"} },
+                        },
+                      };
+
+                      // صف العنوان (الصف 0)
+                      if (r === 0) {
+                        cell.s.font = { name:"Arial", sz:14, bold:true, color:{rgb:"1B2A87"} };
+                        cell.s.fill = { patternType:"solid", fgColor:{rgb:"FFFFFF"} };
+                        if (c === 2) {
+                          cell.s.font = { name:"Arial", sz:14, bold:true, color:{rgb:"000000"} };
+                        }
+                      }
+                      // صف الرؤوس (الصف 1)
+                      else if (r === 1) {
+                        cell.s.fill = { patternType:"solid", fgColor:{rgb:orange} };
+                        cell.s.font = { name:"Arial", sz:10, bold:true, color:{rgb:"000000"} };
+                        cell.s.border = {
+                          top:    { style:"medium", color:{rgb:"888888"} },
+                          bottom: { style:"medium", color:{rgb:"888888"} },
+                          left:   { style:"medium", color:{rgb:"888888"} },
+                          right:  { style:"medium", color:{rgb:"888888"} },
+                        };
+                      }
+                      // صفوف البيانات
+                      else if (r >= 2 && r < totalRows - 1) {
+                        // عمود م (c===0) برتقالي
+                        if (c === 0) {
+                          cell.s.fill = { patternType:"solid", fgColor:{rgb:orange} };
+                          cell.s.font = { name:"Arial", sz:10, bold:true, color:{rgb:"000000"} };
+                        } else {
+                          cell.s.fill = { patternType:"solid", fgColor:{rgb:"FFFFFF"} };
+                        }
+                      }
+                      // صف التوقيعات
+                      else if (r === totalRows - 1) {
+                        cell.s.font = { name:"Arial", sz:11, bold:true, color:{rgb:"000000"} };
+                        cell.s.fill = { patternType:"solid", fgColor:{rgb:"FFFFFF"} };
+                      }
+                    }
+                  }
+
+                  // ---- ارتفاعات الصفوف ----
+                  ws["!rows"] = [
+                    { hpx: 52 },  // صف العنوان
+                    { hpx: 36 },  // صف الرؤوس
+                    ...Array(rows.length).fill({ hpx: 26 }),
+                    { hpx: 30 },  // صف التوقيعات
+                  ];
+
+                  // ---- إعدادات الطباعة ----
+                  ws["!pageSetup"] = { orientation:"landscape", paperSize:9, fitToPage:true, fitToWidth:1, fitToHeight:0 };
+                  ws["!printArea"] = `A1:J${totalRows}`;
+
+                  XLSX.utils.book_append_sheet(wb, ws, "بيان اجازات يومي");
+                  XLSX.writeFile(wb, `بيان-اجازات-يومي-${new Date().toISOString().split("T")[0]}.xlsx`);
+                };
+
+                // ===== طباعة القالب الرسمي =====
+                const printLinahTemplate = () => {
+                  const todayStr = new Date().toLocaleDateString("ar-EG", { year:"numeric", month:"2-digit", day:"2-digit" });
+                  const dataRows = filtered.length > 0 ? filtered : [];
+                  while (dataRows.length < 10) dataRows.push(null as any);
+
+                  const html = `<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+<meta charset="UTF-8"/>
+<title>بيان اجازات يومي</title>
+<style>
+  @page { size:A4 landscape; margin:8mm; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:'Segoe UI', Arial, sans-serif; direction:rtl; background:#fff; }
+  
+  .container { width:100%; padding:0; }
+  
+  /* صف العنوان */
+  .header { display:flex; gap:0; border:2px solid #555; margin-bottom:0; }
+  .logo-box { flex:0 0 200px; background:#E3F2FD; display:flex; flex-direction:column; align-items:center; justify-content:center; border-left:2px solid #999; padding:8px; }
+  .logo-box img { max-width:180px; max-height:85px; object-fit:contain; }
+  .title-box { flex:1; background:#fff; display:flex; align-items:center; justify-content:center; padding:12px; border-left:2px solid #999; }
+  .title-box h1 { font-size:24px; font-weight:bold; color:#000; text-align:center; line-height:1.4; }
+  .date-box { flex:0 0 280px; background:#fff; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:8px; border-left:2px solid #999; }
+  .date-box .label { font-size:12px; font-weight:bold; margin-bottom:4px; }
+  .date-box .value { font-size:11px; border-bottom:1px solid #999; padding-top:4px; }
+  
+  /* الجدول */
+  table { width:100%; border-collapse:collapse; margin:0; }
+  thead tr { background:#F4B36A; }
+  th { padding:10px 4px; border:1.5px solid #666; font-weight:bold; font-size:10px; text-align:center; color:#000; }
+  td { padding:8px 3px; border:1px solid #999; text-align:center; font-size:9px; }
+  tbody tr:hover { background:#f9f9f9; }
+  
+  .col-num { background:#F4B36A; font-weight:bold; }
+  tfoot tr { border-top:2px solid #555; }
+  tfoot td { padding:12px 4px; font-weight:bold; font-size:11px; border:1px solid #999; }
+  
+  @media print {
+    body { margin:0; padding:0; }
+    .container { page-break-inside:avoid; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <div class="date-box">
+      <div class="label">تاريخ اليوم</div>
+      <div class="value">${todayStr}</div>
+    </div>
+    <div class="title-box">
+      <h1>بيان اجازات يومي قسم : الإدارة الفنية</h1>
+    </div>
+    <div class="logo-box">
+      <div style="text-align:center; color:#1B2A87; font-weight:bold;">
+        <div style="font-size:14px; margin-bottom:2px;">LINAH</div>
+        <div style="font-size:8px;">TOURISTIC & URBAN DEVELOPMENT</div>
+      </div>
+    </div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th style="width:3%;">م</th>
+        <th style="width:7%;">الكود</th>
+        <th style="width:18%;">اسم الموظف</th>
+        <th style="width:12%;">الوظيفه</th>
+        <th style="width:8%;">الرصيد</th>
+        <th style="width:11%;">بداية الإجازة</th>
+        <th style="width:11%;">نهاية الإجازة</th>
+        <th style="width:6%;">المدة</th>
+        <th style="width:10%;">نوع الإجازة</th>
+        <th style="width:14%;">تسجيل</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${dataRows.map((row, i) => `
+      <tr>
+        <td class="col-num">${i+1}</td>
+        <td>${row?.emp?.code||""}</td>
+        <td style="text-align:right; padding-right:6px;">${row?.emp?.name||""}</td>
+        <td>${row?.emp?.position||""}</td>
+        <td>${row?.emp?.balance??""}</td>
+        <td>${row?.lastReq?.start_date ? new Date(row.lastReq.start_date).toLocaleDateString("ar-EG") : ""}</td>
+        <td>${row?.back ? new Date(row.back).toLocaleDateString("ar-EG") : ""}</td>
+        <td>${row?.lastReq?.days ? row.lastReq.days : ""}</td>
+        <td>${row?.vacType?.name||""}</td>
+        <td></td>
+      </tr>`).join("")}
+    </tbody>
+    <tfoot>
+      <tr>
+        <td colspan="3" style="text-align:right; padding-right:20px;">مدير القسم / ___________</td>
+        <td colspan="3" style="text-align:center;">شئون العاملين / ___________</td>
+        <td colspan="4" style="text-align:left; padding-left:20px;">اعتماد نهائي / ___________</td>
+      </tr>
+    </tfoot>
+  </table>
+</div>
+</body>
+</html>`;
+
+                  const w = window.open("", "_blank", "width=1200,height=800");
+                  if (!w) { alert("فعّل النوافذ المنبثقة في المتصفح"); return; }
+                  w.document.write(html);
+                  w.document.close();
+                  setTimeout(() => { w.focus(); w.print(); }, 500);
+                };
+
+                // ===== مشاركة القالب =====
+                const shareLinahTemplate = async () => {
+                  const todayStr = new Date().toLocaleDateString("ar-EG", { year:"numeric", month:"2-digit", day:"2-digit" });
+                  const shareText = `📋 بيان اجازات يومي - ${todayStr}\n\n` +
+                    filtered.map((row, i) => `${i+1}. ${row.emp.name} | ${(row.vacType as any)?.name||"إجازة"} | ${row.lastReq?.start_date||""} ← ${row.back||""} | ${row.lastReq?.days||""} يوم`).join("\n") +
+                    `\n\nإجمالي: ${filtered.length} موظف في إجازة`;
+                  if (navigator.share) {
+                    try { await navigator.share({ title:"بيان اجازات يومي", text:shareText }); } catch {}
+                  } else {
+                    navigator.clipboard.writeText(shareText).then(() => alert("✅ تم نسخ البيان — الصقه في أي تطبيق مشاركة"));
+                  }
+                };
+
 
                 return (
                   <div className="space-y-5">
@@ -3599,6 +3872,24 @@ useEffect(() => {
                         <button onClick={exportActiveToExcel}
                           style={{ display:"flex", alignItems:"center", gap:"6px", padding:"10px 16px", background:"linear-gradient(135deg, #059669, #16a34a)", color:"white", border:"none", borderRadius:"12px", fontWeight:"700", cursor:"pointer", fontSize:"13px", fontFamily:"inherit" }}>
                           <FileDown size={16}/> تصدير الإجازات الحالية
+                        </button>
+                        {/* ===== زر القالب الرسمي (بيان اجازات يومي - لينا) ===== */}
+                        <button onClick={exportLinahTemplate}
+                          style={{ display:"flex", alignItems:"center", gap:"6px", padding:"10px 16px", background:"linear-gradient(135deg, #F4B36A, #e69320)", color:"white", border:"none", borderRadius:"12px", fontWeight:"700", cursor:"pointer", fontSize:"13px", fontFamily:"inherit" }}
+                          title="تصدير القالب الرسمي بتنسيق بيان اجازات يومي">
+                          <FileDown size={16}/> 📋 القالب الرسمي
+                        </button>
+                        {/* ===== زر الطباعة ===== */}
+                        <button onClick={printLinahTemplate}
+                          style={{ display:"flex", alignItems:"center", gap:"6px", padding:"10px 16px", background:"linear-gradient(135deg, #4f46e5, #7c3aed)", color:"white", border:"none", borderRadius:"12px", fontWeight:"700", cursor:"pointer", fontSize:"13px", fontFamily:"inherit" }}
+                          title="طباعة القالب الرسمي">
+                          <Printer size={16}/> طباعة
+                        </button>
+                        {/* ===== زر المشاركة ===== */}
+                        <button onClick={shareLinahTemplate}
+                          style={{ display:"flex", alignItems:"center", gap:"6px", padding:"10px 16px", background:"linear-gradient(135deg, #0ea5e9, #0284c7)", color:"white", border:"none", borderRadius:"12px", fontWeight:"700", cursor:"pointer", fontSize:"13px", fontFamily:"inherit" }}
+                          title="مشاركة البيان">
+                          <Share2 size={16}/> مشاركة
                         </button>
                         <button onClick={() => setShowDirectVacModal(true)}
                           style={{ display:"flex", alignItems:"center", gap:"6px", padding:"10px 16px", background:"linear-gradient(135deg, #f59e0b, #d97706)", color:"white", border:"none", borderRadius:"12px", fontWeight:"700", cursor:"pointer", fontSize:"13px", fontFamily:"inherit" }}>
