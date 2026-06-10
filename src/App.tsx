@@ -3733,7 +3733,6 @@ useEffect(() => {
                   XLSX.writeFile(wb, `بيان-اجازات-يومي-${new Date().toISOString().split("T")[0]}.xlsx`);
                 };
 
-                // ===== طباعة القالب الرسمي =====
                 const printLinahTemplate = () => {
                   // إذا ما اختار حد، طبع كل الموجودين
                   const selectedRows = selectedPrintIds.size > 0 
@@ -3755,93 +3754,112 @@ useEffect(() => {
 <meta charset="UTF-8"/>
 <title>بيان اجازات يومي</title>
 <style>
-  @page { size:A4 portrait; margin:10mm; }
+  @page { size:A4 portrait; margin:8mm; }
   * { box-sizing:border-box; margin:0; padding:0; }
-  body { font-family:'Segoe UI', Arial, sans-serif; direction:rtl; background:#fff; }
+  body { font-family:'Segoe UI', Arial, sans-serif; direction:rtl; background:#fff; padding:0; margin:0; }
   
   .container { width:100%; padding:0; }
   
-  /* صف العنوان */
-  .header { display:flex; flex-direction:column; gap:0; border:2px solid #555; margin-bottom:0; }
-  .logo-box { flex:0 0 auto; background:#E3F2FD; display:flex; align-items:center; justify-content:center; border-bottom:2px solid #999; padding:8px; min-height:70px; }
-  .logo-box img { max-width:160px; max-height:65px; object-fit:contain; }
-  .title-box { flex:1; background:#fff; display:flex; align-items:center; justify-content:center; padding:10px; border-bottom:2px solid #999; min-height:60px; }
-  .title-box h1 { font-size:16px; font-weight:bold; color:#000; text-align:center; line-height:1.3; }
-  .date-box { flex:0 0 auto; background:#fff; display:flex; align-items:center; justify-content:center; padding:6px; border-bottom:2px solid #999; min-height:40px; font-size:12px; font-weight:bold; }
+  /* صف الشركة والعنوان والتاريخ */
+  .header-top { display:flex; border:1px solid #333; }
+  
+  .logo-section { flex:0 0 240px; background:#fff; display:flex; align-items:center; justify-content:center; border-left:1px solid #333; padding:6px; }
+  .logo-section-content { text-align:center; }
+  .logo-section-content .company-name { font-size:13px; font-weight:bold; color:#1B3B7F; line-height:1.2; }
+  .logo-section-content .company-desc { font-size:7px; color:#666; }
+  
+  .title-section { flex:1; display:flex; align-items:center; justify-content:center; padding:8px; border-left:1px solid #333; }
+  .title-section h1 { font-size:14px; font-weight:bold; color:#000; text-align:center; line-height:1.4; }
+  
+  .date-section { flex:0 0 140px; display:flex; align-items:center; justify-content:center; padding:8px; }
+  .date-section .label { font-size:11px; font-weight:bold; }
   
   /* الجدول */
-  table { width:100%; border-collapse:collapse; margin:0; font-size:10px; }
-  thead tr { background:#F4B36A; }
-  th { padding:8px 4px; border:1.5px solid #666; font-weight:bold; font-size:9px; text-align:center; color:#000; }
-  td { padding:6px 3px; border:1px solid #999; text-align:center; font-size:10px; font-weight:600; }
-  tbody tr:hover { background:#f9f9f9; }
+  table { width:100%; border-collapse:collapse; margin:0; border:1px solid #333; }
+  thead { background:#F4B36A; }
+  th { padding:6px 3px; border:1px solid #333; font-weight:bold; font-size:9px; text-align:center; color:#000; }
+  td { padding:5px 3px; border:1px solid #333; text-align:center; font-size:9px; }
+  tbody tr { border:1px solid #333; }
+  tbody td { border:1px solid #333; }
   
-  .col-num { background:#F4B36A; font-weight:bold; }
-  tfoot tr { border:none; }
-  tfoot td { padding:18px 4px; font-weight:600; font-size:11px; border:none; border-top:none; }
+  .col-num { background:#F4B36A; font-weight:bold; width:4%; }
+  .col-code { width:8%; }
+  .col-name { width:18%; text-align:right; padding-right:6px; }
+  .col-position { width:14%; }
+  .col-balance { width:8%; font-weight:bold; }
+  .col-date { width:10%; }
+  .col-date-end { width:10%; }
+  .col-days { width:6%; }
+  .col-type { width:12%; }
+  .col-record { width:10%; }
+  
+  tfoot { border:none; }
+  tfoot td { padding:16px 6px; font-weight:bold; font-size:10px; border:none; }
   
   @media print {
     body { margin:0; padding:0; }
-    .container { page-break-inside:avoid; }
   }
 </style>
 </head>
 <body>
 <div class="container">
-  <div class="header">
-    <div class="logo-box">
-      <div style="text-align:center; color:#1B2A87; font-weight:bold;">
-        <div style="font-size:11px; margin-bottom:2px;">LINAH</div>
-        <div style="font-size:7px;">TOURISTIC & URBAN DEVELOPMENT</div>
+  <!-- صف العنوان والتاريخ -->
+  <div class="header-top">
+    <div class="logo-section">
+      <div class="logo-section-content">
+        <div class="company-name">شركة لينة للتنمية السياحية والمعمارية</div>
+        <div class="company-desc">LINAH TOURISTIC & URBAN DEVELOPMENT</div>
       </div>
     </div>
-    <div class="title-box">
+    <div class="title-section">
       <h1>بيان اجازات يومي قسم : الإدارة الفنية</h1>
     </div>
-    <div class="date-box">
-      تاريخ اليوم: ${todayStr}
+    <div class="date-section">
+      <div class="label">تاريخ اليوم: ${todayStr}</div>
     </div>
   </div>
 
+  <!-- جدول البيانات -->
   <table>
     <thead>
       <tr>
-        <th style="width:5%;">م</th>
-        <th style="width:10%;">الكود</th>
-        <th style="width:20%;">اسم الموظف</th>
-        <th style="width:15%;">الوظيفه</th>
-        <th style="width:8%;">الرصيد</th>
-        <th style="width:12%;">بداية</th>
-        <th style="width:12%;">نهاية</th>
-        <th style="width:6%;">المدة</th>
-        <th style="width:12%;">نوع</th>
+        <th class="col-num">م</th>
+        <th class="col-code">الكود</th>
+        <th class="col-name">اسم الموظف</th>
+        <th class="col-position">الوظيفه</th>
+        <th class="col-balance">رصيد الاجازات</th>
+        <th class="col-date">تاريخ بدايه الاجازة</th>
+        <th class="col-date-end">تاريخ نهايه الاجازة</th>
+        <th class="col-days">مدة الاجازة</th>
+        <th class="col-type">نوع الاجازة</th>
+        <th class="col-record">تسجيل اودوو</th>
       </tr>
     </thead>
     <tbody>
       ${dataRows.map((row, i) => {
-        // حساب الرصيد الأصلي = الرصيد الحالي + أيام الإجازة (تقريب لعدد صحيح)
         const originalBalance = row ? Math.round((row.emp?.balance || 0) + (row.lastReq?.days || 0)) : "";
         return `
       <tr>
         <td class="col-num">${i+1}</td>
-        <td>${row?.emp?.code||""}</td>
-        <td style="text-align:right; padding-right:4px;">${row?.emp?.name||""}</td>
-        <td>${row?.emp?.position||""}</td>
-        <td style="font-weight:bold; font-size:11px;">${originalBalance}</td>
-        <td>${row?.lastReq?.start_date ? new Date(row.lastReq.start_date).toLocaleDateString("ar-EG") : ""}</td>
-        <td>${row?.back ? new Date(row.back).toLocaleDateString("ar-EG") : ""}</td>
-        <td>${row?.lastReq?.days ? row.lastReq.days : ""}</td>
-        <td>${row?.vacType?.name||""}</td>
+        <td class="col-code">${row?.emp?.code||""}</td>
+        <td class="col-name">${row?.emp?.name||""}</td>
+        <td class="col-position">${row?.emp?.position||""}</td>
+        <td class="col-balance">${originalBalance}</td>
+        <td class="col-date">${row?.lastReq?.start_date ? new Date(row.lastReq.start_date).toLocaleDateString("ar-EG") : ""}</td>
+        <td class="col-date-end">${row?.back ? new Date(row.back).toLocaleDateString("ar-EG") : ""}</td>
+        <td class="col-days">${row?.lastReq?.days ? row.lastReq.days : ""}</td>
+        <td class="col-type">${row?.vacType?.name||""}</td>
+        <td class="col-record"></td>
       </tr>`;
       }).join("")}
     </tbody>
     <tfoot>
       <tr>
-        <td colspan="9" style="text-align:center; padding:20px;">
-          <div style="display:flex; justify-content:space-around; font-size:11px; font-weight:bold;">
-            <div>مدير القسم / _______________</div>
-            <div>شئون العاملين / _______________</div>
-            <div>اعتماد نهائي / _______________</div>
+        <td colspan="10" style="padding:25px 6px; text-align:center; border:none;">
+          <div style="display:flex; justify-content:space-around; font-size:10px; font-weight:bold;">
+            <div>مدير القسم/</div>
+            <div>شئون العاملين/</div>
+            <div>اعتماد نهائي/</div>
           </div>
         </td>
       </tr>
@@ -3851,7 +3869,7 @@ useEffect(() => {
 </body>
 </html>`;
 
-                  const w = window.open("", "_blank", "width=1200,height=800");
+                  const w = window.open("", "_blank", "width=900,height=1200");
                   if (!w) { alert("فعّل النوافذ المنبثقة في المتصفح"); return; }
                   w.document.write(html);
                   w.document.close();
