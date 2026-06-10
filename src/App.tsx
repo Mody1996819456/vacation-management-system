@@ -3767,18 +3767,18 @@ useEffect(() => {
   .logo-box img { max-width:160px; max-height:65px; object-fit:contain; }
   .title-box { flex:1; background:#fff; display:flex; align-items:center; justify-content:center; padding:10px; border-bottom:2px solid #999; min-height:60px; }
   .title-box h1 { font-size:16px; font-weight:bold; color:#000; text-align:center; line-height:1.3; }
-  .date-box { flex:0 0 auto; background:#fff; display:flex; align-items:center; justify-content:center; padding:6px; border-bottom:2px solid #999; min-height:40px; font-size:11px; font-weight:bold; }
+  .date-box { flex:0 0 auto; background:#fff; display:flex; align-items:center; justify-content:center; padding:6px; border-bottom:2px solid #999; min-height:40px; font-size:12px; font-weight:bold; }
   
   /* الجدول */
-  table { width:100%; border-collapse:collapse; margin:0; font-size:9px; }
+  table { width:100%; border-collapse:collapse; margin:0; font-size:10px; }
   thead tr { background:#F4B36A; }
-  th { padding:7px 3px; border:1.5px solid #666; font-weight:bold; font-size:8px; text-align:center; color:#000; }
-  td { padding:5px 2px; border:1px solid #999; text-align:center; font-size:8px; }
+  th { padding:8px 4px; border:1.5px solid #666; font-weight:bold; font-size:9px; text-align:center; color:#000; }
+  td { padding:6px 3px; border:1px solid #999; text-align:center; font-size:10px; font-weight:600; }
   tbody tr:hover { background:#f9f9f9; }
   
   .col-num { background:#F4B36A; font-weight:bold; }
-  tfoot tr { border-top:2px solid #555; }
-  tfoot td { padding:8px 3px; font-weight:bold; font-size:9px; border:1px solid #999; }
+  tfoot tr { border:none; }
+  tfoot td { padding:18px 4px; font-weight:600; font-size:11px; border:none; border-top:none; }
   
   @media print {
     body { margin:0; padding:0; }
@@ -3818,26 +3818,30 @@ useEffect(() => {
       </tr>
     </thead>
     <tbody>
-      ${dataRows.map((row, i) => `
+      ${dataRows.map((row, i) => {
+        // حساب الرصيد الأصلي = الرصيد الحالي + أيام الإجازة
+        const originalBalance = row ? ((row.emp?.balance || 0) + (row.lastReq?.days || 0)) : "";
+        return `
       <tr>
         <td class="col-num">${i+1}</td>
         <td>${row?.emp?.code||""}</td>
         <td style="text-align:right; padding-right:4px;">${row?.emp?.name||""}</td>
         <td>${row?.emp?.position||""}</td>
-        <td>${row?.emp?.balance??""}</td>
+        <td style="font-weight:bold; font-size:11px;">${originalBalance}</td>
         <td>${row?.lastReq?.start_date ? new Date(row.lastReq.start_date).toLocaleDateString("ar-EG") : ""}</td>
         <td>${row?.back ? new Date(row.back).toLocaleDateString("ar-EG") : ""}</td>
         <td>${row?.lastReq?.days ? row.lastReq.days : ""}</td>
         <td>${row?.vacType?.name||""}</td>
-      </tr>`).join("")}
+      </tr>`;
+      }).join("")}
     </tbody>
     <tfoot>
       <tr>
-        <td colspan="9" style="text-align:center; padding:10px; border:1px solid #999;">
-          <div style="display:flex; justify-content:space-around; font-size:9px; font-weight:bold;">
-            <div>مدير القسم / ___________</div>
-            <div>شئون العاملين / ___________</div>
-            <div>اعتماد نهائي / ___________</div>
+        <td colspan="9" style="text-align:center; padding:20px;">
+          <div style="display:flex; justify-content:space-around; font-size:11px; font-weight:bold;">
+            <div>مدير القسم / _______________</div>
+            <div>شئون العاملين / _______________</div>
+            <div>اعتماد نهائي / _______________</div>
           </div>
         </td>
       </tr>
