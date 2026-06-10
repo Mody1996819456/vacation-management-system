@@ -479,6 +479,7 @@ const VacationManagementSystem = () => {
   const [activeVacDateFrom, setActiveVacDateFrom] = useState("");
   const [activeVacDateTo, setActiveVacDateTo] = useState("");
   const [activeVacSortField, setActiveVacSortField] = useState("back");
+  const [selectedPrintIds, setSelectedPrintIds] = useState<Set<string>>(new Set());
   const [activeVacSortDir, setActiveVacSortDir] = useState<"asc"|"desc">("asc");
   const [activeVacSortDropdown, setActiveVacSortDropdown] = useState("");
 
@@ -3734,8 +3735,18 @@ useEffect(() => {
 
                 // ===== طباعة القالب الرسمي =====
                 const printLinahTemplate = () => {
+                  // إذا ما اختار حد، طبع كل الموجودين
+                  const selectedRows = selectedPrintIds.size > 0 
+                    ? filtered.filter(f => selectedPrintIds.has(f.emp.id))
+                    : filtered;
+
+                  if (selectedRows.length === 0) {
+                    alert("⚠️ اختر موظفين للطباعة أولاً");
+                    return;
+                  }
+
                   const todayStr = new Date().toLocaleDateString("ar-EG", { year:"numeric", month:"2-digit", day:"2-digit" });
-                  const dataRows = filtered.length > 0 ? filtered : [];
+                  const dataRows = [...selectedRows];
                   while (dataRows.length < 10) dataRows.push(null as any);
 
                   const html = `<!DOCTYPE html>
@@ -3868,7 +3879,26 @@ useEffect(() => {
                           الموظفون في إجازة حالياً — من طلبات أو تغيير يدوي
                         </p>
                       </div>
-                      <div style={{ display:"flex", gap:"10px", flexWrap:"wrap" }}>
+                      <div style={{ display:"flex", gap:"10px", flexWrap:"wrap", alignItems:"center" }}>
+                        {/* أزرار الاختيار */}
+                        {filtered.length > 0 && (
+                          <div style={{ display:"flex", gap:"8px" }}>
+                            <button onClick={() => setSelectedPrintIds(new Set(filtered.map(f => f.emp.id)))}
+                              style={{ display:"flex", alignItems:"center", gap:"6px", padding:"10px 14px", background:"#f0f4ff", color:"#4f46e5", border:"1px solid #4f46e5", borderRadius:"12px", fontWeight:"700", cursor:"pointer", fontSize:"12px", fontFamily:"inherit" }}>
+                              ✓ اختر الكل ({filtered.length})
+                            </button>
+                            <button onClick={() => setSelectedPrintIds(new Set())}
+                              style={{ display:"flex", alignItems:"center", gap:"6px", padding:"10px 14px", background:"#fff5f5", color:"#dc2626", border:"1px solid #dc2626", borderRadius:"12px", fontWeight:"700", cursor:"pointer", fontSize:"12px", fontFamily:"inherit" }}>
+                              ✕ إلغاء الاختيار
+                            </button>
+                            {selectedPrintIds.size > 0 && (
+                              <span style={{ fontSize:"12px", color:"#64748b", fontWeight:"600", paddingLeft:"8px", borderLeft:"1px solid #e2e8f0" }}>
+                                {selectedPrintIds.size} مختار
+                              </span>
+                            )}
+                          </div>
+                        )}
+                        {/* الأزرار الأصلية */}
                         <button onClick={exportActiveToExcel}
                           style={{ display:"flex", alignItems:"center", gap:"6px", padding:"10px 16px", background:"linear-gradient(135deg, #059669, #16a34a)", color:"white", border:"none", borderRadius:"12px", fontWeight:"700", cursor:"pointer", fontSize:"13px", fontFamily:"inherit" }}>
                           <FileDown size={16}/> تصدير الإجازات الحالية
@@ -3958,6 +3988,7 @@ useEffect(() => {
                           <table style={{ width:"100%", borderCollapse:"collapse", border:"2px solid #94a3b8", fontSize:"13px", backgroundColor:"#ffffff" }}>
                             <thead style={{ border:"1px solid #94a3b8", padding:"12px 8px", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center" }}>
                               <tr>
+                                <th style={{ border:"1px solid #94a3b8", padding:"12px 8px", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center", width:"40px" }}>✓</th>
                                 <SortTh label="الموظف"        field="name"  align="right"  sortField={activeVacSortField} sortDir={activeVacSortDir} sortDropdown={activeVacSortDropdown} onSort={(f,d)=>{setActiveVacSortField(f);setActiveVacSortDir(d);setActiveVacSortDropdown("");}} onClear={()=>{setActiveVacSortField("");setActiveVacSortDropdown("");}} onToggle={f=>setActiveVacSortDropdown(d=>d===f?"":f)} />
                               <th style={{ border:"1px solid #94a3b8", padding:"12px 8px", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center" }}>القسم</th>
                               <th style={{ border:"1px solid #94a3b8", padding:"12px 8px", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center" }}>نوع الإجازة</th>
@@ -3976,6 +4007,16 @@ useEffect(() => {
                                   <tr key={emp.id} style={{ borderBottom:"1px solid #f1f5f9" }}
                                     onMouseEnter={e => (e.currentTarget.style.background="#f8fafc")}
                                     onMouseLeave={e => (e.currentTarget.style.background="white")}>
+                                    <td style={{ border:"1px solid #94a3b8", padding:"10px 8px", textAlign:"center" }}>
+                                      <input type="checkbox" checked={selectedPrintIds.has(emp.id)} 
+                                        onChange={(e) => {
+                                          const newSet = new Set(selectedPrintIds);
+                                          if (e.target.checked) newSet.add(emp.id);
+                                          else newSet.delete(emp.id);
+                                          setSelectedPrintIds(newSet);
+                                        }}
+                                        style={{ width:"18px", height:"18px", cursor:"pointer" }}/>
+                                    </td>
                                     <td style={{ border:"1px solid #94a3b8", padding:"10px 8px", color:"#1e293b", textAlign:"center" }}>
                                       <div style={{ fontWeight:"700", color:"#1e293b" }}>{emp.name}</div>
                                       <div style={{ fontSize:"11px", color:"#94a3b8" }}>{emp.code}</div>
