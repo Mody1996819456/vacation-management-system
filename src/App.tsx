@@ -3819,8 +3819,8 @@ useEffect(() => {
     </thead>
     <tbody>
       ${dataRows.map((row, i) => {
-        // حساب الرصيد الأصلي = الرصيد الحالي + أيام الإجازة
-        const originalBalance = row ? ((row.emp?.balance || 0) + (row.lastReq?.days || 0)) : "";
+        // حساب الرصيد الأصلي = الرصيد الحالي + أيام الإجازة (تقريب لعدد صحيح)
+        const originalBalance = row ? Math.round((row.emp?.balance || 0) + (row.lastReq?.days || 0)) : "";
         return `
       <tr>
         <td class="col-num">${i+1}</td>
