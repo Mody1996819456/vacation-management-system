@@ -3254,6 +3254,11 @@ useEffect(() => {
                               const vacType = vacationTypes.find((vt: any) => vt.id === req.vacation_type_id);
                               const emp = employees.find((e: any) => e.id === req.employee_id);
                               const { end } = getCalculatedDates(req.start_date, req.days);
+                              return (
+                                <tr key={req.id}
+                                  style={{ borderBottom:"1px solid #f1f5f9", background: idx % 2 === 0 ? "white" : "#fafafa" }}
+                                  onMouseEnter={e => (e.currentTarget.style.background = "#fffbeb")}
+                                  onMouseLeave={e => (e.currentTarget.style.background = idx % 2 === 0 ? "white" : "#fafafa")}>
                                   <td style={{ border:"1px solid #94a3b8", padding:"10px 8px", color:"#1e293b", textAlign:"center" }}>
                                     <button onClick={() => { setEmpInfoTarget({...emp, req}); setShowEmpInfoModal(true); }}
                                       style={{ background:"none", border:"none", padding:0, cursor:"pointer", textAlign:"right" }}>
