@@ -3539,10 +3539,12 @@ useEffect(() => {
                     .sort((a, b) => b.start_date.localeCompare(a.start_date))[0];
                   const dept = departments.find(d => d.id === emp.department_id);
                   const vacType = lastReq ? vacationTypes.find(vt => vt.id === lastReq.vacation_type_id) : null;
-                  const back = lastReq ? getCalculatedDates(lastReq.start_date, lastReq.days).back : (emp.return_date || "");
+                  const calcDates = lastReq ? getCalculatedDates(lastReq.start_date, lastReq.days) : { end: "", back: "" };
+                  const back = lastReq ? calcDates.back : (emp.return_date || "");
+                  const end = lastReq ? calcDates.end : (emp.return_date || "");
                   const today = new Date().toISOString().split("T")[0];
                   const daysLeft = back ? Math.ceil((new Date(back).getTime() - new Date(today).getTime()) / 86400000) : null;
-                  return { emp, lastReq, dept, vacType, back, daysLeft, source: lastReq ? "طلب" : "يدوي" };
+                  return { emp, lastReq, dept, vacType, back, end, daysLeft, source: lastReq ? "طلب" : "يدوي" };
                 });
 
                 // فلترة بحث وقسم
@@ -4023,7 +4025,7 @@ useEffect(() => {
                             </thead>
                             <tbody>
                               {filtered.map(row => {
-                                const { emp, lastReq, dept, vacType, back, daysLeft, source } = row;
+                                const { emp, lastReq, dept, vacType, back, end, daysLeft, source } = row;
                                 return (
                                   <tr key={emp.id} style={{ borderBottom:"1px solid #f1f5f9" }}
                                     onMouseEnter={e => (e.currentTarget.style.background="#f8fafc")}
@@ -4055,9 +4057,9 @@ useEffect(() => {
                                       {lastReq ? `${lastReq.days} يوم` : "-"}
                                     </td>
                                     <td style={{ border:"1px solid #94a3b8", padding:"10px 8px", color:"#1e293b", textAlign:"center" }}>
-                                      {back ? (
+                                      {end ? (
                                         <>
-                                          <div style={{ fontWeight:"700", color:"#4f46e5" }}>{formatDate(back)}</div>
+                                          <div style={{ fontWeight:"700", color:"#4f46e5" }}>{formatDate(end)}</div>
                                           {daysLeft !== null && (
                                             <div style={{ fontSize:"11px", color: daysLeft <= 0 ? "#ef4444" : daysLeft <= 2 ? "#f59e0b" : "#94a3b8" }}>
                                               {daysLeft <= 0 ? "اليوم" : `بعد ${daysLeft} يوم`}
