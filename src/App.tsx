@@ -3253,12 +3253,7 @@ useEffect(() => {
                             {filteredRequests.filter(r => r.status === "pending").map((req, idx) => {
                               const vacType = vacationTypes.find((vt: any) => vt.id === req.vacation_type_id);
                               const emp = employees.find((e: any) => e.id === req.employee_id);
-                              const { back } = getCalculatedDates(req.start_date, req.days);
-                              return (
-                                <tr key={req.id}
-                                  style={{ borderBottom:"1px solid #f1f5f9", background: idx % 2 === 0 ? "white" : "#fafafa" }}
-                                  onMouseEnter={e => (e.currentTarget.style.background = "#fffbeb")}
-                                  onMouseLeave={e => (e.currentTarget.style.background = idx % 2 === 0 ? "white" : "#fafafa")}>
+                              const { end } = getCalculatedDates(req.start_date, req.days);
                                   <td style={{ border:"1px solid #94a3b8", padding:"10px 8px", color:"#1e293b", textAlign:"center" }}>
                                     <button onClick={() => { setEmpInfoTarget({...emp, req}); setShowEmpInfoModal(true); }}
                                       style={{ background:"none", border:"none", padding:0, cursor:"pointer", textAlign:"right" }}>
@@ -3270,7 +3265,7 @@ useEffect(() => {
                                     {vacType && <span style={{ padding:"3px 10px", borderRadius:"20px", fontSize:"11px", fontWeight:"700", background:(vacType as any).color+"22", color:(vacType as any).color }}>{(vacType as any).name}</span>}
                                   </td>
                                   <td style={{ border:"1px solid #94a3b8", padding:"10px 8px", color:"#1e293b", textAlign:"center" }}>{formatDate(req.start_date)}</td>
-                                  <td style={{ border:"1px solid #94a3b8", padding:"10px 8px", color:"#1e293b", textAlign:"center" }}>{formatDate(back)}</td>
+                                  <td style={{ border:"1px solid #94a3b8", padding:"10px 8px", color:"#1e293b", textAlign:"center" }}>{formatDate(end)}</td>
                                   <td style={{ border:"1px solid #94a3b8", padding:"10px 8px", color:"#1e293b", textAlign:"center" }}>
                                     <span style={{ fontWeight:"900", color:"#059669", fontSize:"14px" }}>{req.days}</span>
                                     <span style={{ fontSize:"10px", color:"#94a3b8" }}> يوم</span>
@@ -3341,8 +3336,7 @@ useEffect(() => {
                           const vacType = vacationTypes.find((vt:any) => vt.id === req.vacation_type_id);
                           const emp = employees.find((e:any) => e.id === req.employee_id);
                           const dept = departments.find((d:any) => d.id === emp?.department_id);
-                          const { back } = getCalculatedDates(req.start_date, req.days);
-                          const isDeptApp = req.status === "dept_approved";
+                          const { end } = getCalculatedDates(req.start_date, req.days);
                           return (
                             <tr key={req.id}
                               style={{ borderBottom:"1px solid #f1f5f9", background: isDeptApp ? "#faf5ff" : (idx%2===0 ? "white" : "#fafafa") }}
@@ -3366,7 +3360,7 @@ useEffect(() => {
                               {/* البداية */}
                               <td style={{ border:"1px solid #94a3b8", padding:"10px 8px", color:"#1e293b", textAlign:"center" }}>{formatDate(req.start_date)}</td>
                               {/* نهاية الإجازة */}
-                              <td style={{ border:"1px solid #94a3b8", padding:"10px 8px", color:"#1e293b", textAlign:"center" }}>{formatDate(back)}</td>
+                              <td style={{ border:"1px solid #94a3b8", padding:"10px 8px", color:"#1e293b", textAlign:"center" }}>{formatDate(end)}</td>
                               {/* الأيام */}
                               <td style={{ border:"1px solid #94a3b8", padding:"10px 8px", color:"#1e293b", textAlign:"center" }}>
                                 <span style={{ fontWeight:"900", color:"#059669", fontSize:"14px" }}>{req.days}</span>
@@ -3600,7 +3594,7 @@ useEffect(() => {
 
                   const headers = ["م","الكود","اسم الموظف","الوظيفه","رصيد الاجازات","تاريخ بدايه الاجازة","تاريخ نهايه الاجازة","مدة الاجازة","نوع الاجازة","تسجيل اودوو"];
                   const rows: any[][] = filtered.map((row, idx) => {
-                    const endDate = row.back ? row.back : "";
+                    const endDate = row.end ? row.end : "";
                     return [
                       idx + 1,
                       row.emp.code || "",
@@ -3848,7 +3842,7 @@ useEffect(() => {
         <td class="col-position">${row?.emp?.position||""}</td>
         <td class="col-balance">${originalBalance}</td>
         <td class="col-date">${row?.lastReq?.start_date ? new Date(row.lastReq.start_date).toLocaleDateString("ar-EG") : ""}</td>
-        <td class="col-date-end">${row?.back ? new Date(row.back).toLocaleDateString("ar-EG") : ""}</td>
+        <td class="col-date-end">${row?.end ? new Date(row.end).toLocaleDateString("ar-EG") : ""}</td>
         <td class="col-days">${row?.lastReq?.days ? row.lastReq.days : ""}</td>
         <td class="col-type">${row?.vacType?.name||""}</td>
         <td class="col-record"></td>
@@ -3882,7 +3876,7 @@ useEffect(() => {
                 const shareLinahTemplate = async () => {
                   const todayStr = new Date().toLocaleDateString("ar-EG", { year:"numeric", month:"2-digit", day:"2-digit" });
                   const shareText = `📋 بيان اجازات يومي - ${todayStr}\n\n` +
-                    filtered.map((row, i) => `${i+1}. ${row.emp.name} | ${(row.vacType as any)?.name||"إجازة"} | ${row.lastReq?.start_date||""} ← ${row.back||""} | ${row.lastReq?.days||""} يوم`).join("\n") +
+                    filtered.map((row, i) => `${i+1}. ${row.emp.name} | ${(row.vacType as any)?.name||"إجازة"} | ${row.lastReq?.start_date||""} ← ${row.end||""} | ${row.lastReq?.days||""} يوم`).join("\n") +
                     `\n\nإجمالي: ${filtered.length} موظف في إجازة`;
                   if (navigator.share) {
                     try { await navigator.share({ title:"بيان اجازات يومي", text:shareText }); } catch {}
@@ -4977,7 +4971,7 @@ useEffect(() => {
                   : approvedReqs.map(req => {
                     const isSel = printSelected.includes(req.id);
                     const vt = vacationTypes.find(v => v.id === req.vacation_type_id);
-                    const { back } = getCalculatedDates(req.start_date, req.days);
+                    const { end } = getCalculatedDates(req.start_date, req.days);
                     return (
                       <div key={req.id} onClick={() => setPrintSelected(prev => isSel ? prev.filter(i => i !== req.id) : [...prev, req.id])}
                         style={{ display:"flex", alignItems:"center", gap:"10px", padding:"10px 12px", borderRadius:"12px", border:`2px solid ${isSel ? "#4f46e5" : "#e2e8f0"}`, background: isSel ? "#f5f3ff" : "white", cursor:"pointer" }}>
@@ -4987,7 +4981,7 @@ useEffect(() => {
                         <div style={{ flex:1 }}>
                           <div style={{ fontWeight:"700", fontSize:"13px" }}>{req.employee_name}</div>
                           <div style={{ fontSize:"11px", color:"#64748b" }}>
-                            {formatDate(req.start_date)} ← {formatDate(back)} | {req.days} يوم
+                            {formatDate(req.start_date)} ← {formatDate(end)} | {req.days} يوم
                             {vt && <span style={{ marginRight:"6px", padding:"1px 7px", borderRadius:"20px", background:vt.color+"20", color:vt.color, fontSize:"10px", fontWeight:"700" }}>{vt.name}</span>}
                           </div>
                         </div>
@@ -5004,8 +4998,8 @@ useEffect(() => {
                     if (!w) return alert("السماح بالنوافذ المنبثقة");
                     const rows = sel.map((r,i) => {
                       const vt = vacationTypes.find(v => v.id === r.vacation_type_id);
-                      const { back } = getCalculatedDates(r.start_date, r.days);
-                      return "<tr style=\"background:" + (i%2?"#f9fafb":"white") + "\"><td>" + (i+1) + "</td><td>" + r.employee_name + "</td><td>" + (vt?.name||"-") + "</td><td>" + formatDate(r.start_date) + "</td><td>" + r.days + "</td><td>" + formatDate(back) + "</td></tr>";
+                      const { end } = getCalculatedDates(r.start_date, r.days);
+                      return "<tr style=\"background:" + (i%2?"#f9fafb":"white") + "\"><td>" + (i+1) + "</td><td>" + r.employee_name + "</td><td>" + (vt?.name||"-") + "</td><td>" + formatDate(r.start_date) + "</td><td>" + r.days + "</td><td>" + formatDate(end) + "</td></tr>";
                     }).join("");
                     w.document.write("<html dir=\"rtl\"><head><title>تقرير الإجازات</title><style>*{font-family:Arial,sans-serif}body{padding:30px}h2{color:#1e1b4b;border-bottom:3px solid #4f46e5;padding-bottom:10px}table{width:100%;border-collapse:collapse;margin-top:20px}th{background:#4f46e5;color:white;padding:12px;text-align:right}td{padding:10px;border-bottom:1px solid #e5e7eb;text-align:right}.meta{color:#6b7280;font-size:13px;margin-bottom:20px}</style></head><body><h2>📋 تقرير الإجازات المقبولة</h2><div class=\"meta\">الفترة: " + (printFrom||"الكل") + " — " + (printTo||"الكل") + " | عدد الطلبات: " + sel.length + "</div><table><thead><tr><th>#</th><th>الموظف</th><th>نوع الإجازة</th><th>تاريخ البداية</th><th>المدة</th><th>نهاية الإجازة</th></tr></thead><tbody>" + rows + "</tbody></table><script>window.onload=()=>window.print()<" + "/script></body></html>");
                     w.document.close();
@@ -5018,9 +5012,9 @@ useEffect(() => {
                     const sel = requests.filter(r => printSelected.includes(r.id));
                     const rows = sel.map((r:any,i:number) => {
                       const vt = vacationTypes.find((v:any) => v.id === r.vacation_type_id);
-                      const { back } = getCalculatedDates(r.start_date, r.days);
+                      const { end } = getCalculatedDates(r.start_date, r.days);
                       const bg = i%2 ? "#f8fafc" : "white";
-                      return `<tr style="background:${bg}"><td style="padding:10px 14px;font-weight:800;color:#1e293b;border-bottom:1px solid #f1f5f9">${i+1}</td><td style="padding:10px 14px;font-weight:700;color:#1e293b;border-bottom:1px solid #f1f5f9">${r.employee_name}</td><td style="padding:10px 14px;color:#4f46e5;font-weight:700;border-bottom:1px solid #f1f5f9">${(vt as any)?.name||"-"}</td><td style="padding:10px 14px;color:#374151;border-bottom:1px solid #f1f5f9">${formatDate(r.start_date)}</td><td style="padding:10px 14px;color:#374151;border-bottom:1px solid #f1f5f9">${formatDate(back)}</td><td style="padding:10px 14px;font-weight:900;color:#059669;border-bottom:1px solid #f1f5f9">${r.days} يوم</td></tr>`;
+                      return `<tr style="background:${bg}"><td style="padding:10px 14px;font-weight:800;color:#1e293b;border-bottom:1px solid #f1f5f9">${i+1}</td><td style="padding:10px 14px;font-weight:700;color:#1e293b;border-bottom:1px solid #f1f5f9">${r.employee_name}</td><td style="padding:10px 14px;color:#4f46e5;font-weight:700;border-bottom:1px solid #f1f5f9">${(vt as any)?.name||"-"}</td><td style="padding:10px 14px;color:#374151;border-bottom:1px solid #f1f5f9">${formatDate(r.start_date)}</td><td style="padding:10px 14px;color:#374151;border-bottom:1px solid #f1f5f9">${formatDate(end)}</td><td style="padding:10px 14px;font-weight:900;color:#059669;border-bottom:1px solid #f1f5f9">${r.days} يوم</td></tr>`;
                     }).join("");
                     const html = `<div style="font-family:Arial,sans-serif;direction:rtl;background:white;padding:28px;min-width:640px"><div style="display:flex;align-items:center;gap:12px;margin-bottom:18px;padding-bottom:14px;border-bottom:3px solid #4f46e5"><div style="background:linear-gradient(135deg,#4f46e5,#7c3aed);padding:10px 18px;border-radius:10px;color:white;font-weight:900;font-size:17px">📋 تقرير الإجازات المقبولة</div><div style="color:#64748b;font-size:12px">${printFrom||"الكل"} ← ${printTo||"الكل"} | ${sel.length} طلب</div></div><table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="background:linear-gradient(135deg,#4f46e5,#7c3aed);color:white"><th style="padding:10px 14px;text-align:right">#</th><th style="padding:10px 14px;text-align:right">الموظف</th><th style="padding:10px 14px;text-align:right">نوع الإجازة</th><th style="padding:10px 14px;text-align:right">تاريخ البداية</th><th style="padding:10px 14px;text-align:right">نهاية الإجازة</th><th style="padding:10px 14px;text-align:right">الأيام</th></tr></thead><tbody>${rows}</tbody></table><div style="margin-top:14px;font-size:11px;color:#94a3b8;text-align:center">تم الإنشاء: ${new Date().toLocaleDateString("ar-EG")}</div></div>`;
                     try {
@@ -5064,7 +5058,7 @@ useEffect(() => {
           const pendingCount = requests.filter(r => r.employee_id === e.id && (r.status==="pending"||r.status==="dept_approved")).length;
           const req = e.req;
           const vacType = req ? vacationTypes.find(vt=>vt.id===req.vacation_type_id) : null;
-          const reqBack = req ? getCalculatedDates(req.start_date, req.days).back : null;
+          const reqEnd = req ? getCalculatedDates(req.start_date, req.days).end : null;
           return (
           <div style={{ position:"fixed", inset:0, background:"rgba(15, 23, 42, 0.65)", backdropFilter:"blur(6px)", display:"flex", alignItems:"center", justifyContent:"center", padding:"16px", zIndex:300 }}
             onClick={() => { setShowEmpInfoModal(false); setEmpInfoTarget(null); }}>
@@ -5146,10 +5140,10 @@ useEffect(() => {
                       <div style={{ fontSize:"10px", color:"#94a3b8", marginBottom:"2px" }}>المدة المطلوبة</div>
                       <div style={{ fontWeight:"900", fontSize:"18px", color:"#4f46e5" }}>{req.days} يوم</div>
                     </div>
-                    {reqBack && (
+                    {reqEnd && (
                       <div style={{ background:"white", borderRadius:"10px", padding:"10px", border:"1px solid #e0e7ff" }}>
                         <div style={{ fontSize:"10px", color:"#94a3b8", marginBottom:"2px" }}> تاريخ نهاية الإجازة</div>
-                        <div style={{ fontWeight:"800", fontSize:"13px", color:"#059669" }}>{reqBack}</div>
+                        <div style={{ fontWeight:"800", fontSize:"13px", color:"#059669" }}>{reqEnd}</div>
                       </div>
                     )}
                     {vacType && (
@@ -5781,10 +5775,10 @@ useEffect(() => {
                     <option value="">اختر الإجازة...</option>
                     {myApproved.map(req => {
                       const vt = vacationTypes.find(v => v.id === req.vacation_type_id);
-                      const { back } = getCalculatedDates(req.start_date, req.days);
+                      const { end } = getCalculatedDates(req.start_date, req.days);
                       return (
                         <option key={req.id} value={req.id}>
-                          {formatDate(req.start_date)} إلى {formatDate(back)} ({req.days} يوم) - {vt?.name || ""}
+                          {formatDate(req.start_date)} إلى {formatDate(end)} ({req.days} يوم) - {vt?.name || ""}
                         </option>
                       );
                     })}
