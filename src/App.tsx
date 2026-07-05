@@ -3342,6 +3342,7 @@ useEffect(() => {
                           const emp = employees.find((e:any) => e.id === req.employee_id);
                           const dept = departments.find((d:any) => d.id === emp?.department_id);
                           const { end } = getCalculatedDates(req.start_date, req.days);
+                          const isDeptApp = req.status === "dept_approved";
                           return (
                             <tr key={req.id}
                               style={{ borderBottom:"1px solid #f1f5f9", background: isDeptApp ? "#faf5ff" : (idx%2===0 ? "white" : "#fafafa") }}
