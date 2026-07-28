@@ -3,6 +3,8 @@ import ReactDOM from "react-dom";
 import { createClient } from "@supabase/supabase-js";
 import * as XLSX from "xlsx";
 import emailjs from "@emailjs/browser";
+import jsPDF from "jspdf";
+import html2canvas from "html2canvas";
 import {
   LayoutDashboard, Users, LogOut, Plus, Trash2, Calendar, CheckCircle,
   Clock, Search, Edit3, ShieldCheck, Download, Loader2,
@@ -177,6 +179,102 @@ const calculateWorkDaysBetween = (fromDate: string, toDate: string, holidays: st
   if (start >= end) return 0;
   const diffTime = end.getTime() - start.getTime();
   return Math.floor(diffTime / (1000 * 60 * 60 * 24));
+};
+
+// ==================== PRINT HELPER (IFRAME — بدون نافذة منبثقة) ====================
+// يحل مشكلة الشاشة السوداء/الرعشة عند الطباعة من الموبايل/التابلت (خصوصاً كتطبيق PWA مثبّت):
+// فتح نافذة جديدة (window.open) واستدعاء print() عليها مباشرة غير مستقر على متصفحات
+// الموبايل، فبدلنا الأسلوب لاستخدام iframe مخفي داخل نفس الصفحة — بدون نافذة ثانية إطلاقاً.
+const printHTMLContent = (html: string) => {
+  const old = document.getElementById("__vms_print_frame__");
+  if (old) old.remove();
+
+  const iframe = document.createElement("iframe");
+  iframe.id = "__vms_print_frame__";
+  iframe.style.position = "fixed";
+  iframe.style.right = "0";
+  iframe.style.bottom = "0";
+  iframe.style.width = "0";
+  iframe.style.height = "0";
+  iframe.style.border = "0";
+  iframe.style.visibility = "hidden";
+  document.body.appendChild(iframe);
+
+  const cleanup = () => {
+    setTimeout(() => {
+      const f = document.getElementById("__vms_print_frame__");
+      if (f) f.remove();
+    }, 1000);
+  };
+
+  iframe.onload = () => {
+    try {
+      const win = iframe.contentWindow;
+      if (!win) { cleanup(); return; }
+      win.focus();
+      // تأخير بسيط ضروري على متصفحات الموبايل قبل استدعاء print
+      setTimeout(() => {
+        try { win.print(); } catch (e) { console.error("Print error:", e); }
+      }, 250);
+      win.onafterprint = cleanup;
+      cleanup(); // نسخة احتياطية للتنظيف حتى لو لم يُطلق onafterprint
+    } catch (e) {
+      console.error("Print iframe error:", e);
+      cleanup();
+    }
+  };
+
+  const doc = iframe.contentDocument || iframe.contentWindow?.document;
+  if (!doc) { alert("تعذر تجهيز الطباعة، حاول مرة أخرى"); iframe.remove(); return; }
+  doc.open();
+  doc.write(html);
+  doc.close();
+};
+
+// ==================== PDF EXPORT HELPER ====================
+// يحوّل أي HTML جاهز (نفس اللي بنطبعه) لصورة عالية الدقة ثم يحطها في ملف PDF قابل للتحميل.
+// هذا الأسلوب يتجاوز مشاكل الخطوط العربية في jsPDF (لأنه بيصدّر كصورة).
+const exportHTMLToPDF = async (html: string, fileName: string) => {
+  const wrap = document.createElement("div");
+  wrap.style.cssText = "position:fixed;top:-9999px;left:-9999px;background:#fff;";
+  wrap.innerHTML = html;
+  document.body.appendChild(wrap);
+  // لو الـ html بيحتوي على body كامل نستخدمه، وإلا الـ wrap نفسه
+  const target = (wrap.querySelector("body") as HTMLElement) || wrap;
+  try {
+    const canvas = await html2canvas(target, { scale: 2, useCORS: true, backgroundColor: "#ffffff" });
+    document.body.removeChild(wrap);
+    const imgData = canvas.toDataURL("image/png");
+
+    // نقسم الصورة على صفحات A4 لو طويلة جداً بدل ما تنضغط في صفحة واحدة مشوّهة
+    const pageWidth = 595.28;  // A4 width in pt
+    const pageHeight = 841.89; // A4 height in pt
+    const imgWidthPt = pageWidth;
+    const imgHeightPt = (canvas.height * imgWidthPt) / canvas.width;
+
+    const pdf = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
+
+    if (imgHeightPt <= pageHeight) {
+      pdf.addImage(imgData, "PNG", 0, 0, imgWidthPt, imgHeightPt);
+    } else {
+      // تقسيم لعدة صفحات
+      let heightLeft = imgHeightPt;
+      let position = 0;
+      pdf.addImage(imgData, "PNG", 0, position, imgWidthPt, imgHeightPt);
+      heightLeft -= pageHeight;
+      while (heightLeft > 0) {
+        position = heightLeft - imgHeightPt;
+        pdf.addPage();
+        pdf.addImage(imgData, "PNG", 0, position, imgWidthPt, imgHeightPt);
+        heightLeft -= pageHeight;
+      }
+    }
+
+    pdf.save(`${fileName}.pdf`);
+  } catch (e: any) {
+    document.body.removeChild(wrap);
+    alert("خطأ في إنشاء PDF: " + (e?.message || e));
+  }
 };
 
 // ==================== MAIN COMPONENT ====================
@@ -362,6 +460,10 @@ const VacationManagementSystem = () => {
   const [vacationTypeFilter, setVacationTypeFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [empStatusFilter, setEmpStatusFilter] = useState("all");
+  const [empHireFrom, setEmpHireFrom] = useState(""); // فلتر تاريخ التعيين من
+  const [empHireTo, setEmpHireTo] = useState("");     // فلتر تاريخ التعيين إلى
+  const [holidayDateFrom, setHolidayDateFrom] = useState(""); // فلتر تاريخ العطلات من
+  const [holidayDateTo, setHolidayDateTo] = useState("");     // فلتر تاريخ العطلات إلى
   const [empSortField, setEmpSortField] = useState(""); // فرز الموظفين
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [statusChangeEmp, setStatusChangeEmp] = useState<any>(null);
@@ -473,7 +575,8 @@ const VacationManagementSystem = () => {
   const [currentTime, setCurrentTime] = useState(new Date());
   // ===== States للاشعارات =====
   const [notifSearch, setNotifSearch] = useState("");
-  const [notifDateFilter, setNotifDateFilter] = useState("");
+  const [notifDateFrom, setNotifDateFrom] = useState(""); // فلتر تاريخ القرار من
+  const [notifDateTo, setNotifDateTo] = useState("");     // فلتر تاريخ القرار إلى
   const [notifSortDir, setNotifSortDir] = useState<"asc"|"desc">("desc");
   // ===== States للإجازات الفعلية (فلترة + ترتيب) =====
   const [activeVacDateFrom, setActiveVacDateFrom] = useState("");
@@ -2070,7 +2173,9 @@ useEffect(() => {
       // الحالة تُقرأ مباشرة من قاعدة البيانات
       const empStatus = emp.status === "إجازة" ? "إجازة" : "عمل";
       const matchStatus = empStatusFilter === "all" || empStatus === empStatusFilter;
-      return matchSearch && matchDept && matchStatus;
+      const matchHireFrom = !empHireFrom || (emp.hire_date && emp.hire_date >= empHireFrom);
+      const matchHireTo = !empHireTo || (emp.hire_date && emp.hire_date <= empHireTo);
+      return matchSearch && matchDept && matchStatus && matchHireFrom && matchHireTo;
     });
     // فرز حسب العمود المحدد
     if (empSortField) {
@@ -2098,7 +2203,7 @@ useEffect(() => {
       });
     }
     return result;
-  }, [scopedEmployees, empSearch, departmentFilter, empStatusFilter, empSortField, empSortDir, requests]);
+  }, [scopedEmployees, empSearch, departmentFilter, empStatusFilter, empHireFrom, empHireTo, empSortField, empSortDir, requests]);
 
   const filteredRequests = useMemo(() => {
     return scopedRequests.filter(req => {
@@ -3058,6 +3163,23 @@ useEffect(() => {
                       <option value="عمل">🟢 في العمل</option>
                       <option value="إجازة">🟡 في إجازة</option>
                     </select>
+                    {/* فلترة بتاريخ التعيين */}
+                    <div style={{ display:"flex", alignItems:"center", gap:"6px" }}>
+                      <label style={{ fontSize:"12px", color:"#64748b", fontWeight:"600", whiteSpace:"nowrap" }}>تعيين من:</label>
+                      <input type="date" style={{ padding:"9px 10px", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:"10px", fontSize:"12px", outline:"none" }}
+                        value={empHireFrom} onChange={e => setEmpHireFrom(e.target.value)} />
+                    </div>
+                    <div style={{ display:"flex", alignItems:"center", gap:"6px" }}>
+                      <label style={{ fontSize:"12px", color:"#64748b", fontWeight:"600", whiteSpace:"nowrap" }}>إلى:</label>
+                      <input type="date" style={{ padding:"9px 10px", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:"10px", fontSize:"12px", outline:"none" }}
+                        value={empHireTo} onChange={e => setEmpHireTo(e.target.value)} />
+                    </div>
+                    {(empHireFrom || empHireTo) && (
+                      <button onClick={() => { setEmpHireFrom(""); setEmpHireTo(""); }}
+                        style={{ padding:"9px 14px", background:"#fee2e2", color:"#dc2626", border:"none", borderRadius:"10px", fontSize:"12px", fontWeight:"700", cursor:"pointer" }}>
+                        ✕ مسح التاريخ
+                      </button>
+                    )}
                     {/* أزرار */}
                     <div style={{ display:"flex", gap:"8px", marginRight:"auto" }}>
                       <button onClick={() => setShowImportModal(true)} style={{ display:"flex", alignItems:"center", gap:"6px", padding:"10px 16px", background:"#059669", color:"white", border:"none", borderRadius:"12px", fontSize:"13px", fontWeight:"700", cursor:"pointer" }}>
@@ -3497,6 +3619,28 @@ useEffect(() => {
                     <h2 className="text-2xl font-black">العطلات الرسمية</h2>
                     <button onClick={() => setShowAddHoliday(true)} className="bg-indigo-600 text-white px-6 py-3 rounded-2xl flex items-center gap-2 font-bold"><Plus size={20} /> إضافة عطلة</button>
                   </div>
+                  {/* فلترة بالتاريخ */}
+                  <div style={{ background:"white", borderRadius:"16px", padding:"12px 16px", border:"1px solid #e2e8f0", display:"flex", gap:"10px", flexWrap:"wrap", alignItems:"center" }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:"6px" }}>
+                      <label style={{ fontSize:"12px", color:"#64748b", fontWeight:"600", whiteSpace:"nowrap" }}>من:</label>
+                      <input type="date" style={{ padding:"9px 10px", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:"10px", fontSize:"12px", outline:"none" }}
+                        value={holidayDateFrom} onChange={e => setHolidayDateFrom(e.target.value)} />
+                    </div>
+                    <div style={{ display:"flex", alignItems:"center", gap:"6px" }}>
+                      <label style={{ fontSize:"12px", color:"#64748b", fontWeight:"600", whiteSpace:"nowrap" }}>إلى:</label>
+                      <input type="date" style={{ padding:"9px 10px", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:"10px", fontSize:"12px", outline:"none" }}
+                        value={holidayDateTo} onChange={e => setHolidayDateTo(e.target.value)} />
+                    </div>
+                    {(holidayDateFrom || holidayDateTo) && (
+                      <button onClick={() => { setHolidayDateFrom(""); setHolidayDateTo(""); }}
+                        style={{ padding:"9px 14px", background:"#fee2e2", color:"#dc2626", border:"none", borderRadius:"10px", fontSize:"12px", fontWeight:"700", cursor:"pointer" }}>
+                        ✕ مسح
+                      </button>
+                    )}
+                    <span style={{ fontSize:"12px", color:"#64748b", marginRight:"auto" }}>
+                      {publicHolidays.filter(h => (!holidayDateFrom || h.date >= holidayDateFrom) && (!holidayDateTo || h.date <= holidayDateTo)).length} عطلة
+                    </span>
+                  </div>
                   <div className="bg-white rounded-[2rem] shadow-sm border overflow-x-auto">
                     <table className="w-full" style={{ width:"100%", borderCollapse:"collapse", border:"2px solid #94a3b8", fontSize:"13px", backgroundColor:"#ffffff" }}>
                       <thead className="bg-slate-50 border-b">
@@ -3508,7 +3652,7 @@ useEffect(() => {
                         </tr>
                       </thead>
                       <tbody>
-                        {publicHolidays.map(holiday => (
+                        {publicHolidays.filter(h => (!holidayDateFrom || h.date >= holidayDateFrom) && (!holidayDateTo || h.date <= holidayDateTo)).map(holiday => (
                           <tr key={holiday.id} style={{ border:"1px solid #cbd5e1", backgroundColor:"#ffffff" }} className="hover:bg-slate-50">
                             <td className="p-4 font-bold">{holiday.name}</td>
                             <td className="p-4 text-center">{formatDate(holiday.date)}</td>
@@ -3735,22 +3879,12 @@ useEffect(() => {
                   XLSX.writeFile(wb, `بيان-اجازات-يومي-${new Date().toISOString().split("T")[0]}.xlsx`);
                 };
 
-                const printLinahTemplate = () => {
-                  // إذا ما اختار حد، طبع كل الموجودين
-                  const selectedRows = selectedPrintIds.size > 0 
-                    ? filtered.filter(f => selectedPrintIds.has(f.emp.id))
-                    : filtered;
-
-                  if (selectedRows.length === 0) {
-                    alert("⚠️ اختر موظفين للطباعة أولاً");
-                    return;
-                  }
-
+                const buildLinahTemplateHTML = (selectedRows: any[]) => {
                   const todayStr = new Date().toLocaleDateString("ar-EG", { year:"numeric", month:"2-digit", day:"2-digit" });
                   const dataRows = [...selectedRows];
                   while (dataRows.length < 10) dataRows.push(null as any);
 
-                  const html = `<!DOCTYPE html>
+                  return `<!DOCTYPE html>
 <html dir="rtl" lang="ar">
 <head>
 <meta charset="UTF-8"/>
@@ -3870,12 +4004,37 @@ useEffect(() => {
 </div>
 </body>
 </html>`;
+                };
 
-                  const w = window.open("", "_blank", "width=900,height=1200");
-                  if (!w) { alert("فعّل النوافذ المنبثقة في المتصفح"); return; }
-                  w.document.write(html);
-                  w.document.close();
-                  setTimeout(() => { w.focus(); w.print(); }, 500);
+                const printLinahTemplate = () => {
+                  // إذا ما اختار حد، طبع كل الموجودين
+                  const selectedRows = selectedPrintIds.size > 0
+                    ? filtered.filter(f => selectedPrintIds.has(f.emp.id))
+                    : filtered;
+
+                  if (selectedRows.length === 0) {
+                    alert("⚠️ اختر موظفين للطباعة أولاً");
+                    return;
+                  }
+
+                  printHTMLContent(buildLinahTemplateHTML(selectedRows));
+                };
+
+                // ===== تصدير المحدد كملف PDF =====
+                const exportLinahTemplatePDF = () => {
+                  const selectedRows = selectedPrintIds.size > 0
+                    ? filtered.filter(f => selectedPrintIds.has(f.emp.id))
+                    : filtered;
+
+                  if (selectedRows.length === 0) {
+                    alert("⚠️ اختر موظفين للتصدير أولاً");
+                    return;
+                  }
+
+                  exportHTMLToPDF(
+                    buildLinahTemplateHTML(selectedRows),
+                    `بيان-اجازات-يومي-${new Date().toISOString().split("T")[0]}`
+                  );
                 };
 
                 // ===== مشاركة القالب =====
@@ -3937,6 +4096,12 @@ useEffect(() => {
                           style={{ display:"flex", alignItems:"center", gap:"6px", padding:"10px 16px", background:"linear-gradient(135deg, #4f46e5, #7c3aed)", color:"white", border:"none", borderRadius:"12px", fontWeight:"700", cursor:"pointer", fontSize:"13px", fontFamily:"inherit" }}
                           title="طباعة القالب الرسمي">
                           <Printer size={16}/> طباعة
+                        </button>
+                        {/* ===== زر تصدير المحدد PDF ===== */}
+                        <button onClick={exportLinahTemplatePDF}
+                          style={{ display:"flex", alignItems:"center", gap:"6px", padding:"10px 16px", background:"linear-gradient(135deg, #dc2626, #b91c1c)", color:"white", border:"none", borderRadius:"12px", fontWeight:"700", cursor:"pointer", fontSize:"13px", fontFamily:"inherit" }}
+                          title="تصدير المحدد كملف PDF">
+                          <FileDown size={16}/> {selectedPrintIds.size > 0 ? `PDF (${selectedPrintIds.size})` : "تصدير PDF"}
                         </button>
                         {/* ===== زر المشاركة ===== */}
                         <button onClick={shareLinahTemplate}
@@ -4272,8 +4437,10 @@ useEffect(() => {
                       r.employee_name?.includes(notifSearch) ||
                       (emp?.code || "").includes(notifSearch) ||
                       (r.admin_notes || "").includes(notifSearch);
-                    const matchDate = !notifDateFilter || (r.owner_approved_at || "").startsWith(notifDateFilter);
-                    return matchSearch && matchDate;
+                    const approvedDate = (r.owner_approved_at || "").split("T")[0];
+                    const matchDateFrom = !notifDateFrom || approvedDate >= notifDateFrom;
+                    const matchDateTo = !notifDateTo || approvedDate <= notifDateTo;
+                    return matchSearch && matchDateFrom && matchDateTo;
                   })
                   .sort((a, b) => {
                     const da = a.owner_approved_at || a.created_at || "";
@@ -4307,9 +4474,14 @@ useEffect(() => {
                       </div>
                       {/* فلتر تاريخ */}
                       <div style={{ display:"flex", alignItems:"center", gap:"6px" }}>
-                        <label style={{ fontSize:"12px", color:"#64748b", fontWeight:"600", whiteSpace:"nowrap" }}>التاريخ:</label>
+                        <label style={{ fontSize:"12px", color:"#64748b", fontWeight:"600", whiteSpace:"nowrap" }}>من:</label>
                         <input type="date" style={{ padding:"9px 10px", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:"10px", fontSize:"12px", outline:"none" }}
-                          value={notifDateFilter} onChange={e => setNotifDateFilter(e.target.value)} />
+                          value={notifDateFrom} onChange={e => setNotifDateFrom(e.target.value)} />
+                      </div>
+                      <div style={{ display:"flex", alignItems:"center", gap:"6px" }}>
+                        <label style={{ fontSize:"12px", color:"#64748b", fontWeight:"600", whiteSpace:"nowrap" }}>إلى:</label>
+                        <input type="date" style={{ padding:"9px 10px", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:"10px", fontSize:"12px", outline:"none" }}
+                          value={notifDateTo} onChange={e => setNotifDateTo(e.target.value)} />
                       </div>
                       {/* ترتيب */}
                       <button
@@ -4317,8 +4489,8 @@ useEffect(() => {
                         style={{ display:"flex", alignItems:"center", gap:"6px", padding:"9px 14px", background:"#eef2ff", border:"none", borderRadius:"10px", fontSize:"12px", fontWeight:"700", cursor:"pointer", color:"#4f46e5" }}>
                         {notifSortDir === "desc" ? "↓ الأحدث أولاً" : "↑ الأقدم أولاً"}
                       </button>
-                      {(notifSearch || notifDateFilter) && (
-                        <button onClick={() => { setNotifSearch(""); setNotifDateFilter(""); }}
+                      {(notifSearch || notifDateFrom || notifDateTo) && (
+                        <button onClick={() => { setNotifSearch(""); setNotifDateFrom(""); setNotifDateTo(""); }}
                           style={{ padding:"9px 14px", background:"#fee2e2", color:"#dc2626", border:"none", borderRadius:"10px", fontSize:"12px", fontWeight:"700", cursor:"pointer" }}>
                           ✕ مسح
                         </button>
@@ -4996,22 +5168,34 @@ useEffect(() => {
                   })
                 }
               </div>
-              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"10px" }}>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:"10px" }}>
                 <button disabled={!printSelected.length}
                   onClick={() => {
                     const sel = requests.filter(r => printSelected.includes(r.id));
-                    const w = window.open("","_blank");
-                    if (!w) return alert("السماح بالنوافذ المنبثقة");
                     const rows = sel.map((r,i) => {
                       const vt = vacationTypes.find(v => v.id === r.vacation_type_id);
                       const { end } = getCalculatedDates(r.start_date, r.days);
                       return "<tr style=\"background:" + (i%2?"#f9fafb":"white") + "\"><td>" + (i+1) + "</td><td>" + r.employee_name + "</td><td>" + (vt?.name||"-") + "</td><td>" + formatDate(r.start_date) + "</td><td>" + r.days + "</td><td>" + formatDate(end) + "</td></tr>";
                     }).join("");
-                    w.document.write("<html dir=\"rtl\"><head><title>تقرير الإجازات</title><style>*{font-family:Arial,sans-serif}body{padding:30px}h2{color:#1e1b4b;border-bottom:3px solid #4f46e5;padding-bottom:10px}table{width:100%;border-collapse:collapse;margin-top:20px}th{background:#4f46e5;color:white;padding:12px;text-align:right}td{padding:10px;border-bottom:1px solid #e5e7eb;text-align:right}.meta{color:#6b7280;font-size:13px;margin-bottom:20px}</style></head><body><h2>📋 تقرير الإجازات المقبولة</h2><div class=\"meta\">الفترة: " + (printFrom||"الكل") + " — " + (printTo||"الكل") + " | عدد الطلبات: " + sel.length + "</div><table><thead><tr><th>#</th><th>الموظف</th><th>نوع الإجازة</th><th>تاريخ البداية</th><th>المدة</th><th>نهاية الإجازة</th></tr></thead><tbody>" + rows + "</tbody></table><script>window.onload=()=>window.print()<" + "/script></body></html>");
-                    w.document.close();
+                    const html = "<html dir=\"rtl\"><head><title>تقرير الإجازات</title><style>*{font-family:Arial,sans-serif}body{padding:30px}h2{color:#1e1b4b;border-bottom:3px solid #4f46e5;padding-bottom:10px}table{width:100%;border-collapse:collapse;margin-top:20px}th{background:#4f46e5;color:white;padding:12px;text-align:right}td{padding:10px;border-bottom:1px solid #e5e7eb;text-align:right}.meta{color:#6b7280;font-size:13px;margin-bottom:20px}</style></head><body><h2>📋 تقرير الإجازات المقبولة</h2><div class=\"meta\">الفترة: " + (printFrom||"الكل") + " — " + (printTo||"الكل") + " | عدد الطلبات: " + sel.length + "</div><table><thead><tr><th>#</th><th>الموظف</th><th>نوع الإجازة</th><th>تاريخ البداية</th><th>المدة</th><th>نهاية الإجازة</th></tr></thead><tbody>" + rows + "</tbody></table></body></html>";
+                    printHTMLContent(html);
                   }}
-                  style={{ padding:"13px", background:!printSelected.length?"#f1f5f9":"linear-gradient(135deg, #1d4ed8, #3b82f6)", color:!printSelected.length?"#94a3b8":"white", border:"none", borderRadius:"12px", fontWeight:"800", cursor:!printSelected.length?"not-allowed":"pointer", fontSize:"14px" }}>
+                  style={{ padding:"13px", background:!printSelected.length?"#f1f5f9":"linear-gradient(135deg, #1d4ed8, #3b82f6)", color:!printSelected.length?"#94a3b8":"white", border:"none", borderRadius:"12px", fontWeight:"800", cursor:!printSelected.length?"not-allowed":"pointer", fontSize:"13px" }}>
                   🖨️ طباعة ({printSelected.length})
+                </button>
+                <button disabled={!printSelected.length}
+                  onClick={async () => {
+                    const sel = requests.filter(r => printSelected.includes(r.id));
+                    const rows = sel.map((r,i) => {
+                      const vt = vacationTypes.find(v => v.id === r.vacation_type_id);
+                      const { end } = getCalculatedDates(r.start_date, r.days);
+                      return "<tr style=\"background:" + (i%2?"#f9fafb":"white") + "\"><td>" + (i+1) + "</td><td>" + r.employee_name + "</td><td>" + (vt?.name||"-") + "</td><td>" + formatDate(r.start_date) + "</td><td>" + r.days + "</td><td>" + formatDate(end) + "</td></tr>";
+                    }).join("");
+                    const html = "<html dir=\"rtl\"><head><title>تقرير الإجازات</title><style>*{font-family:Arial,sans-serif}body{padding:30px}h2{color:#1e1b4b;border-bottom:3px solid #4f46e5;padding-bottom:10px}table{width:100%;border-collapse:collapse;margin-top:20px}th{background:#4f46e5;color:white;padding:12px;text-align:right}td{padding:10px;border-bottom:1px solid #e5e7eb;text-align:right}.meta{color:#6b7280;font-size:13px;margin-bottom:20px}</style></head><body><h2>📋 تقرير الإجازات المقبولة</h2><div class=\"meta\">الفترة: " + (printFrom||"الكل") + " — " + (printTo||"الكل") + " | عدد الطلبات: " + sel.length + "</div><table><thead><tr><th>#</th><th>الموظف</th><th>نوع الإجازة</th><th>تاريخ البداية</th><th>المدة</th><th>نهاية الإجازة</th></tr></thead><tbody>" + rows + "</tbody></table></body></html>";
+                    await exportHTMLToPDF(html, `تقرير-الإجازات-${new Date().toISOString().split("T")[0]}`);
+                  }}
+                  style={{ padding:"13px", background:!printSelected.length?"#f1f5f9":"linear-gradient(135deg, #dc2626, #b91c1c)", color:!printSelected.length?"#94a3b8":"white", border:"none", borderRadius:"12px", fontWeight:"800", cursor:!printSelected.length?"not-allowed":"pointer", fontSize:"13px", fontFamily:"inherit" }}>
+                  📄 PDF ({printSelected.length})
                 </button>
                 <button disabled={!printSelected.length}
                   onClick={async () => {
@@ -5040,8 +5224,7 @@ useEffect(() => {
                         }, "image/png");
                       } else {
                         document.body.removeChild(wrap);
-                        const w = window.open("","_blank");
-                        if (w) { w.document.write(`<html dir="rtl"><head><title>تقرير الإجازات</title></head><body style="margin:20px">${html}<script>window.onload=()=>{window.print()}<\/script></body></html>`); w.document.close(); }
+                        printHTMLContent(`<html dir="rtl"><head><title>تقرير الإجازات</title></head><body style="margin:20px">${html}</body></html>`);
                       }
                     } catch(e:any) { alert("خطأ: " + e?.message); }
                   }}
@@ -6534,28 +6717,30 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser, userRole }: {
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  // ===== PRINT =====
-  const handlePrint = () => {
-    const printWindow = window.open("", "", "height=600,width=800");
-    if (!printWindow) return;
+  // ===== بناء HTML للطباعة/PDF — يستخدم المحدد لو فيه تحديد، وإلا كل المفلتر =====
+  const buildAdminAffairsHTML = () => {
+    const rowsData = selectedIds.length > 0
+      ? filtered.filter((r: any) => selectedIds.includes(r.id))
+      : filtered;
 
-    let html = `<html><head><title>طباعة</title><style>
-      body { font-family: Arial, sans-serif; direction: rtl; }
+    let html = `<html dir="rtl"><head><title>طباعة</title><style>
+      body { font-family: Arial, sans-serif; direction: rtl; padding:20px; }
       table { width: 100%; border-collapse: collapse; }
-      th, td { border: 1px solid #ddd; padding: 8px; text-align: right; }
+      th, td { border: 1px solid #ddd; padding: 8px; text-align: right; font-size:12px; }
       th { background-color: #4f46e5; color: white; }
     </style></head><body>`;
 
     html += `<h2>${activeSubTab === "purchases" ? "طلبات الشراء" : activeSubTab === "summary" ? "إجمالي الطلبات" : "خضار أسبوعي"}</h2>`;
+    html += `<p style="color:#64748b;font-size:12px">عدد السجلات: ${rowsData.length}</p>`;
     html += `<table><thead><tr>`;
-    
+
     currentSchema.fields.forEach((f: any) => {
       html += `<th>${f.label}</th>`;
     });
-    
+
     html += `</tr></thead><tbody>`;
-    
-    filtered.forEach((record: any) => {
+
+    rowsData.forEach((record: any) => {
       html += `<tr>`;
       currentSchema.fields.forEach((f: any) => {
         let value = record[f.key] || "-";
@@ -6566,10 +6751,20 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser, userRole }: {
       });
       html += `</tr>`;
     });
-    
+
     html += `</tbody></table></body></html>`;
-    printWindow.document.write(html);
-    printWindow.print();
+    return html;
+  };
+
+  // ===== PRINT =====
+  const handlePrint = () => {
+    printHTMLContent(buildAdminAffairsHTML());
+  };
+
+  // ===== PDF EXPORT (المحدد أو المفلتر) =====
+  const handleExportPDF = () => {
+    const fileName = `${activeSubTab === "purchases" ? "طلبات-الشراء" : activeSubTab === "summary" ? "إجمالي-الطلبات" : "خضار-أسبوعي"}-${new Date().toISOString().split("T")[0]}`;
+    exportHTMLToPDF(buildAdminAffairsHTML(), fileName);
   };
 
   // ===== SHARE =====
@@ -6680,6 +6875,14 @@ const AdminAffairsTab = ({ supabase, logAction, currentUser, userRole }: {
           fontWeight: "800", fontSize: "13px", cursor: "pointer", fontFamily: "inherit"
         }}>
           <Printer size={16} /> طباعة
+        </button>
+        <button onClick={handleExportPDF} style={{
+          display: "flex", alignItems: "center", gap: "6px",
+          background: "#dc2626", color: "white",
+          border: "none", borderRadius: "10px", padding: "10px 16px",
+          fontWeight: "800", fontSize: "13px", cursor: "pointer", fontFamily: "inherit"
+        }}>
+          <FileDown size={16} /> {selectedIds.length > 0 ? `PDF (${selectedIds.length})` : "تصدير PDF"}
         </button>
         <button onClick={handleShare} style={{
           display: "flex", alignItems: "center", gap: "6px",
