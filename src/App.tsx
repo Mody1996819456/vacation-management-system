@@ -2326,6 +2326,7 @@ useEffect(() => {
         minHeight: "100vh",
         background: currentView === "login" ? "linear-gradient(135deg, #0f0c29, #302b63, #24243e)" : "#f0f2f5",
         display: "flex",
+        flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
         padding: "24px",
