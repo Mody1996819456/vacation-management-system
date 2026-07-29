@@ -478,6 +478,7 @@ const VacationManagementSystem = () => {
   const [loginData, setLoginData] = useState({ email: "", password: "" });
   const [empCodeInput, setEmpCodeInput] = useState("");
   const [empPinInput, setEmpPinInput] = useState("");
+  const [loginTab, setLoginTab] = useState("employee"); // "employee" | "admin"
   const [showChangePinModal, setShowChangePinModal] = useState(false);
   const [changePinForm, setChangePinForm] = useState({ oldPin: "", newPin: "", confirmPin: "" });
   const [changePinLoading, setChangePinLoading] = useState(false);
@@ -2339,16 +2340,18 @@ useEffect(() => {
           @keyframes float2 { 0%,100%{transform:translate(0,0) scale(1)} 50%{transform:translate(-20px,30px) scale(0.95)} }
           @keyframes float3 { 0%,100%{transform:translate(0,0)} 50%{transform:translate(15px,-20px)} }
           @keyframes shimmer { 0%{opacity:0.3} 50%{opacity:0.7} 100%{opacity:0.3} }
+          @keyframes popIn { 0%{opacity:0; transform:scale(0.6) rotate(-8deg);} 100%{opacity:1; transform:scale(1) rotate(0deg);} }
+          @keyframes slideInPanel { 0%{opacity:0; transform:translateY(10px);} 100%{opacity:1; transform:translateY(0);} }
           .orb1 { animation: float1 8s ease-in-out infinite; }
           .orb2 { animation: float2 10s ease-in-out infinite; }
           .orb3 { animation: float3 6s ease-in-out infinite; }
           .login-card { backdrop-filter: blur(20px); transition: all 0.3s ease; }
           .login-btn { transition: all 0.2s ease; }
           .login-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0,0,0,0.3); }
-          .login-input:focus { outline: none; }
-          @media (max-width: 768px) {
-            .login-main-grid { grid-template-columns: 1fr !important; }
-            .login-card { padding: 32px 24px !important; }
+          .login-input { transition: border-color 0.2s ease, background 0.2s ease; }
+          .login-input:focus { outline: none; border-color: rgba(255,255,255,0.35) !important; background: rgba(255,255,255,0.1) !important; }
+          @media (max-width: 480px) {
+            .login-card { max-width: 100% !important; }
           }
         `}</style>
 
@@ -2360,78 +2363,140 @@ useEffect(() => {
         {/* شبكة نقاط خلفية */}
         <div style={{ position:"absolute", inset:0, backgroundImage:"radial-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px)", backgroundSize:"40px 40px", pointerEvents:"none" }} />
 
+        {/* شعار النظام + عنوان */}
+        <div style={{ position:"relative", zIndex:10, display:"flex", flexDirection:"column", alignItems:"center", marginBottom:"28px" }}>
+          <div style={{
+            width:"72px", height:"72px", borderRadius:"22px",
+            background:"linear-gradient(135deg, #6366f1, #8b5cf6)",
+            display:"flex", alignItems:"center", justifyContent:"center",
+            marginBottom:"18px", boxShadow:"0 12px 30px rgba(99, 102, 241, 0.45)",
+            animation:"popIn 0.5s ease",
+          }}>
+            <Building2 size={34} className="text-white" />
+          </div>
+          <h1 style={{ color:"white", fontWeight:"900", fontSize:"26px", fontFamily:"Cairo, sans-serif", margin:0 }}>نظام شؤون الموظفين</h1>
+          <p style={{ color:"rgba(255,255,255,0.45)", fontSize:"14px", marginTop:"8px", fontFamily:"Cairo, sans-serif" }}>اختر طريقة تسجيل الدخول المناسبة لك</p>
+        </div>
+
         {/* الكارت الرئيسي */}
-        <div className="login-main-grid" style={{ width:"100%", maxWidth:"900px", display:"grid", gridTemplateColumns:"1fr 1fr", borderRadius:"32px", overflow:"hidden", boxShadow:"0 30px 80px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.05)", position:"relative", zIndex:10 }}>
-          
-          {/* قسم الموظفين - يمين */}
-          <div className="login-card" style={{ padding:"52px 40px", background:"rgba(255, 255, 255, 0.04)", borderLeft:"1px solid rgba(255, 255, 255, 0.08)" }}>
-            <div style={{ width:"60px", height:"60px", borderRadius:"18px", background:"linear-gradient(135deg, #6366f1, #8b5cf6)", display:"flex", alignItems:"center", justifyContent:"center", marginBottom:"24px", boxShadow:"0 8px 20px rgba(99, 102, 241, 0.4)" }}>
-              <Users className="text-white" size={28} />
-            </div>
-            <h2 style={{ color:"white", fontSize:"26px", fontWeight:"900", marginBottom:"8px", fontFamily:"Cairo, sans-serif" }}>دخول الموظفين</h2>
-            <p style={{ color:"rgba(255, 255, 255, 0.4)", fontSize:"14px", marginBottom:"32px" }}>أدخل كودك الوظيفي للمتابعة</p>
-            <div style={{ position:"relative", marginBottom:"16px" }}>
-              <input
-                className="login-input"
-                style={{ width:"100%", background:"rgba(255, 255, 255, 0.07)", border:"1px solid rgba(255, 255, 255, 0.12)", borderRadius:"14px", padding:"14px 18px", color:"white", fontSize:"15px", boxSizing:"border-box", fontFamily:"Cairo, sans-serif" }}
-                placeholder="الكود الوظيفي"
-                value={empCodeInput}
-                onChange={(e) => setEmpCodeInput(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleLogin()}
-              />
-            </div>
-            <input
-              className="login-input"
-              type="password"
-              inputMode="numeric"
-              maxLength={4}
-              style={{ width:"100%", background:"rgba(255, 255, 255, 0.07)", border:"1px solid rgba(255, 255, 255, 0.12)", borderRadius:"14px", padding:"14px 18px", color:"white", fontSize:"15px", marginBottom:"16px", boxSizing:"border-box", fontFamily:"Cairo, sans-serif" }}
-              placeholder="PIN (4 أرقام)"
-              value={empPinInput}
-              onChange={(e) => setEmpPinInput(e.target.value.replace(/\D/g, "").slice(0,4))}
-              onKeyDown={(e) => e.key === "Enter" && handleLogin()}
-            />
-            <button className="login-btn" onClick={handleLogin} style={{ width:"100%", background:"linear-gradient(135deg, #6366f1, #8b5cf6)", border:"none", borderRadius:"14px", padding:"15px", color:"white", fontSize:"16px", fontWeight:"700", cursor:"pointer", fontFamily:"Cairo, sans-serif" }}>
-              دخول
+        <div className="login-card" style={{
+          width:"100%", maxWidth:"440px", borderRadius:"28px", overflow:"hidden",
+          background:"rgba(255, 255, 255, 0.05)",
+          boxShadow:"0 30px 80px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.08)",
+          position:"relative", zIndex:10, padding:"14px",
+        }}>
+          {/* التابز */}
+          <div style={{
+            position:"relative", display:"grid", gridTemplateColumns:"1fr 1fr",
+            background:"rgba(0,0,0,0.25)", borderRadius:"16px", padding:"5px", marginBottom:"28px",
+          }}>
+            <div style={{
+              position:"absolute", top:"5px", bottom:"5px",
+              width:"calc(50% - 5px)",
+              right: loginTab === "employee" ? "5px" : "calc(50% + 0px)",
+              borderRadius:"12px",
+              background: loginTab === "employee" ? "linear-gradient(135deg, #6366f1, #8b5cf6)" : "linear-gradient(135deg, #10b981, #059669)",
+              boxShadow: loginTab === "employee" ? "0 6px 18px rgba(99, 102, 241, 0.45)" : "0 6px 18px rgba(16, 185, 129, 0.45)",
+              transition:"right 0.35s cubic-bezier(0.4, 0, 0.2, 1), background 0.35s ease",
+              zIndex:1,
+            }} />
+            <button
+              onClick={() => setLoginTab("employee")}
+              style={{
+                position:"relative", zIndex:2, border:"none", background:"transparent",
+                padding:"12px 8px", borderRadius:"12px", cursor:"pointer",
+                display:"flex", alignItems:"center", justifyContent:"center", gap:"8px",
+                color: loginTab === "employee" ? "white" : "rgba(255,255,255,0.5)",
+                fontWeight:"800", fontSize:"14.5px", fontFamily:"Cairo, sans-serif",
+                transition:"color 0.3s ease",
+              }}
+            >
+              <Users size={17} /> الموظف
+            </button>
+            <button
+              onClick={() => setLoginTab("admin")}
+              style={{
+                position:"relative", zIndex:2, border:"none", background:"transparent",
+                padding:"12px 8px", borderRadius:"12px", cursor:"pointer",
+                display:"flex", alignItems:"center", justifyContent:"center", gap:"8px",
+                color: loginTab === "admin" ? "white" : "rgba(255,255,255,0.5)",
+                fontWeight:"800", fontSize:"14.5px", fontFamily:"Cairo, sans-serif",
+                transition:"color 0.3s ease",
+              }}
+            >
+              <ShieldCheck size={17} /> الإدارة
             </button>
           </div>
 
-          {/* قسم الإدارة - يسار */}
-          <div className="login-card" style={{ padding:"52px 40px", background:"rgba(0, 0, 0, 0.25)" }}>
-            <div style={{ width:"60px", height:"60px", borderRadius:"18px", background:"linear-gradient(135deg, #10b981, #059669)", display:"flex", alignItems:"center", justifyContent:"center", marginBottom:"24px", boxShadow:"0 8px 20px rgba(16, 185, 129, 0.4)" }}>
-              <ShieldCheck className="text-white" size={28} />
-            </div>
-            <h2 style={{ color:"white", fontSize:"26px", fontWeight:"900", marginBottom:"8px", fontFamily:"Cairo, sans-serif" }}>لوحة الإدارة</h2>
-            <p style={{ color:"rgba(255, 255, 255, 0.4)", fontSize:"14px", marginBottom:"32px" }}>صلاحيات خاصة للمسؤولين فقط</p>
-            <input
-              className="login-input"
-              style={{ width:"100%", background:"rgba(255, 255, 255, 0.07)", border:"1px solid rgba(255, 255, 255, 0.12)", borderRadius:"14px", padding:"14px 18px", color:"white", fontSize:"15px", marginBottom:"12px", display:"block", boxSizing:"border-box", fontFamily:"Cairo, sans-serif" }}
-              placeholder="البريد الإلكتروني"
-              value={loginData.email}
-              onChange={(e) => setLoginData({ ...loginData, email: e.target.value })}
-            />
-            <input
-              type="password"
-              className="login-input"
-              style={{ width:"100%", background:"rgba(255, 255, 255, 0.07)", border:"1px solid rgba(255, 255, 255, 0.12)", borderRadius:"14px", padding:"14px 18px", color:"white", fontSize:"15px", marginBottom:"16px", display:"block", boxSizing:"border-box", fontFamily:"Cairo, sans-serif" }}
-              placeholder="كلمة المرور"
-              value={loginData.password}
-              onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
-              onKeyDown={(e) => e.key === "Enter" && handleLogin()}
-            />
-            <button className="login-btn" onClick={handleLogin} style={{ width:"100%", background:"linear-gradient(135deg, #10b981, #059669)", border:"none", borderRadius:"14px", padding:"15px", color:"white", fontSize:"16px", fontWeight:"700", cursor:"pointer", fontFamily:"Cairo, sans-serif" }}>
-              دخول
-            </button>
+          {/* محتوى التاب */}
+          <div style={{ position:"relative", overflow:"hidden", padding:"4px 22px 26px" }}>
+            {loginTab === "employee" ? (
+              <div key="employee-panel" style={{ animation:"slideInPanel 0.4s ease" }}>
+                <div style={{ width:"56px", height:"56px", borderRadius:"16px", background:"linear-gradient(135deg, #6366f1, #8b5cf6)", display:"flex", alignItems:"center", justifyContent:"center", marginBottom:"20px", boxShadow:"0 8px 20px rgba(99, 102, 241, 0.4)" }}>
+                  <Users className="text-white" size={26} />
+                </div>
+                <h2 style={{ color:"white", fontSize:"22px", fontWeight:"900", marginBottom:"6px", fontFamily:"Cairo, sans-serif" }}>دخول الموظفين</h2>
+                <p style={{ color:"rgba(255, 255, 255, 0.4)", fontSize:"13.5px", marginBottom:"26px" }}>أدخل كودك الوظيفي والرقم السري</p>
+                <div style={{ position:"relative", marginBottom:"14px" }}>
+                  <input
+                    className="login-input"
+                    style={{ width:"100%", background:"rgba(255, 255, 255, 0.07)", border:"1px solid rgba(255, 255, 255, 0.12)", borderRadius:"14px", padding:"14px 18px", color:"white", fontSize:"15px", boxSizing:"border-box", fontFamily:"Cairo, sans-serif" }}
+                    placeholder="الكود الوظيفي"
+                    value={empCodeInput}
+                    onChange={(e) => setEmpCodeInput(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleLogin()}
+                  />
+                </div>
+                <input
+                  className="login-input"
+                  type="password"
+                  inputMode="numeric"
+                  maxLength={4}
+                  style={{ width:"100%", background:"rgba(255, 255, 255, 0.07)", border:"1px solid rgba(255, 255, 255, 0.12)", borderRadius:"14px", padding:"14px 18px", color:"white", fontSize:"15px", marginBottom:"20px", boxSizing:"border-box", fontFamily:"Cairo, sans-serif" }}
+                  placeholder="PIN (4 أرقام)"
+                  value={empPinInput}
+                  onChange={(e) => setEmpPinInput(e.target.value.replace(/\D/g, "").slice(0,4))}
+                  onKeyDown={(e) => e.key === "Enter" && handleLogin()}
+                />
+                <button className="login-btn" onClick={handleLogin} style={{ width:"100%", background:"linear-gradient(135deg, #6366f1, #8b5cf6)", border:"none", borderRadius:"14px", padding:"15px", color:"white", fontSize:"16px", fontWeight:"700", cursor:"pointer", fontFamily:"Cairo, sans-serif" }}>
+                  دخول ←
+                </button>
+              </div>
+            ) : (
+              <div key="admin-panel" style={{ animation:"slideInPanel 0.4s ease" }}>
+                <div style={{ width:"56px", height:"56px", borderRadius:"16px", background:"linear-gradient(135deg, #10b981, #059669)", display:"flex", alignItems:"center", justifyContent:"center", marginBottom:"20px", boxShadow:"0 8px 20px rgba(16, 185, 129, 0.4)" }}>
+                  <ShieldCheck className="text-white" size={26} />
+                </div>
+                <h2 style={{ color:"white", fontSize:"22px", fontWeight:"900", marginBottom:"6px", fontFamily:"Cairo, sans-serif" }}>لوحة الإدارة</h2>
+                <p style={{ color:"rgba(255, 255, 255, 0.4)", fontSize:"13.5px", marginBottom:"26px" }}>صلاحيات خاصة للمسؤولين فقط</p>
+                <input
+                  className="login-input"
+                  style={{ width:"100%", background:"rgba(255, 255, 255, 0.07)", border:"1px solid rgba(255, 255, 255, 0.12)", borderRadius:"14px", padding:"14px 18px", color:"white", fontSize:"15px", marginBottom:"14px", display:"block", boxSizing:"border-box", fontFamily:"Cairo, sans-serif" }}
+                  placeholder="البريد الإلكتروني"
+                  value={loginData.email}
+                  onChange={(e) => setLoginData({ ...loginData, email: e.target.value })}
+                />
+                <input
+                  type="password"
+                  className="login-input"
+                  style={{ width:"100%", background:"rgba(255, 255, 255, 0.07)", border:"1px solid rgba(255, 255, 255, 0.12)", borderRadius:"14px", padding:"14px 18px", color:"white", fontSize:"15px", marginBottom:"20px", display:"block", boxSizing:"border-box", fontFamily:"Cairo, sans-serif" }}
+                  placeholder="كلمة المرور"
+                  value={loginData.password}
+                  onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
+                  onKeyDown={(e) => e.key === "Enter" && handleLogin()}
+                />
+                <button className="login-btn" onClick={handleLogin} style={{ width:"100%", background:"linear-gradient(135deg, #10b981, #059669)", border:"none", borderRadius:"14px", padding:"15px", color:"white", fontSize:"16px", fontWeight:"700", cursor:"pointer", fontFamily:"Cairo, sans-serif" }}>
+                  دخول ←
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* شعار النظام */}
-        <div style={{ position:"absolute", top:"32px", right:"50%", transform:"translateX(50%)", display:"flex", alignItems:"center", gap:"12px", zIndex:10 }}>
-          <div style={{ width:"40px", height:"40px", borderRadius:"12px", background:"linear-gradient(135deg, #6366f1, #8b5cf6)", display:"flex", alignItems:"center", justifyContent:"center" }}>
-            <CalendarDays size={20} className="text-white" />
-          </div>
-          <span style={{ color:"white", fontWeight:"900", fontSize:"18px", fontFamily:"Cairo, sans-serif" }}>نظام إدارة الإجازات</span>
-        </div>
+        {/* تذييل */}
+        <p style={{ position:"relative", zIndex:10, color:"rgba(255,255,255,0.3)", fontSize:"12px", marginTop:"26px", fontFamily:"Cairo, sans-serif" }}>
+          © 2026 نظام شؤون الموظفين — يعمل سحابياً عبر Supabase
+        </p>
       </div>
     );
   }
@@ -2894,11 +2959,11 @@ useEffect(() => {
                     return (
                       <div style={{
                         background: "linear-gradient(135deg, #1e1b4b 0%, #312e81 40%, #4338ca 100%)",
-                        borderRadius: "2rem",
-                        padding: "36px 40px",
+                        borderRadius: "24px",
+                        padding: "32px 36px",
                         position: "relative",
                         overflow: "hidden",
-                        boxShadow: "0 20px 60px rgba(99,102,241,0.3)",
+                        boxShadow: "0 20px 50px rgba(67, 56, 202, 0.28)",
                       }}>
                         {/* دوائر زخرفية */}
                         <div style={{ position:"absolute", top:"-40px", left:"-40px", width:"200px", height:"200px", borderRadius:"50%", background:"rgba(255, 255, 255, 0.04)" }} />
@@ -2991,62 +3056,78 @@ useEffect(() => {
                   </div>
 
 
-                  <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(150px, 1fr))", gap:"14px" }}>
-                    <div className="bg-white p-6 rounded-[2rem] shadow-sm border flex items-center gap-4">
-                      <div className="p-4 bg-blue-50 text-blue-600 rounded-xl"><Users size={28} /></div>
-                      <div><p className="text-slate-500 font-bold text-sm">إجمالي الموظفين</p><h3 className="text-3xl font-black">{stats.totalEmployees}</h3></div>
-                    </div>
-                    <div className="bg-white p-6 rounded-[2rem] shadow-sm border flex items-center gap-4">
-                      <div className="p-4 bg-amber-50 text-amber-600 rounded-xl"><Clock size={28} /></div>
-                      <div><p className="text-slate-500 font-bold text-sm">طلبات معلقة</p><h3 className="text-3xl font-black text-amber-600">{stats.pendingRequests}</h3></div>
-                    </div>
-                    <div className="bg-white p-6 rounded-[2rem] shadow-sm border flex items-center gap-4">
-                      <div className="p-4 bg-emerald-50 text-emerald-600 rounded-xl"><CheckCircle size={28} /></div>
-                      <div><p className="text-slate-500 font-bold text-sm">في إجازة الآن</p><h3 className="text-3xl font-black text-emerald-600">{stats.onVacationNow}</h3></div>
-                    </div>
-                    <div className="bg-white p-6 rounded-[2rem] shadow-sm border flex items-center gap-4">
-                      <div className="p-4 bg-purple-50 text-purple-600 rounded-xl"><TrendingUp size={28} /></div>
-                      <div><p className="text-slate-500 font-bold text-sm">متوسط الرصيد</p><h3 className="text-3xl font-black text-purple-600">{stats.avgBalance}</h3></div>
-                    </div>
+                  <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(200px, 1fr))", gap:"16px" }}>
+                    {[
+                      { label:"إجمالي الموظفين", value: stats.totalEmployees, icon: Users, grad:["#3b82f6","#2563eb"], text:"#1e293b" },
+                      { label:"طلبات معلقة", value: stats.pendingRequests, icon: Clock, grad:["#f59e0b","#d97706"], text:"#d97706" },
+                      { label:"في إجازة الآن", value: stats.onVacationNow, icon: CheckCircle, grad:["#10b981","#059669"], text:"#059669" },
+                      { label:"متوسط الرصيد", value: stats.avgBalance, icon: TrendingUp, grad:["#a855f7","#9333ea"], text:"#9333ea" },
+                    ].map((card) => (
+                      <div key={card.label} className="owner-stat-card" style={{
+                        background:"white", borderRadius:"20px", padding:"22px",
+                        border:"1px solid #eef0f6", boxShadow:"0 10px 28px rgba(30, 41, 59, 0.06)",
+                        display:"flex", alignItems:"center", gap:"16px",
+                        transition:"transform 0.25s ease, box-shadow 0.25s ease",
+                      }} onMouseEnter={(e)=>{e.currentTarget.style.transform="translateY(-4px)"; e.currentTarget.style.boxShadow="0 18px 40px rgba(30, 41, 59, 0.12)";}} onMouseLeave={(e)=>{e.currentTarget.style.transform="translateY(0)"; e.currentTarget.style.boxShadow="0 10px 28px rgba(30, 41, 59, 0.06)";}}>
+                        <div style={{
+                          width:"52px", height:"52px", borderRadius:"15px", flexShrink:0,
+                          background:`linear-gradient(135deg, ${card.grad[0]}, ${card.grad[1]})`,
+                          display:"flex", alignItems:"center", justifyContent:"center",
+                          boxShadow:`0 8px 18px ${card.grad[0]}55`,
+                        }}>
+                          <card.icon size={24} className="text-white" />
+                        </div>
+                        <div>
+                          <p style={{ fontSize:"12.5px", color:"#94a3b8", fontWeight:"700", margin:"0 0 4px" }}>{card.label}</p>
+                          <h3 style={{ fontSize:"26px", fontWeight:"900", margin:0, color: card.text }}>{card.value}</h3>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                   {/* ===== Advanced Analytics Strip ===== */}
-                  <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(140px, 1fr))", gap:"12px" }}>
+                  <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(180px, 1fr))", gap:"14px" }}>
                     {/* نسبة الحضور */}
                     {(() => {
                       const attendRate = stats.totalEmployees > 0 ? Math.round((stats.atWorkNow / stats.totalEmployees) * 100) : 0;
                       return (
-                        <div style={{ background:"white", borderRadius:"16px", padding:"20px", border:"1px solid #e2e8f0", boxShadow:"0 1px 4px rgba(0, 0, 0, 0.05)" }}>
-                          <div style={{ display:"flex", alignItems:"center", gap:"8px", marginBottom:"12px" }}>
-                            <Target size={16} style={{ color:"#4f46e5" }}/>
-                            <span style={{ fontSize:"12px", color:"#64748b", fontWeight:"700" }}>نسبة الحضور</span>
+                        <div className="owner-stat-card" style={{ background:"white", borderRadius:"18px", padding:"20px", border:"1px solid #eef0f6", boxShadow:"0 8px 22px rgba(30, 41, 59, 0.05)", transition:"transform 0.25s ease, box-shadow 0.25s ease" }} onMouseEnter={(e)=>{e.currentTarget.style.transform="translateY(-3px)"; e.currentTarget.style.boxShadow="0 14px 32px rgba(30, 41, 59, 0.1)";}} onMouseLeave={(e)=>{e.currentTarget.style.transform="translateY(0)"; e.currentTarget.style.boxShadow="0 8px 22px rgba(30, 41, 59, 0.05)";}}>
+                          <div style={{ display:"flex", alignItems:"center", gap:"10px", marginBottom:"14px" }}>
+                            <div style={{ width:"32px", height:"32px", borderRadius:"10px", background:"linear-gradient(135deg, #6366f1, #4f46e5)", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                              <Target size={15} className="text-white" />
+                            </div>
+                            <span style={{ fontSize:"12.5px", color:"#64748b", fontWeight:"700" }}>نسبة الحضور</span>
                           </div>
-                          <div style={{ fontSize:"28px", fontWeight:"900", color:"#4f46e5" }}>{attendRate}%</div>
-                          <div style={{ marginTop:"8px", height:"6px", background:"#e2e8f0", borderRadius:"3px" }}>
-                            <div style={{ height:"100%", width:`${attendRate}%`, background:"linear-gradient(90deg, #4f46e5, #7c3aed)", borderRadius:"3px" }}/>
+                          <div style={{ fontSize:"27px", fontWeight:"900", color:"#4f46e5" }}>{attendRate}%</div>
+                          <div style={{ marginTop:"10px", height:"7px", background:"#eef0f6", borderRadius:"99px", overflow:"hidden" }}>
+                            <div style={{ height:"100%", width:`${attendRate}%`, background:"linear-gradient(90deg, #4f46e5, #7c3aed)", borderRadius:"99px", transition:"width 0.4s ease" }}/>
                           </div>
                         </div>
                       );
                     })()}
                     {/* إجمالي أيام الإجازات */}
-                    <div style={{ background:"white", borderRadius:"16px", padding:"20px", border:"1px solid #e2e8f0", boxShadow:"0 1px 4px rgba(0, 0, 0, 0.05)" }}>
-                      <div style={{ display:"flex", alignItems:"center", gap:"8px", marginBottom:"12px" }}>
-                        <Award size={16} style={{ color:"#f59e0b" }}/>
-                        <span style={{ fontSize:"12px", color:"#64748b", fontWeight:"700" }}>إجمالي أيام الإجازات</span>
+                    <div className="owner-stat-card" style={{ background:"white", borderRadius:"18px", padding:"20px", border:"1px solid #eef0f6", boxShadow:"0 8px 22px rgba(30, 41, 59, 0.05)", transition:"transform 0.25s ease, box-shadow 0.25s ease" }} onMouseEnter={(e)=>{e.currentTarget.style.transform="translateY(-3px)"; e.currentTarget.style.boxShadow="0 14px 32px rgba(30, 41, 59, 0.1)";}} onMouseLeave={(e)=>{e.currentTarget.style.transform="translateY(0)"; e.currentTarget.style.boxShadow="0 8px 22px rgba(30, 41, 59, 0.05)";}}>
+                      <div style={{ display:"flex", alignItems:"center", gap:"10px", marginBottom:"14px" }}>
+                        <div style={{ width:"32px", height:"32px", borderRadius:"10px", background:"linear-gradient(135deg, #f59e0b, #d97706)", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                          <Award size={15} className="text-white" />
+                        </div>
+                        <span style={{ fontSize:"12.5px", color:"#64748b", fontWeight:"700" }}>إجمالي أيام الإجازات</span>
                       </div>
-                      <div style={{ fontSize:"28px", fontWeight:"900", color:"#f59e0b" }}>{stats.totalVacationDays}</div>
-                      <div style={{ fontSize:"11px", color:"#94a3b8", marginTop:"4px" }}>يوم مجموع مُوافق عليه</div>
+                      <div style={{ fontSize:"27px", fontWeight:"900", color:"#d97706" }}>{stats.totalVacationDays}</div>
+                      <div style={{ fontSize:"11px", color:"#94a3b8", marginTop:"6px", fontWeight:"600" }}>يوم مجموع مُوافق عليه</div>
                     </div>
                     {/* موظفين رصيدهم منخفض */}
                     {(() => {
                       const lowCount = employees.filter(e => e.balance < 5).length;
                       return (
-                        <div style={{ background: lowCount > 0 ? "#fff7ed" : "white", borderRadius:"16px", padding:"20px", border:`1px solid ${lowCount > 0 ? "#fed7aa" : "#e2e8f0"}`, boxShadow:"0 1px 4px rgba(0, 0, 0, 0.05)" }}>
-                          <div style={{ display:"flex", alignItems:"center", gap:"8px", marginBottom:"12px" }}>
-                            <Flame size={16} style={{ color: lowCount > 0 ? "#ea580c" : "#64748b" }}/>
-                            <span style={{ fontSize:"12px", color:"#64748b", fontWeight:"700" }}>رصيد منخفض</span>
+                        <div className="owner-stat-card" style={{ background: lowCount > 0 ? "#fff7ed" : "white", borderRadius:"18px", padding:"20px", border:`1px solid ${lowCount > 0 ? "#fed7aa" : "#eef0f6"}`, boxShadow:"0 8px 22px rgba(30, 41, 59, 0.05)", transition:"transform 0.25s ease, box-shadow 0.25s ease" }} onMouseEnter={(e)=>{e.currentTarget.style.transform="translateY(-3px)"; e.currentTarget.style.boxShadow="0 14px 32px rgba(30, 41, 59, 0.1)";}} onMouseLeave={(e)=>{e.currentTarget.style.transform="translateY(0)"; e.currentTarget.style.boxShadow="0 8px 22px rgba(30, 41, 59, 0.05)";}}>
+                          <div style={{ display:"flex", alignItems:"center", gap:"10px", marginBottom:"14px" }}>
+                            <div style={{ width:"32px", height:"32px", borderRadius:"10px", background: lowCount > 0 ? "linear-gradient(135deg, #f97316, #ea580c)" : "linear-gradient(135deg, #94a3b8, #64748b)", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                              <Flame size={15} className="text-white" />
+                            </div>
+                            <span style={{ fontSize:"12.5px", color:"#64748b", fontWeight:"700" }}>رصيد منخفض</span>
                           </div>
-                          <div style={{ fontSize:"28px", fontWeight:"900", color: lowCount > 0 ? "#ea580c" : "#10b981" }}>{lowCount}</div>
-                          <div style={{ fontSize:"11px", color:"#94a3b8", marginTop:"4px" }}>موظف أقل من 5 أيام</div>
+                          <div style={{ fontSize:"27px", fontWeight:"900", color: lowCount > 0 ? "#ea580c" : "#10b981" }}>{lowCount}</div>
+                          <div style={{ fontSize:"11px", color:"#94a3b8", marginTop:"6px", fontWeight:"600" }}>موظف أقل من 5 أيام</div>
                         </div>
                       );
                     })()}
@@ -3056,46 +3137,72 @@ useEffect(() => {
                       const approved = requests.filter(r => r.status === "approved").length;
                       const rate = total > 0 ? Math.round((approved / total) * 100) : 0;
                       return (
-                        <div style={{ background:"white", borderRadius:"16px", padding:"20px", border:"1px solid #e2e8f0", boxShadow:"0 1px 4px rgba(0, 0, 0, 0.05)" }}>
-                          <div style={{ display:"flex", alignItems:"center", gap:"8px", marginBottom:"12px" }}>
-                            <Eye size={16} style={{ color:"#10b981" }}/>
-                            <span style={{ fontSize:"12px", color:"#64748b", fontWeight:"700" }}>معدل الموافقة</span>
+                        <div className="owner-stat-card" style={{ background:"white", borderRadius:"18px", padding:"20px", border:"1px solid #eef0f6", boxShadow:"0 8px 22px rgba(30, 41, 59, 0.05)", transition:"transform 0.25s ease, box-shadow 0.25s ease" }} onMouseEnter={(e)=>{e.currentTarget.style.transform="translateY(-3px)"; e.currentTarget.style.boxShadow="0 14px 32px rgba(30, 41, 59, 0.1)";}} onMouseLeave={(e)=>{e.currentTarget.style.transform="translateY(0)"; e.currentTarget.style.boxShadow="0 8px 22px rgba(30, 41, 59, 0.05)";}}>
+                          <div style={{ display:"flex", alignItems:"center", gap:"10px", marginBottom:"14px" }}>
+                            <div style={{ width:"32px", height:"32px", borderRadius:"10px", background:"linear-gradient(135deg, #10b981, #059669)", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                              <Eye size={15} className="text-white" />
+                            </div>
+                            <span style={{ fontSize:"12.5px", color:"#64748b", fontWeight:"700" }}>معدل الموافقة</span>
                           </div>
-                          <div style={{ fontSize:"28px", fontWeight:"900", color:"#10b981" }}>{rate}%</div>
-                          <div style={{ fontSize:"11px", color:"#94a3b8", marginTop:"4px" }}>{approved} من {total} طلب</div>
+                          <div style={{ fontSize:"27px", fontWeight:"900", color:"#059669" }}>{rate}%</div>
+                          <div style={{ fontSize:"11px", color:"#94a3b8", marginTop:"6px", fontWeight:"600" }}>{approved} من {total} طلب</div>
                         </div>
                       );
                     })()}
                   </div>
 
-                  <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(280px, 1fr))", gap:"16px" }}>
-                    <div className="bg-white rounded-[2rem] shadow-sm border">
-                      <div className="p-6 border-b bg-slate-50/50"><h4 className="font-black text-slate-800 flex items-center gap-2"><ArrowUpRight className="text-indigo-600" size={20} /> الأعلى رصيداً</h4></div>
-                      <div className="p-4">
-                        {topBalances.map((emp, idx) => (
-                          <div key={emp.id} className="flex justify-between items-center p-3 hover:bg-slate-50 rounded-xl">
-                            <div className="flex items-center gap-3"><span className="text-lg font-bold text-slate-400">#{idx+1}</span><span className="font-bold text-slate-800">{emp.name}</span></div>
-                            <span className="bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full font-bold text-sm">{emp.balance} يوم</span>
+                  <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(300px, 1fr))", gap:"16px" }}>
+                    <div style={{ background:"white", borderRadius:"22px", border:"1px solid #eef0f6", boxShadow:"0 10px 28px rgba(30, 41, 59, 0.06)", overflow:"hidden" }}>
+                      <div style={{ padding:"20px 22px", borderBottom:"1px solid #f1f2f8", display:"flex", alignItems:"center", gap:"10px" }}>
+                        <div style={{ width:"34px", height:"34px", borderRadius:"11px", background:"linear-gradient(135deg, #6366f1, #4f46e5)", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                          <ArrowUpRight size={16} className="text-white" />
+                        </div>
+                        <h4 style={{ margin:0, fontWeight:"900", fontSize:"14.5px", color:"#1e293b" }}>الأعلى رصيداً</h4>
+                      </div>
+                      <div style={{ padding:"10px 14px 14px" }}>
+                        {topBalances.length > 0 ? topBalances.map((emp, idx) => (
+                          <div key={emp.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"11px 10px", borderRadius:"13px", transition:"background 0.2s ease" }} onMouseEnter={(e)=>{e.currentTarget.style.background="#f8fafc";}} onMouseLeave={(e)=>{e.currentTarget.style.background="transparent";}}>
+                            <div style={{ display:"flex", alignItems:"center", gap:"12px" }}>
+                              <span style={{
+                                width:"26px", height:"26px", borderRadius:"9px", flexShrink:0,
+                                background: idx < 3 ? "linear-gradient(135deg, #6366f1, #8b5cf6)" : "#f1f5f9",
+                                color: idx < 3 ? "white" : "#94a3b8",
+                                display:"flex", alignItems:"center", justifyContent:"center",
+                                fontSize:"12px", fontWeight:"800",
+                              }}>{idx+1}</span>
+                              <span style={{ fontWeight:"700", fontSize:"13.5px", color:"#1e293b" }}>{emp.name}</span>
+                            </div>
+                            <span style={{ background:"#eef2ff", color:"#4f46e5", padding:"5px 12px", borderRadius:"99px", fontWeight:"800", fontSize:"12.5px", whiteSpace:"nowrap" }}>{emp.balance} يوم</span>
                           </div>
-                        ))}
+                        )) : <div style={{ textAlign:"center", color:"#94a3b8", padding:"28px 0", fontSize:"13px" }}>لا توجد بيانات</div>}
                       </div>
                     </div>
-                    <div className="bg-white rounded-[2rem] shadow-sm border">
-                      <div className="p-6 border-b bg-slate-50/50"><h4 className="font-black text-slate-800 flex items-center gap-2"><Calendar className="text-emerald-600" size={20} /> أقرب مواعيد العودة</h4></div>
-                      <div className="p-4 space-y-2">
-                        {comingBackSoon.map(req => (
-                          <div key={req.id} className="flex justify-between items-center p-3 hover:bg-slate-50 rounded-xl">
-                            <span className="font-bold text-slate-800">{req.employee_name}</span>
-                            <span className="text-emerald-600 font-bold text-sm">{formatDate(req.backDate)}</span>
+                    <div style={{ background:"white", borderRadius:"22px", border:"1px solid #eef0f6", boxShadow:"0 10px 28px rgba(30, 41, 59, 0.06)", overflow:"hidden" }}>
+                      <div style={{ padding:"20px 22px", borderBottom:"1px solid #f1f2f8", display:"flex", alignItems:"center", gap:"10px" }}>
+                        <div style={{ width:"34px", height:"34px", borderRadius:"11px", background:"linear-gradient(135deg, #10b981, #059669)", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                          <Calendar size={16} className="text-white" />
+                        </div>
+                        <h4 style={{ margin:0, fontWeight:"900", fontSize:"14.5px", color:"#1e293b" }}>أقرب مواعيد العودة</h4>
+                      </div>
+                      <div style={{ padding:"10px 14px 14px" }}>
+                        {comingBackSoon.length > 0 ? comingBackSoon.map(req => (
+                          <div key={req.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"11px 10px", borderRadius:"13px", transition:"background 0.2s ease" }} onMouseEnter={(e)=>{e.currentTarget.style.background="#f8fafc";}} onMouseLeave={(e)=>{e.currentTarget.style.background="transparent";}}>
+                            <span style={{ fontWeight:"700", fontSize:"13.5px", color:"#1e293b" }}>{req.employee_name}</span>
+                            <span style={{ background:"#ecfdf5", color:"#059669", padding:"5px 12px", borderRadius:"99px", fontWeight:"800", fontSize:"12.5px", whiteSpace:"nowrap" }}>{formatDate(req.backDate)}</span>
                           </div>
-                        ))}
+                        )) : <div style={{ textAlign:"center", color:"#94a3b8", padding:"28px 0", fontSize:"13px" }}>لا توجد بيانات</div>}
                       </div>
                     </div>
                   </div>
-                  <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(250px, 1fr))", gap:"16px" }}>
-                    <div className="bg-white p-6 rounded-[2rem] shadow-sm border col-span-2">
-                      <h4 className="font-black mb-4 flex items-center gap-2"><BarChart2 size={20} className="text-indigo-600" /> أكثر الموظفين أيام عمل بعد العودة</h4>
-                      <div className="space-y-3">
+                  <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(280px, 1fr))", gap:"16px" }}>
+                    <div style={{ background:"white", borderRadius:"22px", border:"1px solid #eef0f6", boxShadow:"0 10px 28px rgba(30, 41, 59, 0.06)", padding:"22px", gridColumn:"span 2" }}>
+                      <div style={{ display:"flex", alignItems:"center", gap:"10px", marginBottom:"18px" }}>
+                        <div style={{ width:"34px", height:"34px", borderRadius:"11px", background:"linear-gradient(135deg, #6366f1, #4f46e5)", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                          <BarChart2 size={16} className="text-white" />
+                        </div>
+                        <h4 style={{ margin:0, fontWeight:"900", fontSize:"14.5px", color:"#1e293b" }}>أكثر الموظفين أيام عمل بعد العودة</h4>
+                      </div>
+                      <div style={{ display:"flex", flexDirection:"column", gap:"14px" }}>
                         {(() => {
                           const topWorked = [...employees]
                             .map(emp => ({ ...emp, workedDays: calculateWorkedDays(emp.return_date, emp.status === "إجازة") }))
@@ -3105,30 +3212,38 @@ useEffect(() => {
                           const maxDays = (topWorked[0] as any)?.workedDays || 1;
                           return topWorked.length > 0 ? topWorked.map((emp: any, i) => (
                             <div key={emp.id} style={{ display:"flex", alignItems:"center", gap:"12px" }}>
-                              <span style={{ color:"#94a3b8", fontWeight:"800", fontSize:"13px", minWidth:"24px" }}>#{i+1}</span>
+                              <span style={{ color:"#94a3b8", fontWeight:"800", fontSize:"12.5px", minWidth:"22px" }}>#{i+1}</span>
                               <div style={{ flex:1 }}>
-                                <div style={{ display:"flex", justifyContent:"space-between", marginBottom:"4px" }}>
+                                <div style={{ display:"flex", justifyContent:"space-between", marginBottom:"6px" }}>
                                   <span style={{ fontWeight:"700", fontSize:"13px", color:"#1e293b" }}>{emp.name}</span>
                                   <span style={{ color:"#4f46e5", fontWeight:"800", fontSize:"13px" }}>{emp.workedDays} يوم</span>
                                 </div>
-                                <div style={{ height:"8px", background:"#e2e8f0", borderRadius:"99px", overflow:"hidden" }}>
+                                <div style={{ height:"7px", background:"#eef0f6", borderRadius:"99px", overflow:"hidden" }}>
                                   <div style={{ height:"100%", background:"linear-gradient(90deg, #6366f1, #8b5cf6)", borderRadius:"99px", width:`${(emp.workedDays / maxDays) * 100}%`, transition:"width 0.4s" }}></div>
                                 </div>
                               </div>
                             </div>
-                          )) : <div style={{ textAlign:"center", color:"#94a3b8", padding:"32px 0", fontSize:"13px" }}>لا توجد بيانات عودة بعد</div>;
+                          )) : <div style={{ textAlign:"center", color:"#94a3b8", padding:"28px 0", fontSize:"13px" }}>لا توجد بيانات عودة بعد</div>;
                         })()}
                       </div>
                     </div>
-                    <div className="bg-white p-6 rounded-[2rem] shadow-sm border">
-                      <h4 className="font-black mb-4 flex items-center gap-2"><PieChart size={20} className="text-purple-600" /> أنواع الإجازات</h4>
-                      <div className="space-y-3">
-                        {vacationByType.map(item => (
-                          <div key={item.name} className="flex justify-between items-center">
-                            <div className="flex items-center gap-2"><div className="w-3 h-3 rounded" style={{ backgroundColor: item.color }}></div><span className="text-sm">{item.name}</span></div>
-                            <span className="font-bold">{item.count}</span>
+                    <div style={{ background:"white", borderRadius:"22px", border:"1px solid #eef0f6", boxShadow:"0 10px 28px rgba(30, 41, 59, 0.06)", padding:"22px" }}>
+                      <div style={{ display:"flex", alignItems:"center", gap:"10px", marginBottom:"18px" }}>
+                        <div style={{ width:"34px", height:"34px", borderRadius:"11px", background:"linear-gradient(135deg, #a855f7, #9333ea)", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                          <PieChart size={16} className="text-white" />
+                        </div>
+                        <h4 style={{ margin:0, fontWeight:"900", fontSize:"14.5px", color:"#1e293b" }}>أنواع الإجازات</h4>
+                      </div>
+                      <div style={{ display:"flex", flexDirection:"column", gap:"12px" }}>
+                        {vacationByType.length > 0 ? vacationByType.map(item => (
+                          <div key={item.name} style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                            <div style={{ display:"flex", alignItems:"center", gap:"10px" }}>
+                              <div style={{ width:"10px", height:"10px", borderRadius:"3px", background: item.color, flexShrink:0 }}></div>
+                              <span style={{ fontSize:"13px", color:"#475569", fontWeight:"600" }}>{item.name}</span>
+                            </div>
+                            <span style={{ fontWeight:"800", fontSize:"13.5px", color:"#1e293b" }}>{item.count}</span>
                           </div>
-                        ))}
+                        )) : <div style={{ textAlign:"center", color:"#94a3b8", padding:"28px 0", fontSize:"13px" }}>لا توجد بيانات</div>}
                       </div>
                     </div>
                   </div>
@@ -5586,14 +5701,13 @@ useEffect(() => {
   // ==================== EMPLOYEE VIEW ====================
   if (currentView === "employee") {
     const empStatus = getEmployeeStatus(currentUser);
+    const empInitial = (currentUser?.name || "?").trim().charAt(0);
     return (
       <>
       <div style={{
         minHeight: "100vh",
-        background: "linear-gradient(135deg, #667eea 0%, #764ba2 25%, #f093fb 50%, #4facfe 75%, #00f2fe 100%)",
-        backgroundSize: "400% 400%",
-        animation: "gradient 15s ease infinite",
-        padding: "24px"
+        background: "#f4f6fb",
+        padding: "0 0 40px",
       }} dir="rtl">
         <style>{`
           @keyframes gradient {
@@ -5609,99 +5723,116 @@ useEffect(() => {
             from { opacity: 0; }
             to { opacity: 1; }
           }
+          .emp-stat-card { transition: transform 0.25s ease, box-shadow 0.25s ease; }
+          .emp-stat-card:hover { transform: translateY(-4px); box-shadow: 0 20px 45px rgba(30, 41, 59, 0.12); }
         `}</style>
-        
-        <header className="max-w-4xl mx-auto mb-10" style={{
-          animation: "slideDown 0.8s ease",
-          background: "rgba(255, 255, 255, 0.95)",
-          backdropFilter: "blur(20px)",
-          borderRadius: "28px",
-          padding: "20px 24px",
-          border: "1px solid rgba(255, 255, 255, 0.2)",
-          boxShadow: "0 20px 60px rgba(0, 0, 0, 0.15)",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          flexWrap: "wrap",
-          gap: "12px",
+
+        {/* الهيدر العلوي الاحترافي */}
+        <header style={{
+          animation: "slideDown 0.6s ease",
+          background: "linear-gradient(120deg, #1e1b4b, #4338ca 55%, #6366f1)",
+          padding: "28px 24px 64px",
         }}>
-          <div>
-            <h2 style={{ margin: "0", fontSize: "clamp(20px, 5vw, 32px)", fontWeight: "900", background: "linear-gradient(135deg, #667eea, #764ba2)", backgroundClip: "text", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", color: "#667eea" }}>
-              أهلاً {currentUser.name} 👋
-            </h2>
-          </div>
-          <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
-            <button onClick={() => { setChangePinForm({ oldPin:"", newPin:"", confirmPin:"" }); setShowChangePinModal(true); }} style={{
-              background: "linear-gradient(135deg, #7c3aed, #6d28d9)",
-              color: "white", border: "none", padding: "12px 20px", borderRadius: "14px",
-              fontWeight: "700", cursor: "pointer", display: "flex", alignItems: "center", gap: "8px",
-              boxShadow: "0 10px 25px rgba(124, 58, 237, 0.3)"
-            }}>
-              🔑 تغيير PIN
-            </button>
-            <button onClick={() => { localStorage.removeItem("vms_currentUser"); localStorage.removeItem("vms_currentView"); setCurrentView("login"); setCurrentUser(null); setLoginData({ email: "", password: "" }); setEmpCodeInput(""); setEmpPinInput(""); }} style={{
-              background: "linear-gradient(135deg, #ef4444, #dc2626)",
-              color: "white", border: "none", padding: "12px 20px", borderRadius: "14px",
-              fontWeight: "700", cursor: "pointer", display: "flex", alignItems: "center", gap: "8px",
-              transition: "all 0.3s ease", boxShadow: "0 10px 25px rgba(239, 68, 68, 0.3)"
-            }} onMouseEnter={(e) => e.currentTarget.style.transform = "translateY(-2px)"} onMouseLeave={(e) => e.currentTarget.style.transform = "translateY(0)"}>
-              <LogOut size={18} /> خروج
-            </button>
+          <div className="max-w-5xl mx-auto" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "16px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
+              <div style={{
+                width: "52px", height: "52px", borderRadius: "16px",
+                background: "rgba(255,255,255,0.14)", border: "1px solid rgba(255,255,255,0.2)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: "20px", fontWeight: "900", color: "white",
+              }}>
+                {empInitial}
+              </div>
+              <div>
+                <h2 style={{ margin: 0, fontSize: "clamp(19px, 4vw, 26px)", fontWeight: "900", color: "white" }}>
+                  أهلاً {currentUser.name} 👋
+                </h2>
+                <p style={{ margin: "4px 0 0", fontSize: "13px", color: "rgba(255,255,255,0.55)", fontWeight: "600" }}>
+                  {currentUser.position || "نظرة عامة على حالة إجازاتك"}
+                </p>
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
+              <button onClick={() => { setChangePinForm({ oldPin:"", newPin:"", confirmPin:"" }); setShowChangePinModal(true); }} style={{
+                background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.25)",
+                color: "white", padding: "11px 18px", borderRadius: "13px",
+                fontWeight: "700", fontSize: "13.5px", cursor: "pointer", display: "flex", alignItems: "center", gap: "8px",
+                transition: "background 0.2s ease",
+              }} onMouseEnter={(e)=>{e.currentTarget.style.background="rgba(255,255,255,0.2)";}} onMouseLeave={(e)=>{e.currentTarget.style.background="rgba(255,255,255,0.12)";}}>
+                <KeyRound size={16} /> تغيير PIN
+              </button>
+              <button onClick={() => { localStorage.removeItem("vms_currentUser"); localStorage.removeItem("vms_currentView"); setCurrentView("login"); setCurrentUser(null); setLoginData({ email: "", password: "" }); setEmpCodeInput(""); setEmpPinInput(""); }} style={{
+                background: "linear-gradient(135deg, #ef4444, #dc2626)",
+                color: "white", border: "none", padding: "11px 18px", borderRadius: "13px",
+                fontWeight: "700", fontSize: "13.5px", cursor: "pointer", display: "flex", alignItems: "center", gap: "8px",
+                transition: "all 0.2s ease", boxShadow: "0 8px 20px rgba(239, 68, 68, 0.35)"
+              }} onMouseEnter={(e) => e.currentTarget.style.transform = "translateY(-2px)"} onMouseLeave={(e) => e.currentTarget.style.transform = "translateY(0)"}>
+                <LogOut size={16} /> خروج
+              </button>
+            </div>
           </div>
         </header>
 
         {/* جدول معلومات الموظف الاحترافي */}
-        <div className="max-w-4xl mx-auto mb-8" style={{
-          animation: "slideDown 1s ease",
-          background: "rgba(255, 255, 255, 0.95)",
-          backdropFilter: "blur(20px)",
-          borderRadius: "24px",
-          border: "1px solid rgba(255, 255, 255, 0.2)",
-          boxShadow: "0 20px 60px rgba(102, 126, 234, 0.2)",
-          overflow: "hidden"
+        <div className="max-w-5xl mx-auto mb-8" style={{
+          animation: "slideDown 0.8s ease",
+          marginTop: "-40px",
+          padding: "0 16px",
         }}>
           <div style={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
-            gap: "0"
+            gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+            gap: "14px",
           }}>
             {/* الرصيد المتاح */}
-            <div style={{
-              padding: "24px",
+            <div className="emp-stat-card" style={{
+              padding: "22px 18px",
               textAlign: "center",
-              borderLeft: "1px solid #e2e8f0",
-              borderBottom: "1px solid #e2e8f0"
+              background: "white",
+              borderRadius: "20px",
+              boxShadow: "0 12px 30px rgba(30, 41, 59, 0.08)",
+              border: "1px solid #eef0f6",
             }}>
-              <div style={{ fontSize: "32px", marginBottom: "12px" }}>💰</div>
-              <p style={{ fontSize: "11px", color: "#94a3b8", marginBottom: "8px", fontWeight: "600" }}>الرصيد المتاح</p>
-              <p style={{ fontSize: "28px", fontWeight: "900", background: "linear-gradient(135deg, #10b981, #059669)", backgroundClip: "text", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", color: "#10b981" }}>{currentUser.balance}</p>
-              <p style={{ fontSize: "10px", color: "#64748b", marginTop: "4px" }}>يوم</p>
+              <div style={{ width:"44px", height:"44px", borderRadius:"13px", background:"linear-gradient(135deg, #10b981, #059669)", display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 14px" }}>
+                <Award size={20} className="text-white" />
+              </div>
+              <p style={{ fontSize: "11.5px", color: "#94a3b8", marginBottom: "6px", fontWeight: "700" }}>الرصيد المتاح</p>
+              <p style={{ fontSize: "26px", fontWeight: "900", color: "#059669" }}>{currentUser.balance}</p>
+              <p style={{ fontSize: "10px", color: "#94a3b8", marginTop: "2px", fontWeight: "600" }}>يوم</p>
             </div>
 
             {/* الرصيد الشهري */}
             {currentUser.monthly_balance > 0 && (
-              <div style={{
-                padding: "24px",
+              <div className="emp-stat-card" style={{
+                padding: "22px 18px",
                 textAlign: "center",
-                borderLeft: "1px solid #e2e8f0",
-                borderBottom: "1px solid #e2e8f0"
+                background: "white",
+                borderRadius: "20px",
+                boxShadow: "0 12px 30px rgba(30, 41, 59, 0.08)",
+                border: "1px solid #eef0f6",
               }}>
-                <div style={{ fontSize: "32px", marginBottom: "12px" }}>📅</div>
-                <p style={{ fontSize: "11px", color: "#94a3b8", marginBottom: "8px", fontWeight: "600" }}>الرصيد الشهري</p>
-                <p style={{ fontSize: "28px", fontWeight: "900", color: "#10b981" }}>+{currentUser.monthly_balance}</p>
-                <p style={{ fontSize: "10px", color: "#64748b", marginTop: "4px" }}>يوم</p>
+                <div style={{ width:"44px", height:"44px", borderRadius:"13px", background:"linear-gradient(135deg, #6366f1, #4f46e5)", display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 14px" }}>
+                  <CalendarDays size={20} className="text-white" />
+                </div>
+                <p style={{ fontSize: "11.5px", color: "#94a3b8", marginBottom: "6px", fontWeight: "700" }}>الرصيد الشهري</p>
+                <p style={{ fontSize: "26px", fontWeight: "900", color: "#4f46e5" }}>+{currentUser.monthly_balance}</p>
+                <p style={{ fontSize: "10px", color: "#94a3b8", marginTop: "2px", fontWeight: "600" }}>يوم</p>
               </div>
             )}
 
             {/* الحالة الحالية */}
-            <div style={{
-              padding: "24px",
+            <div className="emp-stat-card" style={{
+              padding: "22px 18px",
               textAlign: "center",
-              borderLeft: "1px solid #e2e8f0",
-              borderBottom: "1px solid #e2e8f0"
+              background: "white",
+              borderRadius: "20px",
+              boxShadow: "0 12px 30px rgba(30, 41, 59, 0.08)",
+              border: "1px solid #eef0f6",
             }}>
-              <div style={{ fontSize: "32px", marginBottom: "12px" }}>{empStatus === "عمل" ? "✅" : "🏖️"}</div>
-              <p style={{ fontSize: "11px", color: "#94a3b8", marginBottom: "8px", fontWeight: "600" }}>الحالة الحالية</p>
+              <div style={{ width:"44px", height:"44px", borderRadius:"13px", background: empStatus === "عمل" ? "linear-gradient(135deg, #22c55e, #16a34a)" : "linear-gradient(135deg, #f59e0b, #d97706)", display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 14px" }}>
+                {empStatus === "عمل" ? <CheckCircle size={20} className="text-white" /> : <Clock size={20} className="text-white" />}
+              </div>
+              <p style={{ fontSize: "11.5px", color: "#94a3b8", marginBottom: "6px", fontWeight: "700" }}>الحالة الحالية</p>
               <p style={{ fontSize: "16px", fontWeight: "900", color: empStatus === "عمل" ? "#065f46" : "#92400e" }}>
                 {empStatus === "عمل" ? "في العمل" : "في إجازة"}
               </p>
@@ -5709,46 +5840,53 @@ useEffect(() => {
 
             {/* أيام العمل منذ العودة */}
             {currentUser.return_date && (
-              <div style={{
-                padding: "24px",
+              <div className="emp-stat-card" style={{
+                padding: "22px 18px",
                 textAlign: "center",
-                borderLeft: "1px solid #e2e8f0",
-                borderBottom: "1px solid #e2e8f0"
+                background: "white",
+                borderRadius: "20px",
+                boxShadow: "0 12px 30px rgba(30, 41, 59, 0.08)",
+                border: "1px solid #eef0f6",
               }}>
-                <div style={{ fontSize: "32px", marginBottom: "12px" }}>📆</div>
-                <p style={{ fontSize: "11px", color: "#94a3b8", marginBottom: "8px", fontWeight: "600" }}>أيام العمل</p>
-                <p style={{ fontSize: "28px", fontWeight: "900", color: "#a855f7" }}>{calculateWorkedDays(currentUser.return_date, empStatus === "إجازة")}</p>
-                <p style={{ fontSize: "10px", color: "#64748b", marginTop: "4px" }}>منذ العودة</p>
+                <div style={{ width:"44px", height:"44px", borderRadius:"13px", background:"linear-gradient(135deg, #a855f7, #9333ea)", display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 14px" }}>
+                  <TrendingUp size={20} className="text-white" />
+                </div>
+                <p style={{ fontSize: "11.5px", color: "#94a3b8", marginBottom: "6px", fontWeight: "700" }}>أيام العمل</p>
+                <p style={{ fontSize: "26px", fontWeight: "900", color: "#9333ea" }}>{calculateWorkedDays(currentUser.return_date, empStatus === "إجازة")}</p>
+                <p style={{ fontSize: "10px", color: "#94a3b8", marginTop: "2px", fontWeight: "600" }}>منذ العودة</p>
               </div>
             )}
 
             {/* تاريخ التعيين */}
             {currentUser.hire_date && (
-              <div style={{
-                padding: "24px",
+              <div className="emp-stat-card" style={{
+                padding: "22px 18px",
                 textAlign: "center",
-                borderLeft: "1px solid #e2e8f0",
-                borderBottom: "1px solid #e2e8f0"
+                background: "white",
+                borderRadius: "20px",
+                boxShadow: "0 12px 30px rgba(30, 41, 59, 0.08)",
+                border: "1px solid #eef0f6",
               }}>
-                <div style={{ fontSize: "32px", marginBottom: "12px" }}>👤</div>
-                <p style={{ fontSize: "11px", color: "#94a3b8", marginBottom: "8px", fontWeight: "600" }}>تاريخ التعيين</p>
-                <p style={{ fontSize: "14px", fontWeight: "900", color: "#667eea" }}>{formatDate(currentUser.hire_date)}</p>
+                <div style={{ width:"44px", height:"44px", borderRadius:"13px", background:"linear-gradient(135deg, #64748b, #475569)", display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 14px" }}>
+                  <Briefcase size={20} className="text-white" />
+                </div>
+                <p style={{ fontSize: "11.5px", color: "#94a3b8", marginBottom: "6px", fontWeight: "700" }}>تاريخ التعيين</p>
+                <p style={{ fontSize: "15px", fontWeight: "900", color: "#475569" }}>{formatDate(currentUser.hire_date)}</p>
               </div>
             )}
           </div>
         </div>
 
-        <div className="max-w-4xl mx-auto grid md:grid-cols-2 gap-8">
+        <div className="max-w-5xl mx-auto grid md:grid-cols-2 gap-8" style={{ padding: "0 16px" }}>
           <section style={{
             animation: "fadeIn 1s ease",
-            background: "rgba(255, 255, 255, 0.95)",
-            backdropFilter: "blur(20px)",
-            padding: "32px",
-            borderRadius: "28px",
-            border: "1px solid rgba(255, 255, 255, 0.2)",
-            boxShadow: "0 20px 60px rgba(0, 0, 0, 0.15)",
+            background: "white",
+            padding: "28px",
+            borderRadius: "22px",
+            border: "1px solid #eef0f6",
+            boxShadow: "0 14px 40px rgba(30, 41, 59, 0.08)",
             transition: "all 0.3s ease"
-          }} onMouseEnter={(e) => e.currentTarget.style.boxShadow = "0 30px 80px rgba(102, 126, 234, 0.25)"} onMouseLeave={(e) => e.currentTarget.style.boxShadow = "0 20px 60px rgba(0, 0, 0, 0.15)"}>
+          }} onMouseEnter={(e) => e.currentTarget.style.boxShadow = "0 20px 50px rgba(99, 102, 241, 0.15)"} onMouseLeave={(e) => e.currentTarget.style.boxShadow = "0 14px 40px rgba(30, 41, 59, 0.08)"}>
             <h3 className="text-xl font-black mb-6 flex items-center gap-3"><Plus className="text-indigo-600" /> طلب إجازة جديد</h3>
             <div className="space-y-5">
               <div>
@@ -5876,15 +6014,14 @@ useEffect(() => {
               return (
                 <div key={req.id} style={{
                   animation: `fadeIn 1.${3 + idx}s ease`,
-                  background: "rgba(255, 255, 255, 0.95)",
-                  backdropFilter: "blur(20px)",
+                  background: "white",
                   padding: "20px",
-                  borderRadius: "20px",
-                  border: "1px solid rgba(255, 255, 255, 0.2)",
-                  boxShadow: "0 15px 40px rgba(0, 0, 0, 0.08)",
+                  borderRadius: "18px",
+                  border: "1px solid #eef0f6",
+                  boxShadow: "0 10px 28px rgba(30, 41, 59, 0.06)",
                   transition: "all 0.3s ease",
-                  marginBottom: "16px"
-                }} onMouseEnter={(e) => { e.currentTarget.style.boxShadow = "0 25px 60px rgba(102, 126, 234, 0.2)"; e.currentTarget.style.transform = "translateY(-4px)"; }} onMouseLeave={(e) => { e.currentTarget.style.boxShadow = "0 15px 40px rgba(0, 0, 0, 0.08)"; e.currentTarget.style.transform = "translateY(0)"; }}>
+                  marginBottom: "14px"
+                }} onMouseEnter={(e) => { e.currentTarget.style.boxShadow = "0 18px 40px rgba(99, 102, 241, 0.15)"; e.currentTarget.style.transform = "translateY(-3px)"; }} onMouseLeave={(e) => { e.currentTarget.style.boxShadow = "0 10px 28px rgba(30, 41, 59, 0.06)"; e.currentTarget.style.transform = "translateY(0)"; }}>
                   <div className="flex justify-between items-start mb-4">
                     <div>
                       <p className="font-bold text-slate-800">{formatDate(req.start_date)}</p>
