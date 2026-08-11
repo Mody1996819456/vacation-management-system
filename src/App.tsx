@@ -151,6 +151,13 @@ const getActualStartDate = (startDate: string, departureTime: string): string =>
   return d.toISOString().split("T")[0];
 };
 
+// يحوّل أي أرقام إنجليزية داخل نص/رقم إلى أرقام عربية (هندية) — لتوحيد شكل الأرقام في الطباعة
+const toArabicDigits = (value: string | number | null | undefined): string => {
+  if (value === null || value === undefined || value === "") return "";
+  const arabicDigits = ["٠","١","٢","٣","٤","٥","٦","٧","٨","٩"];
+  return String(value).replace(/[0-9]/g, (d) => arabicDigits[Number(d)]);
+};
+
 const getDepartureLabel = (dep: string) => {
   if (dep === "after_work") return "بعد العمل (+يومان)";
   if (dep === "morning")    return "صباحاً (+يوم)";
@@ -3996,7 +4003,7 @@ useEffect(() => {
                 };
 
                 const buildLinahTemplateHTML = (selectedRows: any[]) => {
-                  const todayStr = new Date().toLocaleDateString("ar-EG", { year:"numeric", month:"2-digit", day:"2-digit" });
+                  const todayStr = toArabicDigits(new Date().toLocaleDateString("ar-EG", { year:"numeric", month:"2-digit", day:"2-digit" }));
                   const dataRows = [...selectedRows];
                   while (dataRows.length < 10) dataRows.push(null as any);
 
@@ -4017,20 +4024,20 @@ useEffect(() => {
   
   .logo-section { flex:0 0 240px; background:#fff; display:flex; align-items:center; justify-content:center; border-left:1px solid #333; padding:6px; }
   .logo-section-content { text-align:center; }
-  .logo-section-content .company-name { font-size:13px; font-weight:bold; color:#1B3B7F; line-height:1.2; }
-  .logo-section-content .company-desc { font-size:7px; color:#666; }
+  .logo-section-content .company-name { font-size:14px; font-weight:bold; color:#1B3B7F; line-height:1.3; }
+  .logo-section-content .company-desc { font-size:8px; color:#666; }
   
   .title-section { flex:1; display:flex; align-items:center; justify-content:center; padding:8px; border-left:1px solid #333; }
-  .title-section h1 { font-size:14px; font-weight:bold; color:#000; text-align:center; line-height:1.4; }
+  .title-section h1 { font-size:17px; font-weight:bold; color:#000; text-align:center; line-height:1.4; }
   
-  .date-section { flex:0 0 140px; display:flex; align-items:center; justify-content:center; padding:8px; }
-  .date-section .label { font-size:11px; font-weight:bold; }
+  .date-section { flex:0 0 150px; display:flex; align-items:center; justify-content:center; padding:8px; }
+  .date-section .label { font-size:13px; font-weight:bold; }
   
   /* الجدول */
   table { width:100%; border-collapse:collapse; margin:0; border:1px solid #333; }
   thead { background:#F4B36A; }
-  th { padding:6px 3px; border:1px solid #333; font-weight:bold; font-size:9px; text-align:center; color:#000; }
-  td { padding:5px 3px; border:1px solid #333; text-align:center; font-size:9px; }
+  th { padding:8px 3px; border:1px solid #333; font-weight:bold; font-size:11.5px; text-align:center; color:#000; }
+  td { padding:7px 3px; border:1px solid #333; text-align:center; font-size:11.5px; font-family:'Segoe UI', Arial, sans-serif; }
   tbody tr { border:1px solid #333; }
   tbody td { border:1px solid #333; }
   
@@ -4046,7 +4053,7 @@ useEffect(() => {
   .col-record { width:10%; }
   
   tfoot { border:none; }
-  tfoot td { padding:16px 6px; font-weight:bold; font-size:10px; border:none; }
+  tfoot td { padding:18px 6px; font-weight:bold; font-size:12.5px; border:none; }
   
   @media print {
     body { margin:0; padding:0; }
@@ -4092,14 +4099,14 @@ useEffect(() => {
         const originalBalance = row ? Math.round((row.emp?.balance || 0) + (row.lastReq?.days || 0)) : "";
         return `
       <tr>
-        <td class="col-num">${i+1}</td>
-        <td class="col-code">${row?.emp?.code||""}</td>
+        <td class="col-num">${toArabicDigits(i+1)}</td>
+        <td class="col-code">${toArabicDigits(row?.emp?.code)}</td>
         <td class="col-name">${row?.emp?.name||""}</td>
         <td class="col-position">${row?.emp?.position||""}</td>
-        <td class="col-balance">${originalBalance}</td>
-        <td class="col-date">${row?.lastReq?.start_date ? new Date(row.lastReq.start_date).toLocaleDateString("ar-EG") : ""}</td>
-        <td class="col-date-end">${row?.end ? new Date(row.end).toLocaleDateString("ar-EG") : ""}</td>
-        <td class="col-days">${row?.lastReq?.days ? row.lastReq.days : ""}</td>
+        <td class="col-balance">${row ? toArabicDigits(originalBalance) : ""}</td>
+        <td class="col-date">${row?.lastReq?.start_date ? toArabicDigits(new Date(row.lastReq.start_date).toLocaleDateString("ar-EG")) : ""}</td>
+        <td class="col-date-end">${row?.end ? toArabicDigits(new Date(row.end).toLocaleDateString("ar-EG")) : ""}</td>
+        <td class="col-days">${row?.lastReq?.days ? toArabicDigits(row.lastReq.days) : ""}</td>
         <td class="col-type">${row?.vacType?.name||""}</td>
         <td class="col-record"></td>
       </tr>`;
