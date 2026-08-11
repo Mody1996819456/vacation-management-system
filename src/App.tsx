@@ -4005,7 +4005,11 @@ useEffect(() => {
                 const buildLinahTemplateHTML = (selectedRows: any[]) => {
                   const todayStr = toArabicDigits(new Date().toLocaleDateString("ar-EG", { year:"numeric", month:"2-digit", day:"2-digit" }));
                   const dataRows = [...selectedRows];
-                  while (dataRows.length < 10) dataRows.push(null as any);
+                  // لو المحدد 5 موظفين أو أقل، اعرض 5 سطور بحد أقصى في الورقة (كامل أو فاضي)
+                  // لو أكتر من 5، اعرض عددهم بالظبط من غير سطور فاضية زيادة
+                  if (dataRows.length <= 5) {
+                    while (dataRows.length < 5) dataRows.push(null as any);
+                  }
 
                   return `<!DOCTYPE html>
 <html dir="rtl" lang="ar">
@@ -4042,18 +4046,18 @@ useEffect(() => {
   tbody td { border:1px solid #333; }
   
   .col-num { background:#F4B36A; font-weight:bold; width:4%; }
-  .col-code { width:8%; }
-  .col-name { width:18%; text-align:right; padding-right:6px; }
-  .col-position { width:14%; }
-  .col-balance { width:8%; font-weight:bold; }
-  .col-date { width:10%; }
-  .col-date-end { width:10%; }
-  .col-days { width:6%; }
-  .col-type { width:12%; }
-  .col-record { width:10%; }
+  .col-code { width:7%; }
+  .col-name { width:24%; text-align:right; padding-right:8px; white-space:nowrap; }
+  .col-position { width:11%; }
+  .col-balance { width:7%; font-weight:bold; }
+  .col-date { width:9%; }
+  .col-date-end { width:9%; }
+  .col-days { width:5%; }
+  .col-type { width:11%; }
+  .col-record { width:13%; }
   
   tfoot { border:none; }
-  tfoot td { padding:18px 6px; font-weight:bold; font-size:12.5px; border:none; }
+  tfoot td { padding:22px 6px 55px; font-weight:bold; font-size:12.5px; border:none; }
   
   @media print {
     body { margin:0; padding:0; }
