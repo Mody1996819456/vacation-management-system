@@ -151,6 +151,13 @@ const getActualStartDate = (startDate: string, departureTime: string): string =>
   return d.toISOString().split("T")[0];
 };
 
+const getLocalISODate = (date = new Date()): string => {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+};
+
 // يحوّل أي أرقام إنجليزية داخل نص/رقم إلى أرقام عربية (هندية) — لتوحيد شكل الأرقام في الطباعة
 const toArabicDigits = (value: string | number | null | undefined): string => {
   if (value === null || value === undefined || value === "") return "";
@@ -487,6 +494,41 @@ const EmpEditModal = ({ req, vacationTypes, onClose, onChange, onSave }: {
   );
 };
 
+const MultiSelectDropdown = ({
+  options, selected, onChange, label = "الأقسام", minWidth = "220px",
+}: {
+  options: any[]; selected: string[]; onChange: (ids: string[]) => void; label?: string; minWidth?: string;
+}) => {
+  const [open, setOpen] = useState(false);
+  const allSelected = selected.length === 0;
+  const toggle = (id: string) => {
+    onChange(selected.includes(id) ? selected.filter(x => x !== id) : [...selected, id]);
+  };
+  const summary = allSelected ? `كل ${label}` : selected.length === 1
+    ? (options.find(o => String(o.id) === selected[0])?.name || `قسم واحد`)
+    : `${selected.length} أقسام محددة`;
+  return (
+    <div style={{ position:"relative", minWidth }}>
+      <button type="button" onClick={() => setOpen(v => !v)}
+        style={{ width:"100%", minWidth, padding:"10px 13px", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:"10px", fontSize:"13px", outline:"none", color:"#475569", display:"flex", justifyContent:"space-between", alignItems:"center", gap:"8px", cursor:"pointer", fontFamily:"inherit" }}>
+        <span style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{summary}</span><span style={{ fontSize:"11px" }}>{open ? "▲" : "▼"}</span>
+      </button>
+      {open && <div onClick={e => e.stopPropagation()} style={{ position:"absolute", zIndex:80, top:"calc(100% + 5px)", right:0, width:"min(320px, 90vw)", maxHeight:"280px", overflowY:"auto", background:"white", border:"1px solid #cbd5e1", borderRadius:"12px", boxShadow:"0 12px 30px rgba(15,23,42,.18)", padding:"7px" }}>
+        <label style={{ display:"flex", alignItems:"center", gap:"8px", padding:"9px 10px", borderBottom:"1px solid #f1f5f9", cursor:"pointer", fontWeight:"800", fontSize:"13px" }}>
+          <input type="checkbox" checked={allSelected} onChange={() => onChange([])} /> كل {label}
+        </label>
+        {options.map(option => {
+          const id = String(option.id);
+          return <label key={id} style={{ display:"flex", alignItems:"center", gap:"8px", padding:"8px 10px", cursor:"pointer", fontSize:"13px" }}>
+            <input type="checkbox" checked={selected.includes(id)} onChange={() => toggle(id)} />
+            <span>{option.name}</span>
+          </label>;
+        })}
+      </div>}
+    </div>
+  );
+};
+
 const VacationManagementSystem = () => {
   // ========== STATES ==========
   const [employees, setEmployees] = useState<any[]>([]);
@@ -583,7 +625,7 @@ const VacationManagementSystem = () => {
   const [directVacForm, setDirectVacForm] = useState({ employee_id: "", days: 1, start_date: "", notes: "", vacation_type_id: "" });
   const [vacSearch2, setVacSearch2] = useState("");
   const [vacTypeFilter2, setVacTypeFilter2] = useState("all");
-  const [vacDeptFilter2, setVacDeptFilter2] = useState("all");
+  const [vacDeptFilters2, setVacDeptFilters2] = useState<string[]>([]);
   const [empSearchDirect, setEmpSearchDirect] = useState("");
   const [selectedCalendarDay, setSelectedCalendarDay] = useState<string | null>(null);
   const [showEmpDropdown, setShowEmpDropdown] = useState(false);
@@ -621,6 +663,9 @@ const VacationManagementSystem = () => {
   });
   const [showPWAGuide, setShowPWAGuide] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [weatherData, setWeatherData] = useState<any>(null);
+  const [weatherLoading, setWeatherLoading] = useState(false);
+  const [weatherError, setWeatherError] = useState("");
   // ===== States للاشعارات =====
   const [notifSearch, setNotifSearch] = useState("");
   const [notifDateFrom, setNotifDateFrom] = useState(""); // فلتر تاريخ القرار من
@@ -631,6 +676,9 @@ const VacationManagementSystem = () => {
   const [activeVacDateTo, setActiveVacDateTo] = useState("");
   const [activeVacSortField, setActiveVacSortField] = useState("back");
   const [selectedPrintIds, setSelectedPrintIds] = useState<Set<string>>(new Set());
+  const [selectedDeptIds, setSelectedDeptIds] = useState<string[]>([]);
+  const [requestDepartmentFilters, setRequestDepartmentFilters] = useState<string[]>([]);
+  const [selectedRequestIds, setSelectedRequestIds] = useState<string[]>([]);
   const [activeVacSortDir, setActiveVacSortDir] = useState<"asc"|"desc">("asc");
   const [activeVacSortDropdown, setActiveVacSortDropdown] = useState("");
 
@@ -661,6 +709,46 @@ const VacationManagementSystem = () => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
+
+  // ===== Actual location weather =====
+  const loadActualWeather = useCallback(() => {
+    if (!navigator.geolocation) {
+      setWeatherError("المتصفح لا يدعم تحديد الموقع");
+      return;
+    }
+    setWeatherLoading(true);
+    setWeatherError("");
+    navigator.geolocation.getCurrentPosition(async position => {
+      try {
+        const latitude = position.coords.latitude;
+        const longitude = position.coords.longitude;
+        const url = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,relative_humidity_2m,wind_speed_10m&daily=temperature_2m_min,temperature_2m_max&timezone=auto&forecast_days=1`;
+        const response = await fetch(url);
+        if (!response.ok) throw new Error("weather request failed");
+        const data = await response.json();
+        setWeatherData({
+          latitude, longitude,
+          timezone: data.timezone || "auto",
+          temperature: data.current?.temperature_2m,
+          humidity: data.current?.relative_humidity_2m,
+          wind: data.current?.wind_speed_10m,
+          min: data.daily?.temperature_2m_min?.[0],
+          max: data.daily?.temperature_2m_max?.[0],
+          unit: data.current_units?.temperature_2m || "°C",
+          windUnit: data.current_units?.wind_speed_10m || "km/h",
+        });
+      } catch {
+        setWeatherError("تعذر تحميل بيانات الطقس حاليًا");
+      } finally {
+        setWeatherLoading(false);
+      }
+    }, () => {
+      setWeatherLoading(false);
+      setWeatherError("اسمح بالوصول إلى الموقع لعرض طقس مكانك الفعلي");
+    }, { enableHighAccuracy: false, timeout: 10000, maximumAge: 15 * 60 * 1000 });
+  }, []);
+
+  useEffect(() => { loadActualWeather(); }, [loadActualWeather]);
 
   // ===== Online/Offline Detection =====
   useEffect(() => {
@@ -851,9 +939,12 @@ useEffect(() => {
 
   // ========== تحديث حالة الموظف تلقائياً بناءً على أول يوم فعلي ==========
   useEffect(() => {
+    let cancelled = false;
     const autoUpdateStatuses = async () => {
-      const today = new Date().toISOString().split("T")[0];
+      if (cancelled || employees.length === 0 || requests.length === 0) return;
+      const today = getLocalISODate();
       for (const emp of employees) {
+        if (cancelled) return;
         const activeReq = requests.find(r => {
           if (r.employee_id !== emp.id || r.status !== "approved" || r.actual_return_date) return false;
           const effectiveStart = r.effective_start_date || r.start_date || getActualStartDate(r.departure_date || r.start_date, r.departure_time || "actual");
@@ -866,7 +957,9 @@ useEffect(() => {
         }
       }
     };
-    if (employees.length > 0 && requests.length > 0 && currentView === "admin") autoUpdateStatuses();
+    autoUpdateStatuses();
+    const timer = window.setInterval(autoUpdateStatuses, 60_000);
+    return () => { cancelled = true; window.clearInterval(timer); };
   }, [employees, requests, currentView]);
 
   // ========== حالة الموظف تلقائياً ==========
@@ -1599,13 +1692,15 @@ useEffect(() => {
       }
       const effectiveStart = currentRequest.effective_start_date || currentRequest.start_date || getActualStartDate(currentRequest.departure_date || currentRequest.start_date, currentRequest.departure_time || "actual");
       const { back: backDate } = getCalculatedDates(effectiveStart, days);
-      const todayStr = new Date().toISOString().split("T")[0];
+      const todayStr = getLocalISODate();
       const empUpdatePayload: any = {
         balance: Number(emp.balance) - Number(days),
         return_date: backDate,
         leave_start_date: effectiveStart,
       };
+      // الطلب المقبول مستقبلاً لا يغيّر حالة الموظف قبل أول يوم فعلي.
       if (todayStr >= effectiveStart) empUpdatePayload.status = "إجازة";
+      else if (emp.status !== "إجازة") empUpdatePayload.status = "عمل";
       await supabase.from("employees").update(empUpdatePayload).eq("id", emp.id);
       if (emp.email) {
         const { back } = getCalculatedDates(currentRequest.start_date, days);
@@ -2063,8 +2158,20 @@ useEffect(() => {
       await supabase.from("departments").delete().eq("id", id);
       fetchData();
       await logAction("delete", "departments", id);
+      setSelectedDeptIds(prev => prev.filter(x => x !== id));
       alert("تم الحذف ✅");
     }
+  };
+
+  const deleteSelectedDepartments = async () => {
+    if (selectedDeptIds.length === 0) return;
+    if (!window.confirm(`حذف ${selectedDeptIds.length} أقسام؟`)) return;
+    const { error } = await supabase.from("departments").delete().in("id", selectedDeptIds);
+    if (error) return alert("تعذر حذف الأقسام: " + error.message);
+    await Promise.all(selectedDeptIds.map(id => logAction("delete", "departments", id)));
+    setSelectedDeptIds([]);
+    await fetchData();
+    alert("تم حذف الأقسام المحددة ✅");
   };
 
   // ========== HOLIDAY OPERATIONS ==========
@@ -2221,9 +2328,10 @@ useEffect(() => {
         (emp?.code || "").includes(searchTerm);
       const matchType = vacationTypeFilter === "all" || req.vacation_type_id === vacationTypeFilter;
       const matchStatus = statusFilter === "all" || req.status === statusFilter;
+      const matchDept = requestDepartmentFilters.length === 0 || requestDepartmentFilters.includes(String(emp?.department_id || ""));
       const matchDateFrom = !reqDateFrom || req.start_date >= reqDateFrom;
       const matchDateTo = !reqDateTo || req.start_date <= reqDateTo;
-      return matchSearch && matchType && matchStatus && matchDateFrom && matchDateTo;
+      return matchSearch && matchType && matchStatus && matchDept && matchDateFrom && matchDateTo;
     }).sort((a, b) => {
       // ترتيب صفحة الطلبات
       if (reqSortField) {
@@ -2268,7 +2376,21 @@ useEffect(() => {
       }
       return 0;
     });
-  }, [scopedRequests, vacSearch, reqSearch, vacationTypeFilter, statusFilter, reqDateFrom, reqDateTo, employees, reqSortField, reqSortDir, histSortField, histSortDir, publicHolidays]);
+  }, [scopedRequests, vacSearch, reqSearch, vacationTypeFilter, statusFilter, requestDepartmentFilters, reqDateFrom, reqDateTo, employees, reqSortField, reqSortDir, histSortField, histSortDir, publicHolidays]);
+
+  const toggleRequestSelection = (id: string) => {
+    setSelectedRequestIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+  const selectAllRequests = (rows: any[]) => {
+    const ids = rows.map(r => String(r.id));
+    setSelectedRequestIds(prev => ids.every(id => prev.includes(id)) ? prev.filter(id => !ids.includes(id)) : Array.from(new Set([...prev, ...ids])));
+  };
+  const openSelectedRequestsPrint = () => {
+    const approved = filteredRequests.filter(r => selectedRequestIds.includes(String(r.id)) && r.status === "approved");
+    if (approved.length === 0) return alert("حدد طلبًا مقبولًا واحدًا على الأقل للطباعة");
+    setPrintSelected(approved.map(r => r.id));
+    setPrintFrom(""); setPrintTo(""); setShowPrintModal(true);
+  };
 
   // ==================== GOOGLE SHEETS BACKUP ====================
   const handleBackup = async () => {
@@ -3016,6 +3138,22 @@ useEffect(() => {
                       </div>
                     );
                   })()}
+                  {/* ===== الطقس بالموقع الفعلي ===== */}
+                  <div style={{ background:"white", borderRadius:"20px", border:"1px solid #e2e8f0", padding:"18px 20px", boxShadow:"0 2px 8px rgba(0,0,0,.05)" }}>
+                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:"12px", flexWrap:"wrap", marginBottom:"14px" }}>
+                      <div><h3 style={{ margin:0, fontSize:"16px", fontWeight:"900", color:"#1e293b" }}>الطقس في موقعك الفعلي</h3><p style={{ margin:"4px 0 0", color:"#64748b", fontSize:"11px" }}>{weatherData?.timezone ? `التوقيت المحلي: ${weatherData.timezone}` : "يتم تحديد الموقع من المتصفح"}</p></div>
+                      <button onClick={loadActualWeather} disabled={weatherLoading} style={{ border:"1px solid #cbd5e1", background:"#f8fafc", color:"#475569", borderRadius:"10px", padding:"8px 12px", cursor:weatherLoading ? "wait" : "pointer", fontWeight:"700" }}>{weatherLoading ? "جاري التحديث..." : "تحديث الطقس"}</button>
+                    </div>
+                    {weatherError && <div style={{ color:"#b45309", background:"#fffbeb", borderRadius:"10px", padding:"10px 12px", fontSize:"12px", fontWeight:"700" }}>{weatherError}</div>}
+                    {weatherLoading && !weatherData && <div style={{ color:"#64748b", fontSize:"12px" }}>جاري تحميل بيانات الطقس...</div>}
+                    {weatherData && <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))", gap:"10px" }}>
+                      <div style={{ background:"#eff6ff", borderRadius:"12px", padding:"12px", textAlign:"center" }}><div style={{ color:"#64748b", fontSize:"11px" }}>الصغرى اليوم</div><div style={{ color:"#2563eb", fontSize:"23px", fontWeight:"900" }}>{weatherData.min}°</div></div>
+                      <div style={{ background:"#fff7ed", borderRadius:"12px", padding:"12px", textAlign:"center" }}><div style={{ color:"#64748b", fontSize:"11px" }}>الكبرى اليوم</div><div style={{ color:"#ea580c", fontSize:"23px", fontWeight:"900" }}>{weatherData.max}°</div></div>
+                      <div style={{ background:"#ecfeff", borderRadius:"12px", padding:"12px", textAlign:"center" }}><div style={{ color:"#64748b", fontSize:"11px" }}>الرطوبة الآن</div><div style={{ color:"#0891b2", fontSize:"23px", fontWeight:"900" }}>{weatherData.humidity}%</div></div>
+                      <div style={{ background:"#f0fdf4", borderRadius:"12px", padding:"12px", textAlign:"center" }}><div style={{ color:"#64748b", fontSize:"11px" }}>سرعة الرياح</div><div style={{ color:"#16a34a", fontSize:"23px", fontWeight:"900" }}>{weatherData.wind} <span style={{ fontSize:"11px" }}>{weatherData.windUnit}</span></div></div>
+                      <div style={{ background:"#f5f3ff", borderRadius:"12px", padding:"12px", textAlign:"center" }}><div style={{ color:"#64748b", fontSize:"11px" }}>الوقت المحلي للموقع</div><div style={{ color:"#7c3aed", fontSize:"16px", fontWeight:"900", direction:"ltr" }}>{currentTime.toLocaleTimeString("ar-EG", { timeZone: weatherData.timezone, hour:"2-digit", minute:"2-digit", second:"2-digit" })}</div></div>
+                    </div>}
+                  </div>
                   {/* شريط الأدوات العلوي */}
                   <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:"12px", flexWrap:"wrap" }}>
                     {/* حالة الاتصال */}
@@ -3455,6 +3593,7 @@ useEffect(() => {
                         placeholder="بحث بالاسم..."
                         value={reqSearch} onChange={e => setReqSearch(e.target.value)} />
                     </div>
+                    {!isDeptMgr && <MultiSelectDropdown options={departments} selected={requestDepartmentFilters} onChange={setRequestDepartmentFilters} label="الأقسام" minWidth="210px" />}
                     <select style={{ padding:"10px 12px", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:"10px", fontSize:"13px", outline:"none" }}
                       value={vacationTypeFilter} onChange={e => setVacationTypeFilter(e.target.value)}>
                       <option value="all">كل الأنواع</option>
@@ -3470,15 +3609,20 @@ useEffect(() => {
                       <input type="date" style={{ padding:"9px 10px", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:"10px", fontSize:"12px", outline:"none" }}
                         value={reqDateTo} onChange={e => setReqDateTo(e.target.value)} />
                     </div>
-                    {(reqSearch || vacationTypeFilter !== "all" || reqDateFrom || reqDateTo) && (
-                      <button onClick={() => { setReqSearch(""); setVacationTypeFilter("all"); setReqDateFrom(""); setReqDateTo(""); }}
+                    {(reqSearch || requestDepartmentFilters.length > 0 || vacationTypeFilter !== "all" || reqDateFrom || reqDateTo) && (
+                      <button onClick={() => { setReqSearch(""); setRequestDepartmentFilters([]); setVacationTypeFilter("all"); setReqDateFrom(""); setReqDateTo(""); }}
                         style={{ padding:"9px 14px", background:"#fee2e2", color:"#dc2626", border:"none", borderRadius:"10px", fontSize:"12px", fontWeight:"700", cursor:"pointer" }}>
                         ✕ مسح
                       </button>
                     )}
-                    <span style={{ fontSize:"12px", color:"#64748b", marginRight:"auto" }}>
-                      {filteredRequests.length} طلب
-                    </span>
+                    <div style={{ display:"flex", alignItems:"center", gap:"6px", marginRight:"auto", flexWrap:"wrap" }}>
+                      {filteredRequests.length > 0 && <>
+                        <button onClick={() => selectAllRequests(filteredRequests)} style={{ padding:"8px 11px", background:"#eef2ff", color:"#4338ca", border:"1px solid #c7d2fe", borderRadius:"9px", fontSize:"11px", fontWeight:"800", cursor:"pointer" }}>✓ تحديد الطلبات</button>
+                        {selectedRequestIds.length > 0 && <button onClick={() => setSelectedRequestIds([])} style={{ padding:"8px 11px", background:"#fff1f2", color:"#dc2626", border:"1px solid #fecdd3", borderRadius:"9px", fontSize:"11px", fontWeight:"800", cursor:"pointer" }}>إلغاء ({selectedRequestIds.length})</button>}
+                        <button onClick={openSelectedRequestsPrint} disabled={selectedRequestIds.length === 0} style={{ padding:"8px 11px", background:selectedRequestIds.length ? "#2563eb" : "#e2e8f0", color:selectedRequestIds.length ? "white" : "#94a3b8", border:"none", borderRadius:"9px", fontSize:"11px", fontWeight:"800", cursor:selectedRequestIds.length ? "pointer" : "not-allowed" }}>طباعة المحدد</button>
+                      </>}
+                      <span style={{ fontSize:"12px", color:"#64748b" }}>{filteredRequests.length} طلب</span>
+                    </div>
                   </div>
 
                   {/* طلبات بانتظار مدير القسم (للدور: مدير قسم) - جدول مثل المالك */}
@@ -3489,6 +3633,7 @@ useEffect(() => {
                         <table style={{ width:"100%", borderCollapse:"collapse", border:"2px solid #94a3b8", fontSize:"13px", backgroundColor:"#ffffff" }}>
                           <thead>
                             <tr style={{ background:"linear-gradient(135deg, #fffbeb, #fef3c7)", borderBottom:"2px solid #fde68a" }}>
+                              <th style={{ border:"1px solid #94a3b8", padding:"12px 8px", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center", width:"42px" }}><input type="checkbox" checked={filteredRequests.filter(r => r.status === "pending").length > 0 && filteredRequests.filter(r => r.status === "pending").every(r => selectedRequestIds.includes(String(r.id)))} onChange={() => selectAllRequests(filteredRequests.filter(r => r.status === "pending"))} /></th>
                               <SortTh label="الموظف"    field="name"     align="right"  sortField={reqSortField} sortDir={reqSortDir} sortDropdown={reqSortDropdown} onSort={(f,d)=>{setReqSortField(f);setReqSortDir(d);setReqSortDropdown("");}} onClear={()=>{setReqSortField("");setReqSortDropdown("");}} onToggle={f=>setReqSortDropdown(d=>d===f?"":f)} />
                               <SortTh label="النوع"     field="type"     align="center" sortField={reqSortField} sortDir={reqSortDir} sortDropdown={reqSortDropdown} onSort={(f,d)=>{setReqSortField(f);setReqSortDir(d);setReqSortDropdown("");}} onClear={()=>{setReqSortField("");setReqSortDropdown("");}} onToggle={f=>setReqSortDropdown(d=>d===f?"":f)} />
                               <SortTh label="البداية"   field="start"    align="center" sortField={reqSortField} sortDir={reqSortDir} sortDropdown={reqSortDropdown} onSort={(f,d)=>{setReqSortField(f);setReqSortDir(d);setReqSortDropdown("");}} onClear={()=>{setReqSortField("");setReqSortDropdown("");}} onToggle={f=>setReqSortDropdown(d=>d===f?"":f)} />
@@ -3509,6 +3654,7 @@ useEffect(() => {
                                   style={{ borderBottom:"1px solid #f1f5f9", background: idx % 2 === 0 ? "white" : "#fafafa" }}
                                   onMouseEnter={e => (e.currentTarget.style.background = "#fffbeb")}
                                   onMouseLeave={e => (e.currentTarget.style.background = idx % 2 === 0 ? "white" : "#fafafa")}>
+                                  <td style={{ border:"1px solid #94a3b8", padding:"10px 8px", color:"#1e293b", textAlign:"center" }}><input type="checkbox" checked={selectedRequestIds.includes(String(req.id))} onChange={() => toggleRequestSelection(String(req.id))} style={{ width:"18px", height:"18px", cursor:"pointer" }} /></td>
                                   <td style={{ border:"1px solid #94a3b8", padding:"10px 8px", color:"#1e293b", textAlign:"center" }}>
                                     <button onClick={() => { setEmpInfoTarget({...emp, req}); setShowEmpInfoModal(true); }}
                                       style={{ background:"none", border:"none", padding:0, cursor:"pointer", textAlign:"right" }}>
@@ -3575,6 +3721,7 @@ useEffect(() => {
                         <table style={{ width:"100%", borderCollapse:"collapse", border:"2px solid #94a3b8", fontSize:"13px", backgroundColor:"#ffffff" }}>
                           <thead>
                             <tr style={{ background:"linear-gradient(135deg, #f0fdf4, #dcfce7)", borderBottom:"2px solid #bbf7d0" }}>
+                              <th style={{ border:"1px solid #94a3b8", padding:"12px 8px", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center", width:"42px" }}><input type="checkbox" checked={filteredRequests.filter(r => r.status === "pending" || r.status === "dept_approved").length > 0 && filteredRequests.filter(r => r.status === "pending" || r.status === "dept_approved").every(r => selectedRequestIds.includes(String(r.id)))} onChange={e => selectAllRequests(filteredRequests.filter(r => r.status === "pending" || r.status === "dept_approved"))} /></th>
                               <SortTh label="الموظف"    field="name"     align="right"  sortField={reqSortField} sortDir={reqSortDir} sortDropdown={reqSortDropdown} onSort={(f,d)=>{setReqSortField(f);setReqSortDir(d);setReqSortDropdown("");}} onClear={()=>{setReqSortField("");setReqSortDropdown("");}} onToggle={f=>setReqSortDropdown(d=>d===f?"":f)} />
                               <SortTh label="النوع"     field="type"     align="center" sortField={reqSortField} sortDir={reqSortDir} sortDropdown={reqSortDropdown} onSort={(f,d)=>{setReqSortField(f);setReqSortDir(d);setReqSortDropdown("");}} onClear={()=>{setReqSortField("");setReqSortDropdown("");}} onToggle={f=>setReqSortDropdown(d=>d===f?"":f)} />
                               <SortTh label="القسم"     field="dept"     align="center" sortField={reqSortField} sortDir={reqSortDir} sortDropdown={reqSortDropdown} onSort={(f,d)=>{setReqSortField(f);setReqSortDir(d);setReqSortDropdown("");}} onClear={()=>{setReqSortField("");setReqSortDropdown("");}} onToggle={f=>setReqSortDropdown(d=>d===f?"":f)} />
@@ -3598,6 +3745,7 @@ useEffect(() => {
                               style={{ borderBottom:"1px solid #f1f5f9", background: isDeptApp ? "#faf5ff" : (idx%2===0 ? "white" : "#fafafa") }}
                               onMouseEnter={e=>(e.currentTarget.style.background="#f0fdf4")}
                               onMouseLeave={e=>(e.currentTarget.style.background= isDeptApp ? "#faf5ff" : (idx%2===0 ? "white" : "#fafafa"))}>
+                              <td style={{ border:"1px solid #94a3b8", padding:"10px 8px", color:"#1e293b", textAlign:"center" }}><input type="checkbox" checked={selectedRequestIds.includes(String(req.id))} onChange={() => toggleRequestSelection(String(req.id))} style={{ width:"18px", height:"18px", cursor:"pointer" }} /></td>
                               {/* الموظف */}
                               <td style={{ border:"1px solid #94a3b8", padding:"10px 8px", color:"#1e293b", textAlign:"center" }}>
                                 <button onClick={() => { setEmpInfoTarget({...emp, req}); setShowEmpInfoModal(true); }}
@@ -3716,9 +3864,13 @@ useEffect(() => {
               {/* ===== DEPARTMENTS ===== */}
               {activeTab === "departments" && isOwner && (
                 <div style={{ width:"100%", boxSizing:"border-box" }} className="space-y-6">
-                  <div className="flex justify-between items-center">
+                  <div className="flex justify-between items-center flex-wrap gap-3">
                     <h2 className="text-2xl font-black">إدارة الأقسام</h2>
-                    <button onClick={() => setShowAddDept(true)} className="bg-indigo-600 text-white px-6 py-3 rounded-2xl flex items-center gap-2 font-bold"><Plus size={20} /> إضافة قسم</button>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <button onClick={() => setSelectedDeptIds(selectedDeptIds.length === departments.length ? [] : departments.map(d => String(d.id)))} className="bg-slate-100 text-slate-700 px-4 py-3 rounded-2xl font-bold">{selectedDeptIds.length === departments.length && departments.length > 0 ? "إلغاء تحديد الكل" : "تحديد الكل"}</button>
+                      {selectedDeptIds.length > 0 && <button onClick={deleteSelectedDepartments} className="bg-red-600 text-white px-4 py-3 rounded-2xl font-bold">حذف المحدد ({selectedDeptIds.length})</button>}
+                      <button onClick={() => setShowAddDept(true)} className="bg-indigo-600 text-white px-6 py-3 rounded-2xl flex items-center gap-2 font-bold"><Plus size={20} /> إضافة قسم</button>
+                    </div>
                   </div>
                   <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(250px, 1fr))", gap:"16px" }}>
                     {departments.map(dept => {
@@ -3726,9 +3878,12 @@ useEffect(() => {
                       return (
                         <div key={dept.id} className="bg-white p-6 rounded-[2rem] shadow-sm border">
                           <div className="flex justify-between items-start mb-4">
-                            <div>
+                            <div className="flex items-start gap-3">
+                              <input type="checkbox" checked={selectedDeptIds.includes(String(dept.id))} onChange={() => setSelectedDeptIds(prev => prev.includes(String(dept.id)) ? prev.filter(x => x !== String(dept.id)) : [...prev, String(dept.id)])} style={{ width:"18px", height:"18px", marginTop:"5px", cursor:"pointer" }} />
+                              <div>
                               <h4 className="font-black text-lg">{dept.name}</h4>
                               <p className="text-sm text-slate-500">{dept.description || "لا يوجد وصف"}</p>
+                              </div>
                             </div>
                             <button onClick={() => deleteDepartment(dept.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-xl"><Trash2 size={16} /></button>
                           </div>
@@ -3824,7 +3979,7 @@ useEffect(() => {
                 // فلترة بحث وقسم
                 const filtered = vacRows.filter(row => {
                   const matchSearch = !vacSearch2 || row.emp.name?.includes(vacSearch2) || (row.emp.code||"").includes(vacSearch2);
-                  const matchDept = vacDeptFilter2 === "all" || row.emp.department_id === vacDeptFilter2;
+                  const matchDept = vacDeptFilters2.length === 0 || vacDeptFilters2.includes(String(row.emp.department_id || ""));
                   const matchType = !vacTypeFilter2 || vacTypeFilter2 === "all" || row.lastReq?.vacation_type_id === vacTypeFilter2;
                   const matchDateFrom = !activeVacDateFrom || (row.lastReq?.start_date || "") >= activeVacDateFrom;
                   const matchDateTo = !activeVacDateTo || (row.lastReq?.start_date || "") <= activeVacDateTo;
@@ -4261,13 +4416,7 @@ useEffect(() => {
                           onChange={e => setVacSearch2(e.target.value)}
                         />
                       </div>
-                      {!isDeptMgr && (
-                        <select style={{ padding:"10px 14px", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:"10px", outline:"none", fontSize:"13px", fontFamily:"inherit" }}
-                          value={vacDeptFilter2} onChange={e => setVacDeptFilter2(e.target.value)}>
-                          <option value="all">كل الأقسام</option>
-                          {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-                        </select>
-                      )}
+                      {!isDeptMgr && <MultiSelectDropdown options={departments} selected={vacDeptFilters2} onChange={setVacDeptFilters2} label="الأقسام" minWidth="210px" />}
                       <select style={{ padding:"10px 14px", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:"10px", outline:"none", fontSize:"13px", fontFamily:"inherit" }}
                         value={vacTypeFilter2 || "all"} onChange={e => setVacTypeFilter2(e.target.value)}>
                         <option value="all">كل أنواع الإجازات</option>
@@ -4310,7 +4459,9 @@ useEffect(() => {
                           <table style={{ width:"100%", borderCollapse:"collapse", border:"2px solid #94a3b8", fontSize:"13px", backgroundColor:"#ffffff" }}>
                             <thead style={{ border:"1px solid #94a3b8", padding:"12px 8px", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center" }}>
                               <tr>
-                                <th style={{ border:"1px solid #94a3b8", padding:"12px 8px", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center", width:"40px" }}>✓</th>
+                                <th style={{ border:"1px solid #94a3b8", padding:"12px 8px", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center", width:"40px" }}>
+                                  <input type="checkbox" checked={filtered.length > 0 && filtered.every(row => selectedPrintIds.has(row.emp.id))} onChange={e => { const next = new Set(selectedPrintIds); filtered.forEach(row => e.target.checked ? next.add(row.emp.id) : next.delete(row.emp.id)); setSelectedPrintIds(next); }} style={{ width:"18px", height:"18px", cursor:"pointer" }} />
+                                </th>
                                 <SortTh label="الموظف"        field="name"  align="right"  sortField={activeVacSortField} sortDir={activeVacSortDir} sortDropdown={activeVacSortDropdown} onSort={(f,d)=>{setActiveVacSortField(f);setActiveVacSortDir(d);setActiveVacSortDropdown("");}} onClear={()=>{setActiveVacSortField("");setActiveVacSortDropdown("");}} onToggle={f=>setActiveVacSortDropdown(d=>d===f?"":f)} />
                               <th style={{ border:"1px solid #94a3b8", padding:"12px 8px", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center" }}>القسم</th>
                               <th style={{ border:"1px solid #94a3b8", padding:"12px 8px", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center" }}>نوع الإجازة</th>
@@ -4778,6 +4929,7 @@ useEffect(() => {
                       <option value="dept_approved">◑ موافقة مبدئية</option>
                       <option value="pending">⏳ معلق</option>
                     </select>
+                    {!isDeptMgr && <MultiSelectDropdown options={departments} selected={requestDepartmentFilters} onChange={setRequestDepartmentFilters} label="الأقسام" minWidth="210px" />}
                     <select style={{ padding:"10px 12px", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:"10px", fontSize:"13px", outline:"none" }}
                       value={vacationTypeFilter} onChange={e => setVacationTypeFilter(e.target.value)}>
                       <option value="all">كل الأنواع</option>
@@ -4793,20 +4945,26 @@ useEffect(() => {
                       <input type="date" style={{ padding:"9px 10px", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:"10px", fontSize:"12px", outline:"none" }}
                         value={reqDateTo} onChange={e => setReqDateTo(e.target.value)} />
                     </div>
-                    {(reqSearch || statusFilter !== "all" || vacationTypeFilter !== "all" || reqDateFrom || reqDateTo) && (
-                      <button onClick={() => { setReqSearch(""); setStatusFilter("all"); setVacationTypeFilter("all"); setReqDateFrom(""); setReqDateTo(""); }}
+                    {(reqSearch || requestDepartmentFilters.length > 0 || statusFilter !== "all" || vacationTypeFilter !== "all" || reqDateFrom || reqDateTo) && (
+                      <button onClick={() => { setReqSearch(""); setRequestDepartmentFilters([]); setStatusFilter("all"); setVacationTypeFilter("all"); setReqDateFrom(""); setReqDateTo(""); }}
                         style={{ padding:"9px 14px", background:"#fee2e2", color:"#dc2626", border:"none", borderRadius:"10px", fontSize:"12px", fontWeight:"700", cursor:"pointer" }}>
                         ✕ مسح الفلاتر
                       </button>
                     )}
-                    <span style={{ fontSize:"12px", color:"#64748b", marginRight:"auto" }}>
-                      {filteredRequests.length} طلب
-                    </span>
+                    <div style={{ display:"flex", alignItems:"center", gap:"6px", marginRight:"auto", flexWrap:"wrap" }}>
+                      {filteredRequests.length > 0 && <>
+                        <button onClick={() => selectAllRequests(filteredRequests)} style={{ padding:"8px 11px", background:"#eef2ff", color:"#4338ca", border:"1px solid #c7d2fe", borderRadius:"9px", fontSize:"11px", fontWeight:"800", cursor:"pointer" }}>✓ تحديد الطلبات</button>
+                        {selectedRequestIds.length > 0 && <button onClick={() => setSelectedRequestIds([])} style={{ padding:"8px 11px", background:"#fff1f2", color:"#dc2626", border:"1px solid #fecdd3", borderRadius:"9px", fontSize:"11px", fontWeight:"800", cursor:"pointer" }}>إلغاء ({selectedRequestIds.length})</button>}
+                        <button onClick={openSelectedRequestsPrint} disabled={selectedRequestIds.length === 0} style={{ padding:"8px 11px", background:selectedRequestIds.length ? "#2563eb" : "#e2e8f0", color:selectedRequestIds.length ? "white" : "#94a3b8", border:"none", borderRadius:"9px", fontSize:"11px", fontWeight:"800", cursor:selectedRequestIds.length ? "pointer" : "not-allowed" }}>طباعة المحدد</button>
+                      </>}
+                      <span style={{ fontSize:"12px", color:"#64748b" }}>{filteredRequests.length} طلب</span>
+                    </div>
                   </div>
                   <div className="bg-white rounded-[2rem] shadow-sm border overflow-x-auto">
                     <table className="w-full text-sm" style={{ width:"100%", borderCollapse:"collapse", border:"2px solid #94a3b8", fontSize:"13px", backgroundColor:"#ffffff" }}>
                       <thead className="bg-slate-50 border-b text-xs">
                         <tr>
+                          <th className="p-4 text-center" style={{ border:"1px solid #94a3b8", padding:"12px 8px", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center", width:"42px" }}><input type="checkbox" checked={filteredRequests.length > 0 && filteredRequests.every(r => selectedRequestIds.includes(String(r.id)))} onChange={() => selectAllRequests(filteredRequests)} /></th>
                           <SortTh label="الموظف"         field="name"     align="right"  sortField={histSortField} sortDir={histSortDir} sortDropdown={histSortDropdown} onSort={(f,d)=>{setHistSortField(f);setHistSortDir(d);setHistSortDropdown("");}} onClear={()=>{setHistSortField("");setHistSortDropdown("");}} onToggle={f=>setHistSortDropdown(d=>d===f?"":f)} />
                           <SortTh label="نوع الإجازة"    field="type"     align="center" sortField={histSortField} sortDir={histSortDir} sortDropdown={histSortDropdown} onSort={(f,d)=>{setHistSortField(f);setHistSortDir(d);setHistSortDropdown("");}} onClear={()=>{setHistSortField("");setHistSortDropdown("");}} onToggle={f=>setHistSortDropdown(d=>d===f?"":f)} />
                           <SortTh label="تاريخ البداية"  field="start"    align="center" sortField={histSortField} sortDir={histSortDir} sortDropdown={histSortDropdown} onSort={(f,d)=>{setHistSortField(f);setHistSortDir(d);setHistSortDropdown("");}} onClear={()=>{setHistSortField("");setHistSortDropdown("");}} onToggle={f=>setHistSortDropdown(d=>d===f?"":f)} />
@@ -4827,6 +4985,7 @@ useEffect(() => {
                           const isOnVacation = req.status === "approved" && req.start_date <= today && back > today;
                           return (
                             <tr key={req.id} style={{ border:"1px solid #cbd5e1", backgroundColor:"#ffffff" }} className="hover:bg-slate-50">
+                              <td className="p-4 text-center" style={{ border:"1px solid #94a3b8", padding:"10px 8px" }}><input type="checkbox" checked={selectedRequestIds.includes(String(req.id))} onChange={() => toggleRequestSelection(String(req.id))} style={{ width:"18px", height:"18px", cursor:"pointer" }} /></td>
                               <td className="p-4" style={{ border:"1px solid #94a3b8", padding:"10px 8px", color:"#1e293b", textAlign:"center" }}>
                                 <button onClick={() => { const e=employees.find(em=>em.id===req.employee_id); setEmpInfoTarget({...e, req}); setShowEmpInfoModal(true); }}
                                   style={{ background:"none", border:"none", cursor:"pointer", textAlign:"right", padding:0 }}>
