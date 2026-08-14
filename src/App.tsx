@@ -2119,66 +2119,56 @@ useEffect(() => {
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;").replace(/'/g, "&#039;");
 
-  // قالب مطابق للنموذج المرفق: عربي/إنجليزي، مع إبقاء أقوال العامل والتحقيق والتوقيعات قابلة للتعبئة.
+  // طباعة صورة النموذج المعتمد كما هي، والكتابة في الجانب العربي مرة واحدة فقط.
   const buildPenaltyFormHTML = (penalty: any, employee: any) => {
     const dept = departments.find(d => d.id === employee.department_id);
-    const directManager = penalty.direct_manager || "........................................................";
+    const value = (v: any) => escapePrintText(v || "");
+    const incidentDate = penalty.incident_date ? formatDate(penalty.incident_date) : "";
+    const reason = penalty.reason || "";
+    const notes = penalty.notes || "";
+    const directManager = penalty.direct_manager || "";
     const employeeStatement = penalty.employee_statement || "";
     const investigationAction = penalty.investigation_action || "";
-    const reason = penalty.reason || "";
-    const incidentDate = penalty.incident_date ? formatDate(penalty.incident_date) : ".... / .... / ........";
-    const penaltyValue = penalty.penalty_days ? `${penalty.penalty_days} يوم` : "";
+    const penaltyInfo = [
+      penalty.penalty_days ? `قيمة الجزاء: ${penalty.penalty_days} يوم` : "",
+      penalty.action_type ? `نوع الجزاء: ${penalty.action_type}` : "",
+      notes,
+    ].filter(Boolean).join(" — ");
+
     return `<!doctype html>
-<html dir="rtl" lang="ar"><head><meta charset="UTF-8"/><title>Penalty Form - نموذج توقيع جزاء</title>
+<html dir="rtl" lang="ar"><head><meta charset="UTF-8"/><title>Penalty Form</title>
 <style>
-  @page{size:A4 portrait;margin:10mm}
+  @page{size:A4 portrait;margin:0}
   *{box-sizing:border-box}
-  body{margin:0;background:#fff;color:#111;font-family:Arial,"Tahoma",sans-serif;font-size:14px;direction:rtl}
-  .page{width:100%;min-height:277mm;padding:4mm 2mm;position:relative}
-  .top{display:grid;grid-template-columns:140px 1fr;gap:12px;align-items:start;margin-bottom:8px}
-  .logo{width:124px;height:104px;border:1px solid #777;display:flex;align-items:center;justify-content:center;text-align:center;background:#333;color:#fff;font-weight:900;letter-spacing:1px;font-size:22px;line-height:1.05}
-  .logo small{display:block;font-size:8px;letter-spacing:2px;margin-top:7px}
-  .company{text-align:right;font-size:18px;font-weight:900;margin-top:5px}
-  .title-row{display:flex;justify-content:center;align-items:center;gap:45px;margin:8px 0 15px;font-size:21px;font-weight:900}
-  .title-row .en{direction:ltr}
-  .intro{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin:8px 0;font-weight:700;line-height:2}
-  .intro .en{direction:ltr;text-align:left}
-  .line{display:inline-block;border-bottom:1px dotted #333;min-width:180px;height:22px;vertical-align:bottom}
-  .section{border:2px solid #333;margin:10px 0;padding:7px 9px}
-  .field-row{display:grid;grid-template-columns:1fr 1fr;gap:16px;line-height:2.1}
-  .field{display:flex;align-items:baseline;gap:6px}
-  .field .label{white-space:nowrap;font-weight:700}
-  .field .value{flex:1;border-bottom:1px dotted #333;min-height:24px;padding:0 4px}
-  .offence{margin-top:3px;min-height:92px;border-top:1px dotted #333;padding:8px 2px;line-height:2;white-space:pre-wrap}
-  .wide-label{font-weight:800;display:flex;justify-content:space-between;gap:10px}
-  .wide-label span:last-child{direction:ltr}
-  .writing{min-height:88px;border-top:1px dotted #333;margin-top:4px;padding:8px 2px;white-space:pre-wrap;line-height:1.8}
-  .action{min-height:82px;border-bottom:1px dotted #333;border-top:1px dotted #333;margin-top:5px;padding:8px 2px;white-space:pre-wrap;line-height:1.8}
-  .signatures{display:grid;grid-template-columns:1fr 1fr 1fr;gap:18px;margin-top:38px;text-align:center;font-weight:800}
-  .sig-line{border-top:1px dotted #222;padding-top:8px;min-height:58px}
-  .muted{font-weight:400;font-size:12px;display:block;margin-top:4px;direction:ltr}
-  .footer-note{text-align:center;font-size:10px;color:#666;margin-top:10px}
-  @media print{.page{padding:0}.no-print{display:none}}
+  html,body{margin:0;padding:0;background:#fff}
+  body{font-family:Arial,"Tahoma",sans-serif;color:#111;direction:rtl}
+  .page{position:relative;width:210mm;height:297mm;overflow:hidden;background:#fff}
+  .template{position:absolute;inset:0;width:100%;height:100%;display:block;z-index:0}
+  .write{position:absolute;z-index:2;color:#111;font-weight:700;line-height:1.2;white-space:pre-wrap;overflow:hidden;text-align:right;direction:rtl;background:rgba(255,255,255,.86);padding:1px 3px;border-radius:1px}
+  /* الكتابة في الخانة العربية فقط؛ لا توجد طبقة ثانية للإنجليزية */
+  .from{top:25.55%;right:8.5%;width:30%;font-size:12px}
+  .inform{display:none}
+  .name{top:34.55%;right:10.5%;width:31%;font-size:12px}
+  .code{top:36.75%;right:10.5%;width:31%;font-size:12px}
+  .position{top:38.95%;right:10.5%;width:31%;font-size:12px}
+  .date{top:41.05%;right:10.5%;width:21%;font-size:11px;text-align:center}
+  .offence{top:44.0%;right:8.5%;width:81%;height:5.25%;font-size:12px;padding:4px 6px}
+  .manager{top:52.25%;right:13%;width:31%;font-size:12px}
+  .statement{top:57.7%;right:7.5%;width:84%;height:8.8%;font-size:12px;padding:5px 7px}
+  .action{top:69.4%;right:7.5%;width:84%;height:8.3%;font-size:12px;padding:5px 7px}
+  @media print{.write{background:transparent}}
 </style></head><body><div class="page">
-  <div class="top"><div class="logo">LINAH<small>TOURISTIC<br/>&amp; URBAN<br/>DEVELOPMENT</small></div><div class="company">شركة لينه للتنمية السياحية والعمرانية</div></div>
-  <div class="title-row"><span>نموذج توقيع جزاء</span><span class="en">Penalty Form</span></div>
-  <div class="intro"><div><div>إلى مدير شؤون العاملين</div><div>من قسم : <span class="line">${escapePrintText(dept?.name || "")}</span></div></div><div class="en"><div>To Personnel Manager</div><div>From : <span class="line">${escapePrintText(dept?.name || "")}</span></div></div></div>
-  <div class="intro"><div>برجاء التكرم بالعلم بأن : <span class="line" style="min-width:220px">${escapePrintText(reason)}</span></div><div class="en">Please be informed that : <span class="line" style="min-width:220px">${escapePrintText(reason)}</span></div></div>
-  <div class="section">
-    <div class="field-row">
-      <div class="field"><span class="label">الاسم :</span><span class="value">${escapePrintText(employee.name)}</span></div><div class="field"><span class="label">Name :</span><span class="value" dir="ltr">${escapePrintText(employee.name)}</span></div>
-      <div class="field"><span class="label">رقم الملف :</span><span class="value">${escapePrintText(employee.code)}</span></div><div class="field"><span class="label">ID No. :</span><span class="value" dir="ltr">${escapePrintText(employee.code)}</span></div>
-      <div class="field"><span class="label">الوظيفة :</span><span class="value">${escapePrintText(employee.position)}</span></div><div class="field"><span class="label">Position :</span><span class="value" dir="ltr">${escapePrintText(employee.position)}</span></div>
-    </div>
-    <div class="wide-label"><span>قد قام بارتكاب المخالفة الآتية بتاريخ: <b>${escapePrintText(incidentDate)}</b></span><span>Has Committed the following Offence on <b>${escapePrintText(incidentDate)}</b></span></div>
-    <div class="offence">${escapePrintText(reason)}${penaltyValue ? `\nقيمة الجزاء: ${escapePrintText(penaltyValue)} — نوع الجزاء: ${escapePrintText(penalty.action_type)}` : ""}${penalty.notes ? `\n${escapePrintText(penalty.notes)}` : ""}</div>
-  </div>
-  <div class="field-row" style="margin:14px 0 6px"><div class="field"><span class="label">المدير المباشر :</span><span class="value">${escapePrintText(directManager)}</span></div><div class="field"><span class="label">Department Head :</span><span class="value" dir="ltr">${escapePrintText(directManager)}</span></div></div>
-  <div class="section"><div class="wide-label"><span>أقوال العامل : <span>${escapePrintText(employeeStatement ? "" : "")}</span></span><span>Employee's Statement :</span></div><div class="writing">${escapePrintText(employeeStatement)}</div></div>
-  <div style="font-weight:800;font-size:16px;display:flex;justify-content:space-between"><span>ما انتهى إليه التحقيق</span><span dir="ltr">Action Taken after investigation</span></div>
-  <div class="action">${escapePrintText(investigationAction)}</div>
-  <div class="signatures"><div class="sig-line">توقيع الموظف<span class="muted">Employee Signature</span></div><div class="sig-line">مدير شؤون العاملين<span class="muted">Personnel Manager</span></div><div class="sig-line">الاعتماد النهائي<span class="muted">The Final Approval</span></div></div>
-  <div class="footer-note">تم إنشاء النموذج من نظام إدارة الإجازات والجزاءات</div>
+  <img class="template" src="/penalty-form-approved-blank.webp?v=2" alt="Penalty Form" />
+  <!-- كل قيمة تظهر مرة واحدة فقط على السطر العربي المقابل لها -->
+  <div class="write from">${value(dept?.name)}</div>
+  <div class="write name">${value(employee.name)}</div>
+  <div class="write code">${value(employee.code)}</div>
+  <div class="write position">${value(employee.position)}</div>
+  <div class="write date">${value(incidentDate)}</div>
+  <div class="write offence">${value(reason)}${penaltyInfo ? `\n${value(penaltyInfo)}` : ""}</div>
+  <div class="write manager">${value(directManager)}</div>
+  <div class="write statement">${value(employeeStatement)}</div>
+  <div class="write action">${value(investigationAction)}</div>
 </div></body></html>`;
   };
 
