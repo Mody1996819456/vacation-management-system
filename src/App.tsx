@@ -164,7 +164,8 @@ const getDepartureLabel = (dep: string) => {
   return "بداية الإجازة الفعلي";
 };
 
-// أيام العمل = من يوم العودة نفسه حتى اليوم (فقط إذا لم يكن في إجازة)
+// حساب الأيام المنقضية من تاريخ بداية الفترة الحالية حتى اليوم.
+// في العمل: البداية هي تاريخ العودة. في الإجازة: البداية هي تاريخ بداية الإجازة الفعلية.
 const calculateWorkedDays = (returnDate: string, isOnVacation: boolean = false) => {
   if (!returnDate || isOnVacation) return 0;
   const start = new Date(returnDate);
@@ -172,8 +173,7 @@ const calculateWorkedDays = (returnDate: string, isOnVacation: boolean = false) 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   if (start > today) return 0;
-  const diffTime = today.getTime() - start.getTime();
-  return Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
+  return Math.floor((today.getTime() - start.getTime()) / 86400000) + 1;
 };
 
 // عدد أيام الإجازة الفعلية حتى اليوم، مع عدم تجاوز مدة الطلب.
@@ -192,6 +192,27 @@ const calculateCurrentLeaveDays = (employee: any, employeeRequests: any[] = []) 
   const elapsed = Math.floor((today.getTime() - start.getTime()) / 86400000) + 1;
   const planned = openReq ? Number(openReq.days || 0) : Infinity;
   return Math.max(0, Math.min(elapsed, planned));
+};
+
+// أيام العمل في الجدول تعني أيام الفترة الحالية، سواء كان الموظف يعمل أو في إجازة.
+const calculateCurrentPeriodDays = (employee: any, employeeRequests: any[] = []) => {
+  if (!employee) return 0;
+  const isOnVacation = employee.status === "إجازة";
+  const openReq = isOnVacation
+    ? employeeRequests
+        .filter(r => r.employee_id === employee.id && r.status === "approved" && !r.actual_return_date)
+        .sort((a, b) => String(b.effective_start_date || b.start_date || "").localeCompare(String(a.effective_start_date || a.start_date || "")))[0]
+    : null;
+  const startDate = isOnVacation
+    ? (employee.leave_start_date || openReq?.effective_start_date || openReq?.start_date || "")
+    : (employee.return_date || "");
+  if (!startDate) return 0;
+  const start = new Date(startDate);
+  const today = new Date();
+  start.setHours(0, 0, 0, 0);
+  today.setHours(0, 0, 0, 0);
+  if (start > today) return 0;
+  return Math.floor((today.getTime() - start.getTime()) / 86400000) + 1;
 };
 
 // أيام العمل بين تاريخين (من تاريخ العودة حتى تاريخ النزول) — تحسب جميع الأيام بدون استثناء
@@ -522,7 +543,11 @@ const VacationManagementSystem = () => {
   const [showReturnModal, setShowReturnModal] = useState(false);
   const [returnData, setReturnData] = useState<any>(null);
   const [showAddDept, setShowAddDept] = useState(false);
-  const [penaltyForm, setPenaltyForm] = useState({ employee_id: "", incident_date: new Date().toISOString().split("T")[0], reason: "", days: 1, multiplier: 1, action_type: "خصم من الرصيد", notes: "" });
+  const [penaltyForm, setPenaltyForm] = useState({
+    employee_id: "", incident_date: new Date().toISOString().split("T")[0],
+    reason: "", days: 1, multiplier: 1, action_type: "خصم من الرصيد", notes: "",
+    direct_manager: "", employee_statement: "", investigation_action: "",
+  });
   const [penaltyEmployeeSearch, setPenaltyEmployeeSearch] = useState("");
   const [showAddHoliday, setShowAddHoliday] = useState(false);
   const [showAuditLog, setShowAuditLog] = useState(false);
@@ -1488,7 +1513,7 @@ useEffect(() => {
     const exportData = isEmpData ? data.map(emp => {
       const dept = departments.find((d: any) => d.id === emp.department_id);
       const status = getEmployeeStatus(emp);
-      const workedDays = calculateWorkedDays(emp.return_date, status === "إجازة");
+      const workedDays = calculateCurrentPeriodDays(emp, requests);
       return {
         "الاسم الكامل": emp.name || "",
         "الكود الوظيفي": emp.code || "",
@@ -1516,7 +1541,7 @@ useEffect(() => {
       const totalVacDays = empRequests.reduce((sum, r) => sum + Number(r.days), 0);
       const dept = departments.find(d => d.id === emp.department_id);
       const status = getEmployeeStatus(emp);
-      const workedDays = calculateWorkedDays(emp.return_date, status === "إجازة");
+      const workedDays = calculateCurrentPeriodDays(emp, requests);
       return {
         "الاسم": emp.name, "الكود الوظيفي": emp.code, "المنصب": emp.position,
         "البريد الإلكتروني": emp.email || "-",
@@ -2090,6 +2115,73 @@ useEffect(() => {
   };
 
   // ========== PENALTIES OPERATIONS ==========
+  const escapePrintText = (value: any) => String(value ?? "-")
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+
+  // قالب مطابق للنموذج المرفق: عربي/إنجليزي، مع إبقاء أقوال العامل والتحقيق والتوقيعات قابلة للتعبئة.
+  const buildPenaltyFormHTML = (penalty: any, employee: any) => {
+    const dept = departments.find(d => d.id === employee.department_id);
+    const directManager = penalty.direct_manager || "........................................................";
+    const employeeStatement = penalty.employee_statement || "";
+    const investigationAction = penalty.investigation_action || "";
+    const reason = penalty.reason || "";
+    const incidentDate = penalty.incident_date ? formatDate(penalty.incident_date) : ".... / .... / ........";
+    const penaltyValue = penalty.penalty_days ? `${penalty.penalty_days} يوم` : "";
+    return `<!doctype html>
+<html dir="rtl" lang="ar"><head><meta charset="UTF-8"/><title>Penalty Form - نموذج توقيع جزاء</title>
+<style>
+  @page{size:A4 portrait;margin:10mm}
+  *{box-sizing:border-box}
+  body{margin:0;background:#fff;color:#111;font-family:Arial,"Tahoma",sans-serif;font-size:14px;direction:rtl}
+  .page{width:100%;min-height:277mm;padding:4mm 2mm;position:relative}
+  .top{display:grid;grid-template-columns:140px 1fr;gap:12px;align-items:start;margin-bottom:8px}
+  .logo{width:124px;height:104px;border:1px solid #777;display:flex;align-items:center;justify-content:center;text-align:center;background:#333;color:#fff;font-weight:900;letter-spacing:1px;font-size:22px;line-height:1.05}
+  .logo small{display:block;font-size:8px;letter-spacing:2px;margin-top:7px}
+  .company{text-align:right;font-size:18px;font-weight:900;margin-top:5px}
+  .title-row{display:flex;justify-content:center;align-items:center;gap:45px;margin:8px 0 15px;font-size:21px;font-weight:900}
+  .title-row .en{direction:ltr}
+  .intro{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin:8px 0;font-weight:700;line-height:2}
+  .intro .en{direction:ltr;text-align:left}
+  .line{display:inline-block;border-bottom:1px dotted #333;min-width:180px;height:22px;vertical-align:bottom}
+  .section{border:2px solid #333;margin:10px 0;padding:7px 9px}
+  .field-row{display:grid;grid-template-columns:1fr 1fr;gap:16px;line-height:2.1}
+  .field{display:flex;align-items:baseline;gap:6px}
+  .field .label{white-space:nowrap;font-weight:700}
+  .field .value{flex:1;border-bottom:1px dotted #333;min-height:24px;padding:0 4px}
+  .offence{margin-top:3px;min-height:92px;border-top:1px dotted #333;padding:8px 2px;line-height:2;white-space:pre-wrap}
+  .wide-label{font-weight:800;display:flex;justify-content:space-between;gap:10px}
+  .wide-label span:last-child{direction:ltr}
+  .writing{min-height:88px;border-top:1px dotted #333;margin-top:4px;padding:8px 2px;white-space:pre-wrap;line-height:1.8}
+  .action{min-height:82px;border-bottom:1px dotted #333;border-top:1px dotted #333;margin-top:5px;padding:8px 2px;white-space:pre-wrap;line-height:1.8}
+  .signatures{display:grid;grid-template-columns:1fr 1fr 1fr;gap:18px;margin-top:38px;text-align:center;font-weight:800}
+  .sig-line{border-top:1px dotted #222;padding-top:8px;min-height:58px}
+  .muted{font-weight:400;font-size:12px;display:block;margin-top:4px;direction:ltr}
+  .footer-note{text-align:center;font-size:10px;color:#666;margin-top:10px}
+  @media print{.page{padding:0}.no-print{display:none}}
+</style></head><body><div class="page">
+  <div class="top"><div class="logo">LINAH<small>TOURISTIC<br/>&amp; URBAN<br/>DEVELOPMENT</small></div><div class="company">شركة لينه للتنمية السياحية والعمرانية</div></div>
+  <div class="title-row"><span>نموذج توقيع جزاء</span><span class="en">Penalty Form</span></div>
+  <div class="intro"><div><div>إلى مدير شؤون العاملين</div><div>من قسم : <span class="line">${escapePrintText(dept?.name || "")}</span></div></div><div class="en"><div>To Personnel Manager</div><div>From : <span class="line">${escapePrintText(dept?.name || "")}</span></div></div></div>
+  <div class="intro"><div>برجاء التكرم بالعلم بأن : <span class="line" style="min-width:220px">${escapePrintText(reason)}</span></div><div class="en">Please be informed that : <span class="line" style="min-width:220px">${escapePrintText(reason)}</span></div></div>
+  <div class="section">
+    <div class="field-row">
+      <div class="field"><span class="label">الاسم :</span><span class="value">${escapePrintText(employee.name)}</span></div><div class="field"><span class="label">Name :</span><span class="value" dir="ltr">${escapePrintText(employee.name)}</span></div>
+      <div class="field"><span class="label">رقم الملف :</span><span class="value">${escapePrintText(employee.code)}</span></div><div class="field"><span class="label">ID No. :</span><span class="value" dir="ltr">${escapePrintText(employee.code)}</span></div>
+      <div class="field"><span class="label">الوظيفة :</span><span class="value">${escapePrintText(employee.position)}</span></div><div class="field"><span class="label">Position :</span><span class="value" dir="ltr">${escapePrintText(employee.position)}</span></div>
+    </div>
+    <div class="wide-label"><span>قد قام بارتكاب المخالفة الآتية بتاريخ: <b>${escapePrintText(incidentDate)}</b></span><span>Has Committed the following Offence on <b>${escapePrintText(incidentDate)}</b></span></div>
+    <div class="offence">${escapePrintText(reason)}${penaltyValue ? `\nقيمة الجزاء: ${escapePrintText(penaltyValue)} — نوع الجزاء: ${escapePrintText(penalty.action_type)}` : ""}${penalty.notes ? `\n${escapePrintText(penalty.notes)}` : ""}</div>
+  </div>
+  <div class="field-row" style="margin:14px 0 6px"><div class="field"><span class="label">المدير المباشر :</span><span class="value">${escapePrintText(directManager)}</span></div><div class="field"><span class="label">Department Head :</span><span class="value" dir="ltr">${escapePrintText(directManager)}</span></div></div>
+  <div class="section"><div class="wide-label"><span>أقوال العامل : <span>${escapePrintText(employeeStatement ? "" : "")}</span></span><span>Employee's Statement :</span></div><div class="writing">${escapePrintText(employeeStatement)}</div></div>
+  <div style="font-weight:800;font-size:16px;display:flex;justify-content:space-between"><span>ما انتهى إليه التحقيق</span><span dir="ltr">Action Taken after investigation</span></div>
+  <div class="action">${escapePrintText(investigationAction)}</div>
+  <div class="signatures"><div class="sig-line">توقيع الموظف<span class="muted">Employee Signature</span></div><div class="sig-line">مدير شؤون العاملين<span class="muted">Personnel Manager</span></div><div class="sig-line">الاعتماد النهائي<span class="muted">The Final Approval</span></div></div>
+  <div class="footer-note">تم إنشاء النموذج من نظام إدارة الإجازات والجزاءات</div>
+</div></body></html>`;
+  };
+
   const handleSavePenalty = async (printAfterSave = false) => {
     const employee = employees.find(e => e.id === penaltyForm.employee_id);
     if (!employee) return alert("اختر الموظف أولاً");
@@ -2097,12 +2189,15 @@ useEffect(() => {
     const originalDays = Math.max(0, Number(penaltyForm.days || 0));
     const multiplier = Math.max(1, Number(penaltyForm.multiplier || 1));
     const penaltyDays = originalDays * multiplier;
-    const dept = departments.find(d => d.id === employee.department_id);
     const payload = {
       employee_id: employee.id, incident_date: penaltyForm.incident_date,
       reason: penaltyForm.reason.trim(), action_type: penaltyForm.action_type,
       original_days: originalDays, multiplier, penalty_days: penaltyDays,
-      notes: penaltyForm.notes.trim() || null, created_by: currentUser?.name || "المدير",
+      notes: penaltyForm.notes.trim() || null,
+      direct_manager: penaltyForm.direct_manager.trim() || null,
+      employee_statement: penaltyForm.employee_statement.trim() || null,
+      investigation_action: penaltyForm.investigation_action.trim() || null,
+      created_by: currentUser?.name || "المدير",
     };
     const { data, error } = await supabase.from("penalties").insert([payload]).select().single();
     if (error) return alert("تعذر حفظ الجزاء: " + error.message);
@@ -2112,11 +2207,8 @@ useEffect(() => {
       await supabase.from("employees").update({ balance: newBalance }).eq("id", employee.id);
       await supabase.from("balance_updates").insert([{ employee_id: employee.id, amount: -penaltyDays, update_date: penaltyForm.incident_date, description: `جزاء: ${penaltyForm.reason.trim()} — ${penaltyDays} يوم` }]);
     }
-    if (printAfterSave) {
-      const html = `<html dir="rtl"><head><meta charset="UTF-8"><title>نموذج جزاء</title><style>body{font-family:Arial,sans-serif;padding:36px;direction:rtl;color:#111827}h1{text-align:center;border-bottom:3px solid #1e3a8a;padding-bottom:14px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:22px 0}.field{border:1px solid #cbd5e1;border-radius:8px;padding:12px}.label{font-size:12px;color:#64748b;margin-bottom:5px}.value{font-weight:700;min-height:22px}.reason{border:1px solid #cbd5e1;border-radius:8px;padding:16px;min-height:90px}.sign{display:flex;justify-content:space-around;margin-top:90px;font-weight:700}</style></head><body><h1>نموذج توقيع جزاء</h1><div class="grid"><div class="field"><div class="label">اسم الموظف</div><div class="value">${employee.name}</div></div><div class="field"><div class="label">الكود الوظيفي</div><div class="value">${employee.code || "-"}</div></div><div class="field"><div class="label">الوظيفة</div><div class="value">${employee.position || "-"}</div></div><div class="field"><div class="label">مكان السكن</div><div class="value">${employee.residence || "-"}</div></div><div class="field"><div class="label">القسم</div><div class="value">${dept?.name || "-"}</div></div><div class="field"><div class="label">تاريخ الواقعة</div><div class="value">${formatDate(payload.incident_date)}</div></div><div class="field"><div class="label">نوع الجزاء</div><div class="value">${payload.action_type}</div></div><div class="field"><div class="label">قيمة الجزاء</div><div class="value">${penaltyDays} يوم</div></div></div><div class="reason"><div class="label">سبب الجزاء</div><div class="value">${payload.reason}</div>${payload.notes ? `<p>${payload.notes}</p>` : ""}</div><div class="sign"><span>توقيع الموظف: ................</span><span>اعتماد المدير: ................</span></div></body></html>`;
-      printHTMLContent(html);
-    }
-    setPenaltyForm({ employee_id: "", incident_date: new Date().toISOString().split("T")[0], reason: "", days: 1, multiplier: 1, action_type: "خصم من الرصيد", notes: "" });
+    if (printAfterSave) printHTMLContent(buildPenaltyFormHTML({ ...payload, id: data?.id }, employee));
+    setPenaltyForm({ employee_id: "", incident_date: new Date().toISOString().split("T")[0], reason: "", days: 1, multiplier: 1, action_type: "خصم من الرصيد", notes: "", direct_manager: "", employee_statement: "", investigation_action: "" });
     setPenaltyEmployeeSearch("");
     await fetchData();
     alert("✅ تم حفظ الجزاء بنجاح");
@@ -2125,9 +2217,7 @@ useEffect(() => {
   const handlePrintExistingPenalty = (penalty: any) => {
     const employee = employees.find(e => e.id === penalty.employee_id);
     if (!employee) return;
-    const dept = departments.find(d => d.id === employee.department_id);
-    const html = `<html dir="rtl"><head><meta charset="UTF-8"><title>نموذج جزاء</title><style>body{font-family:Arial,sans-serif;padding:36px;direction:rtl}h1{text-align:center;border-bottom:3px solid #1e3a8a;padding-bottom:14px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:22px 0}.field{border:1px solid #cbd5e1;border-radius:8px;padding:12px}.label{font-size:12px;color:#64748b}.value{font-weight:700;margin-top:5px}.reason{border:1px solid #cbd5e1;border-radius:8px;padding:16px;min-height:90px}.sign{display:flex;justify-content:space-around;margin-top:90px;font-weight:700}</style></head><body><h1>نموذج توقيع جزاء</h1><div class="grid"><div class="field"><div class="label">اسم الموظف</div><div class="value">${employee.name}</div></div><div class="field"><div class="label">الكود الوظيفي</div><div class="value">${employee.code || "-"}</div></div><div class="field"><div class="label">القسم</div><div class="value">${dept?.name || "-"}</div></div><div class="field"><div class="label">تاريخ الواقعة</div><div class="value">${formatDate(penalty.incident_date)}</div></div><div class="field"><div class="label">نوع الجزاء</div><div class="value">${penalty.action_type || "-"}</div></div><div class="field"><div class="label">القيمة</div><div class="value">${penalty.penalty_days || 0} يوم</div></div></div><div class="reason"><div class="label">السبب</div><div class="value">${penalty.reason || "-"}</div><p>${penalty.notes || ""}</p></div><div class="sign"><span>توقيع الموظف: ................</span><span>اعتماد المدير: ................</span></div></body></html>`;
-    printHTMLContent(html);
+    printHTMLContent(buildPenaltyFormHTML(penalty, employee));
   };
 
   // ========== DEPARTMENT OPERATIONS ==========
@@ -2279,8 +2369,8 @@ useEffect(() => {
         if (empSortField === "balance")      { va = Number(a.balance ?? 0);      vb = Number(b.balance ?? 0); }
         else if (empSortField === "monthly") { va = Number(a.monthly_balance ?? 0); vb = Number(b.monthly_balance ?? 0); }
         else if (empSortField === "workedDays") {
-          va = calculateWorkedDays(a.return_date, a.status === "إجازة");
-          vb = calculateWorkedDays(b.return_date, b.status === "إجازة");
+          va = calculateCurrentPeriodDays(a, requests);
+          vb = calculateCurrentPeriodDays(b, requests);
         }
         else if (empSortField === "leaveDays") {
           va = calculateCurrentLeaveDays(a, requests);
@@ -3022,7 +3112,7 @@ useEffect(() => {
                             </div>
                             {(() => {
                               const ranked = [...deptEmps]
-                                .map(emp => ({ ...emp, workedDays: calculateWorkedDays(emp.return_date, emp.status === "إجازة") }))
+                                .map(emp => ({ ...emp, workedDays: calculateCurrentPeriodDays(emp, requests) }))
                                 .filter(emp => emp.workedDays > 0)
                                 .sort((a,b) => b.workedDays - a.workedDays)
                                 .slice(0,5);
@@ -3316,7 +3406,7 @@ useEffect(() => {
                       <div style={{ display:"flex", flexDirection:"column", gap:"14px" }}>
                         {(() => {
                           const topWorked = [...employees]
-                            .map(emp => ({ ...emp, workedDays: calculateWorkedDays(emp.return_date, emp.status === "إجازة") }))
+                            .map(emp => ({ ...emp, workedDays: calculateCurrentPeriodDays(emp, requests) }))
                             .filter(emp => emp.workedDays > 0)
                             .sort((a: any, b: any) => b.workedDays - a.workedDays)
                             .slice(0, 7);
@@ -3457,7 +3547,7 @@ useEffect(() => {
                         <tbody>
                           {filteredEmployees.map((emp, idx) => {
                             const empStatus = getEmployeeStatus(emp);
-                            const workedDays = calculateWorkedDays(emp.return_date, empStatus === "إجازة");
+                            const workedDays = calculateCurrentPeriodDays(emp, requests);
                             const leaveDays = calculateCurrentLeaveDays(emp, requests);
                             const dept = departments.find(d => d.id === emp.department_id);
                             const isOnLeave = empStatus === "إجازة";
@@ -5004,8 +5094,11 @@ useEffect(() => {
                       <div><label className="text-xs font-bold text-slate-500 block mb-1">نوع الجزاء</label><select className="w-full p-3 border rounded-xl" value={penaltyForm.action_type} onChange={e => setPenaltyForm({...penaltyForm, action_type:e.target.value})}><option>خصم من الرصيد</option><option>جزاء إداري</option><option>إنذار كتابي</option><option>خصم مالي</option></select></div>
                       <div><label className="text-xs font-bold text-slate-500 block mb-1">عدد الأيام الأصلية</label><input type="number" min="0" step="0.5" className="w-full p-3 border rounded-xl" value={penaltyForm.days} onChange={e => setPenaltyForm({...penaltyForm, days:Number(e.target.value)})}/></div>
                       <div><label className="text-xs font-bold text-slate-500 block mb-1">معامل الجزاء</label><input type="number" min="1" step="1" className="w-full p-3 border rounded-xl" value={penaltyForm.multiplier} onChange={e => setPenaltyForm({...penaltyForm, multiplier:Number(e.target.value)})}/></div>
-                      <div className="md:col-span-2"><label className="text-xs font-bold text-slate-500 block mb-1">سبب الجزاء *</label><textarea className="w-full p-3 border rounded-xl" rows={3} value={penaltyForm.reason} onChange={e => setPenaltyForm({...penaltyForm, reason:e.target.value})}/></div>
-                      <div className="md:col-span-2"><label className="text-xs font-bold text-slate-500 block mb-1">ملاحظات</label><textarea className="w-full p-3 border rounded-xl" rows={2} value={penaltyForm.notes} onChange={e => setPenaltyForm({...penaltyForm, notes:e.target.value})}/></div>
+                      <div className="md:col-span-2"><label className="text-xs font-bold text-slate-500 block mb-1">سبب المخالفة *</label><textarea className="w-full p-3 border rounded-xl" rows={3} value={penaltyForm.reason} onChange={e => setPenaltyForm({...penaltyForm, reason:e.target.value})}/></div>
+                      <div><label className="text-xs font-bold text-slate-500 block mb-1">المدير المباشر / Department Head</label><input className="w-full p-3 border rounded-xl" value={penaltyForm.direct_manager} onChange={e => setPenaltyForm({...penaltyForm, direct_manager:e.target.value})} placeholder="اسم المدير المباشر" /></div>
+                      <div><label className="text-xs font-bold text-slate-500 block mb-1">ملاحظات إضافية</label><input className="w-full p-3 border rounded-xl" value={penaltyForm.notes} onChange={e => setPenaltyForm({...penaltyForm, notes:e.target.value})} /></div>
+                      <div className="md:col-span-2"><label className="text-xs font-bold text-slate-500 block mb-1">أقوال العامل / Employee's Statement</label><textarea className="w-full p-3 border rounded-xl" rows={3} value={penaltyForm.employee_statement} onChange={e => setPenaltyForm({...penaltyForm, employee_statement:e.target.value})} /></div>
+                      <div className="md:col-span-2"><label className="text-xs font-bold text-slate-500 block mb-1">ما انتهى إليه التحقيق / Action Taken after investigation</label><textarea className="w-full p-3 border rounded-xl" rows={3} value={penaltyForm.investigation_action} onChange={e => setPenaltyForm({...penaltyForm, investigation_action:e.target.value})} /></div>
                     </div>
                     <div className="mt-4 p-3 rounded-xl bg-indigo-50 text-indigo-700 font-bold">إجمالي الجزاء: {Number(penaltyForm.days || 0) * Math.max(1, Number(penaltyForm.multiplier || 1))} يوم</div>
                     <div className="flex gap-3 mt-4"><button onClick={() => handleSavePenalty(false)} className="flex-1 bg-indigo-600 text-white p-3 rounded-xl font-black">حفظ الجزاء</button><button onClick={() => handleSavePenalty(true)} className="flex-1 bg-slate-800 text-white p-3 rounded-xl font-black">حفظ وطباعة النموذج</button></div>
@@ -5272,7 +5365,7 @@ useEffect(() => {
         {showApprovalModal && currentRequest && (() => {
           const empInfo = employees.find(e => e.id === currentRequest.employee_id);
           const empStatus = empInfo ? getEmployeeStatus(empInfo) : "عمل";
-          const workedDays = calculateWorkedDays(empInfo?.return_date, empStatus === "إجازة");
+          const workedDays = calculateCurrentPeriodDays(empInfo, requests);
           const totalApproved = requests.filter(r => r.employee_id === empInfo?.id && r.status === "approved").reduce((s,r) => s + Number(r.days), 0);
           const balanceOk = Number(empInfo?.balance || 0) >= Number(currentRequest.days);
           return (
@@ -5513,7 +5606,7 @@ useEffect(() => {
         {showEmpInfoModal && empInfoTarget && (() => {
           const e = empInfoTarget;
           const eStatus = getEmployeeStatus(e);
-          const workedDays = calculateWorkedDays(e.return_date, eStatus === "إجازة");
+          const workedDays = calculateCurrentPeriodDays(e, requests);
           const leaveDays = calculateCurrentLeaveDays(e, requests);
           const dept = departments.find(d => d.id === e.department_id);
           const totalApproved = requests.filter(r => r.employee_id === e.id && r.status === "approved").reduce((s,r)=>s+Number(r.days),0);
@@ -6024,7 +6117,7 @@ useEffect(() => {
                   <TrendingUp size={20} className="text-white" />
                 </div>
                 <p style={{ fontSize: "11.5px", color: "#94a3b8", marginBottom: "6px", fontWeight: "700" }}>أيام العمل</p>
-                <p style={{ fontSize: "26px", fontWeight: "900", color: "#9333ea" }}>{calculateWorkedDays(currentUser.return_date, empStatus === "إجازة")}</p>
+                <p style={{ fontSize: "26px", fontWeight: "900", color: "#9333ea" }}>{calculateCurrentPeriodDays(currentUser, requests)}</p>
                 <p style={{ fontSize: "10px", color: "#94a3b8", marginTop: "2px", fontWeight: "600" }}>منذ العودة</p>
               </div>
             )}
