@@ -176,6 +176,24 @@ const calculateWorkedDays = (returnDate: string, isOnVacation: boolean = false) 
   return Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
 };
 
+// عدد أيام الإجازة الفعلية حتى اليوم، مع عدم تجاوز مدة الطلب.
+const calculateCurrentLeaveDays = (employee: any, employeeRequests: any[] = []) => {
+  if (!employee || employee.status !== "إجازة") return 0;
+  const openReq = employeeRequests
+    .filter(r => r.employee_id === employee.id && r.status === "approved" && !r.actual_return_date)
+    .sort((a, b) => String(b.effective_start_date || b.start_date || "").localeCompare(String(a.effective_start_date || a.start_date || "")))[0];
+  const startDate = employee.leave_start_date || openReq?.effective_start_date || openReq?.start_date;
+  if (!startDate) return 0;
+  const start = new Date(startDate);
+  const today = new Date();
+  start.setHours(0, 0, 0, 0);
+  today.setHours(0, 0, 0, 0);
+  if (today < start) return 0;
+  const elapsed = Math.floor((today.getTime() - start.getTime()) / 86400000) + 1;
+  const planned = openReq ? Number(openReq.days || 0) : Infinity;
+  return Math.max(0, Math.min(elapsed, planned));
+};
+
 // أيام العمل بين تاريخين (من تاريخ العودة حتى تاريخ النزول) — تحسب جميع الأيام بدون استثناء
 const calculateWorkDaysBetween = (fromDate: string, toDate: string, holidays: string[] = []) => {
   if (!fromDate || !toDate) return 0;
@@ -293,6 +311,7 @@ const SortTh = ({ label, field, sortField, sortDir, sortDropdown, onSort, onClea
   onClear: () => void;
   onToggle: (f: string) => void;
   align?: string;
+  key?: React.Key;
 }) => {
   const active = sortField === field;
   const open = sortDropdown === field;
@@ -455,6 +474,7 @@ const VacationManagementSystem = () => {
   const [departments, setDepartments] = useState<any[]>([]);
   const [publicHolidays, setPublicHolidays] = useState<any[]>([]);
   const [auditLog, setAuditLog] = useState<any[]>([]);
+  const [penalties, setPenalties] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("dashboard");
   const [currentView, setCurrentView] = useState("login");
@@ -502,6 +522,8 @@ const VacationManagementSystem = () => {
   const [showReturnModal, setShowReturnModal] = useState(false);
   const [returnData, setReturnData] = useState<any>(null);
   const [showAddDept, setShowAddDept] = useState(false);
+  const [penaltyForm, setPenaltyForm] = useState({ employee_id: "", incident_date: new Date().toISOString().split("T")[0], reason: "", days: 1, multiplier: 1, action_type: "خصم من الرصيد", notes: "" });
+  const [penaltyEmployeeSearch, setPenaltyEmployeeSearch] = useState("");
   const [showAddHoliday, setShowAddHoliday] = useState(false);
   const [showAuditLog, setShowAuditLog] = useState(false);
   const [showBalanceLog, setShowBalanceLog] = useState(false);
@@ -527,7 +549,7 @@ const VacationManagementSystem = () => {
 
   // Form Data - أضفنا return_date و email وحذفنا hire_date من الحساب
   const [newEmp, setNewEmp] = useState({
-    name: "", code: "", position: "", balance: 21, monthly_balance: 0,
+    name: "", code: "", position: "", residence: "", balance: 21, monthly_balance: 0,
     department_id: "", hire_date: "", return_date: "", email: "",
   });
 
@@ -747,7 +769,7 @@ const VacationManagementSystem = () => {
     try {
       const [
         { data: emps }, { data: reqs }, { data: types },
-        { data: depts }, { data: holidays }, { data: logs }
+        { data: depts }, { data: holidays }, { data: logs }, { data: penaltyRows }
       ] = await Promise.all([
         supabase.from("employees").select("*").order("name"),
         supabase.from("vacation_requests").select("*").order("created_at", { ascending: false }),
@@ -755,6 +777,7 @@ const VacationManagementSystem = () => {
         supabase.from("departments").select("*"),
         supabase.from("public_holidays").select("*").order("date"),
         supabase.from("audit_log").select("*").order("created_at", { ascending: false }).limit(100),
+        supabase.from("penalties").select("*").order("incident_date", { ascending: false }),
       ]);
 
       if (emps) setEmployees(emps);
@@ -763,6 +786,7 @@ const VacationManagementSystem = () => {
       if (depts) setDepartments(depts);
       if (holidays) setPublicHolidays(holidays);
       if (logs) setAuditLog(logs);
+      if (penaltyRows) setPenalties(penaltyRows);
 
       if (currentUser && currentView === "employee") {
         const userNotifs = reqs?.filter(
@@ -809,30 +833,24 @@ useEffect(() => {
     });
   }, [requests, employees, currentView]);
 
-  // ========== تحديث حالة الموظف تلقائياً بناءً على موعد النزول ==========
+  // ========== تحديث حالة الموظف تلقائياً بناءً على أول يوم فعلي ==========
   useEffect(() => {
     const autoUpdateStatuses = async () => {
       const today = new Date().toISOString().split("T")[0];
-      const idsToUpdate: string[] = [];
       for (const emp of employees) {
-        if (emp.status === "إجازة") continue;
         const activeReq = requests.find(r => {
-          if (r.employee_id !== emp.id || r.status !== "approved") return false;
-          // إذا سُجّلت عودة فعلية — لا تعيده إجازة
-          if (r.actual_return_date) return false;
-          const actualStart = getActualStartDate(r.start_date, r.departure_time || "actual");
-          const { back } = getCalculatedDates(r.start_date, r.days);
-          return today >= actualStart && today < back;
+          if (r.employee_id !== emp.id || r.status !== "approved" || r.actual_return_date) return false;
+          const effectiveStart = r.effective_start_date || r.start_date || getActualStartDate(r.departure_date || r.start_date, r.departure_time || "actual");
+          const { back } = getCalculatedDates(effectiveStart, r.days);
+          return today >= effectiveStart && today < back;
         });
-        if (activeReq) idsToUpdate.push(emp.id);
-      }
-      if (idsToUpdate.length > 0) {
-        await supabase.from("employees").update({ status: "إجازة" }).in("id", idsToUpdate);
+        if (activeReq && emp.status !== "إجازة") {
+          const effectiveStart = activeReq.effective_start_date || activeReq.start_date;
+          await supabase.from("employees").update({ status: "إجازة", leave_start_date: effectiveStart }).eq("id", emp.id);
+        }
       }
     };
-    if (employees.length > 0 && requests.length > 0 && currentView === "admin") {
-      autoUpdateStatuses();
-    }
+    if (employees.length > 0 && requests.length > 0 && currentView === "admin") autoUpdateStatuses();
   }, [employees, requests, currentView]);
 
   // ========== حالة الموظف تلقائياً ==========
@@ -1339,6 +1357,9 @@ useEffect(() => {
         const position = row["المنصب"] || row["position"];
         if (position !== undefined && position !== "") parsed.position = String(position).trim();
 
+        const residence = row["مكان السكن"] || row["السكن"] || row["residence"] || row["address"];
+        if (residence !== undefined && residence !== "") parsed.residence = String(residence).trim();
+
         const email = row["البريد الإلكتروني"] || row["email"] || row["البريد"];
         if (email !== undefined && email !== "") parsed.email = String(email).trim();
 
@@ -1377,7 +1398,9 @@ useEffect(() => {
         .select("*")
         .in("code", codes);
 
-      const existingMap = new Map((existingEmps || []).map((e: any) => [String(e.code).trim(), e]));
+      const existingMap = new Map<string, any>(
+        (existingEmps || []).map((e: any) => [String(e.code).trim(), e] as [string, any])
+      );
 
       let addedCount = 0;
       let updatedCount = 0;
@@ -1393,6 +1416,7 @@ useEffect(() => {
           const updatePayload: any = { id: existing.id };
           if (row.name !== undefined)             updatePayload.name = row.name;
           if (row.position !== undefined)         updatePayload.position = row.position;
+          if (row.residence !== undefined)        updatePayload.residence = row.residence;
           if (row.email !== undefined)            updatePayload.email = row.email;
           if (row.balance !== undefined)          updatePayload.balance = row.balance;
           if (row.monthly_balance !== undefined)  updatePayload.monthly_balance = row.monthly_balance;
@@ -1411,6 +1435,7 @@ useEffect(() => {
             name: row.name,
             code: row.code,
             position: row.position || null,
+            residence: row.residence || null,
             email: row.email || null,
             balance: row.balance ?? 21,
             monthly_balance: row.monthly_balance ?? 0,
@@ -1468,6 +1493,7 @@ useEffect(() => {
         "الاسم الكامل": emp.name || "",
         "الكود الوظيفي": emp.code || "",
         "المنصب": emp.position || "",
+        "مكان السكن": emp.residence || "",
         "البريد الإلكتروني": emp.email || "",
         "القسم": dept?.name || "",
         "الرصيد الحالي": emp.balance ?? 0,
@@ -1499,6 +1525,7 @@ useEffect(() => {
         "تاريخ العودة": formatDate(emp.return_date),
         "الرصيد الحالي": emp.balance, "الرصيد الشهري": emp.monthly_balance,
         "إجمالي أيام الإجازة": totalVacDays,
+        "أيام الإجازة الحالية": calculateCurrentLeaveDays(emp, requests),
         "أيام العمل بعد العودة": workedDays,
         "حالة الموظف": status,
         "عدد الطلبات": empRequests.length,
@@ -1515,6 +1542,7 @@ useEffect(() => {
       name: newEmp.name.trim(),
       code: newEmp.code.trim(),
       position: newEmp.position.trim() || null,
+      residence: newEmp.residence.trim() || null,
       email: newEmp.email.trim() || null,
       balance: newEmp.balance || 0,
       monthly_balance: newEmp.monthly_balance || 0,
@@ -1533,7 +1561,7 @@ useEffect(() => {
       return;
     }
     setShowAddEmp(false);
-    setNewEmp({ name: "", code: "", position: "", balance: 21, monthly_balance: 0, department_id: "", hire_date: "", return_date: "", email: "" });
+    setNewEmp({ name: "", code: "", position: "", residence: "", balance: 21, monthly_balance: 0, department_id: "", hire_date: "", return_date: "", email: "" });
     await fetchData();
     await logAction("create", "employees", null, null, empToInsert);
     alert("✅ تمت إضافة الموظف بنجاح!");
@@ -1544,6 +1572,7 @@ useEffect(() => {
       const emp = employees.find(e => e.id === id);
       await supabase.from("vacation_requests").delete().eq("employee_id", id);
       await supabase.from("balance_updates").delete().eq("employee_id", id);
+      await supabase.from("penalties").delete().eq("employee_id", id);
       await supabase.from("employees").delete().eq("id", id);
       await logAction("delete", "employees", id, emp);
       fetchData();
@@ -1555,6 +1584,7 @@ useEffect(() => {
     const oldData = employees.find(e => e.id === editingEmp.id);
     const { error } = await supabase.from("employees").update({
       name: editingEmp.name, code: editingEmp.code, position: editingEmp.position,
+      residence: editingEmp.residence || "",
       email: editingEmp.email || "",
       balance: editingEmp.balance, monthly_balance: editingEmp.monthly_balance || 0,
       department_id: editingEmp.department_id,
@@ -1589,16 +1619,15 @@ useEffect(() => {
         alert("رصيد الموظف غير كاف (" + emp.balance + " يوم متاح)");
         setShowApprovalModal(false); return;
       }
-      const { back: backDate } = getCalculatedDates(currentRequest.start_date, days);
+      const effectiveStart = currentRequest.effective_start_date || currentRequest.start_date || getActualStartDate(currentRequest.departure_date || currentRequest.start_date, currentRequest.departure_time || "actual");
+      const { back: backDate } = getCalculatedDates(effectiveStart, days);
       const todayStr = new Date().toISOString().split("T")[0];
-      const actualStart = getActualStartDate(currentRequest.start_date, currentRequest.departure_time || "actual");
       const empUpdatePayload: any = {
         balance: Number(emp.balance) - Number(days),
         return_date: backDate,
+        leave_start_date: effectiveStart,
       };
-      if (todayStr >= actualStart) {
-        empUpdatePayload.status = "إجازة";
-      }
+      if (todayStr >= effectiveStart) empUpdatePayload.status = "إجازة";
       await supabase.from("employees").update(empUpdatePayload).eq("id", emp.id);
       if (emp.email) {
         const { back } = getCalculatedDates(currentRequest.start_date, days);
@@ -1610,6 +1639,7 @@ useEffect(() => {
       }
       const { error } = await supabase.from("vacation_requests").update({
         status: "approved", admin_notes: adminNotes || null,
+        effective_start_date: effectiveStart,
         owner_approved_by: approvedBy, owner_approved_at: new Date().toISOString(),
       }).eq("id", id);
       if (error) { alert("خطا: " + error.message); return; }
@@ -1681,21 +1711,22 @@ useEffect(() => {
     const backDate = getCalculatedDates(returnData.start_date, returnData.days).back;
     const actualReturn = new Date(returnData.actual_return_date).toISOString().split("T")[0];
     
-    // حساب الفرق إذا كانت العودة متأخرة
-    let latenessPenalty = 0;
+    // حساب التأخير، ثم تطبيقه إما يومًا بيوم أو كجزاء مضاعف.
+    let latenessDays = 0;
     if (actualReturn > backDate) {
       const backDateObj = new Date(backDate);
       const actualReturnObj = new Date(actualReturn);
-      latenessPenalty = Math.ceil((actualReturnObj.getTime() - backDateObj.getTime()) / (1000 * 60 * 60 * 24));
+      latenessDays = Math.ceil((actualReturnObj.getTime() - backDateObj.getTime()) / 86400000);
     }
+    const lateReturnMode = returnData.late_return_mode || "balance";
+    const lateReturnMultiplier = lateReturnMode === "disciplinary" ? Math.max(1, Number(returnData.late_return_multiplier || 2)) : 1;
+    const penaltyDays = latenessDays * lateReturnMultiplier;
+    const newBalance = Number(emp.balance) - penaltyDays;
 
-    // حساب الرصيد الجديد بعد الخصم (يمكن أن يكون سالباً)
-    const newBalance = emp.balance - latenessPenalty;
-    
-    // تسجيل تاريخ العودة الفعلي + حالة الموظف = عمل + خصم الأيام
     const { error: empUpdateError } = await supabase.from("employees").update({
       return_date: returnData.actual_return_date,
       status: "عمل",
+      leave_start_date: null,
       balance: newBalance,
     }).eq("id", emp.id);
     
@@ -1706,7 +1737,10 @@ useEffect(() => {
     
     const { error: reqUpdateError } = await supabase.from("vacation_requests").update({ 
       actual_return_date: returnData.actual_return_date,
-      lateness_days: latenessPenalty,
+      lateness_days: latenessDays,
+      late_return_mode: lateReturnMode,
+      late_return_multiplier: lateReturnMultiplier,
+      penalty_days: penaltyDays,
     }).eq("id", returnData.id);
     
     if (reqUpdateError) {
@@ -1715,23 +1749,30 @@ useEffect(() => {
     }
 
     // تسجيل العملية في السجل إذا كان هناك تأخير
-    if (latenessPenalty > 0) {
-      const description = `خصم ${latenessPenalty} يوم تأخير عن موعد العودة - الرصيد: ${emp.balance} → ${newBalance}`;
+    if (penaltyDays > 0) {
+      const description = lateReturnMode === "disciplinary"
+        ? `جزاء تأخير عودة: ${latenessDays} يوم × ${lateReturnMultiplier} = ${penaltyDays} يوم - الرصيد: ${emp.balance} → ${newBalance}`
+        : `خصم تأخير عودة يومًا بيوم: ${penaltyDays} يوم - الرصيد: ${emp.balance} → ${newBalance}`;
       await supabase.from("balance_updates").insert([{
-        employee_id: emp.id,
-        amount: -latenessPenalty,
-        update_date: actualReturn,
-        description,
+        employee_id: emp.id, amount: -penaltyDays, update_date: actualReturn, description,
       }]);
-      await logAction("lateness_penalty", "vacation_requests", returnData.id, { penalty_days: latenessPenalty, new_balance: newBalance });
+      if (lateReturnMode === "disciplinary") {
+        await supabase.from("penalties").insert([{
+          employee_id: emp.id, incident_date: actualReturn, reason: `تأخير عن موعد العودة من الإجازة (${latenessDays} يوم)`,
+          action_type: "جزاء خصم من رصيد الإجازة", original_days: latenessDays,
+          multiplier: lateReturnMultiplier, penalty_days: penaltyDays, notes: description,
+          vacation_request_id: returnData.id, created_by: currentUser?.name || "المدير",
+        }]);
+      }
+      await logAction("lateness_penalty", "vacation_requests", returnData.id, { lateness_days: latenessDays, penalty_days: penaltyDays, mode: lateReturnMode, new_balance: newBalance });
     }
 
     setShowReturnModal(false);
     setReturnData(null);
     fetchData();
     
-    const msg = latenessPenalty > 0 
-      ? `تم تسجيل العودة ✅\n⚠️ تأخير ${latenessPenalty} يوم - تم خصمها من الرصيد\nالرصيد الجديد: ${newBalance} يوم`
+    const msg = penaltyDays > 0
+      ? `تم تسجيل العودة ✅\n⚠️ تأخير ${latenessDays} يوم — تم احتساب ${penaltyDays} يوم (${lateReturnMode === "disciplinary" ? "جزاء مضاعف" : "خصم يوم بيوم"})\nالرصيد الجديد: ${newBalance} يوم`
       : "تم تسجيل العودة وتحديث تاريخ العودة ✅";
     alert(msg);
     await logAction("return_from_vacation", "vacation_requests", returnData.id);
@@ -1967,20 +2008,23 @@ useEffect(() => {
       if (days > 0 && Number(emp.balance) < days) {
         if (!window.confirm(`رصيد ${emp.name} (${emp.balance} يوم) أقل من المطلوب (${days} يوم).\nهل تريد المتابعة؟`)) return;
       }
-      // تحديث حالة الموظف
-      await supabase.from("employees").update({
-        status: "إجازة",
-        return_date: statusChangeForm.start_date && days > 0
-          ? getCalculatedDates(statusChangeForm.start_date, days).back
-          : null,
+      const effectiveStart = statusChangeForm.start_date || new Date().toISOString().split("T")[0];
+      const todayStr = new Date().toISOString().split("T")[0];
+      const manualPayload: any = {
+        leave_start_date: effectiveStart,
+        return_date: statusChangeForm.start_date && days > 0 ? getCalculatedDates(effectiveStart, days).back : null,
         ...(days > 0 ? { balance: Number(emp.balance) - days } : {}),
-      }).eq("id", emp.id);
+      };
+      // لا تصبح إجازة في قاعدة البيانات قبل أول يوم فعلي.
+      if (todayStr >= effectiveStart) manualPayload.status = "إجازة";
+      await supabase.from("employees").update(manualPayload).eq("id", emp.id);
       // إضافة سجل إجازة لو كانت فيه بيانات
       if (statusChangeForm.start_date && statusChangeForm.vacation_type_id) {
         await supabase.from("vacation_requests").insert([{
           employee_id: emp.id,
           employee_name: emp.name,
-          start_date: statusChangeForm.start_date,
+          start_date: effectiveStart,
+          effective_start_date: effectiveStart,
           days,
           notes: statusChangeForm.notes || "تم تغيير الحالة يدوياً",
           vacation_type_id: statusChangeForm.vacation_type_id,
@@ -1994,7 +2038,7 @@ useEffect(() => {
     } else {
       // تغيير إلى عمل
       await supabase.from("employees").update({
-        status: "عمل",
+        status: "عمل", leave_start_date: null,
         return_date: new Date().toISOString().split("T")[0],
       }).eq("id", emp.id);
       await logAction("manual_status", "employees", emp.id, { status: emp.status }, { status: "عمل" });
@@ -2015,12 +2059,15 @@ useEffect(() => {
     const emp = employees.find(e => e.id === directVacForm.employee_id);
     if (!emp) { setIsSubmitting(false); return; }
     const days = Number(directVacForm.days);
-    const { back } = getCalculatedDates(directVacForm.start_date, days);
-    // إضافة الطلب مباشرة بحالة approved
+    const effectiveStart = directVacForm.start_date;
+    const todayStr = new Date().toISOString().split("T")[0];
+    const { back } = getCalculatedDates(effectiveStart, days);
+    // إضافة الطلب مباشرة بحالة approved؛ حالة الموظف تؤجل إلى effectiveStart إذا كان تاريخًا مستقبليًا.
     const { error: reqErr } = await supabase.from("vacation_requests").insert([{
       employee_id: emp.id,
       employee_name: emp.name,
-      start_date: directVacForm.start_date,
+      start_date: effectiveStart,
+      effective_start_date: effectiveStart,
       days,
       notes: directVacForm.notes || "إجازة مضافة مباشرة من الإدارة",
       vacation_type_id: directVacForm.vacation_type_id,
@@ -2029,11 +2076,10 @@ useEffect(() => {
       owner_approved_at: new Date().toISOString(),
     }]);
     if (reqErr) { alert("❌ " + reqErr.message); setIsSubmitting(false); return; }
-    // خصم الرصيد وتغيير الحالة
-    await supabase.from("employees").update({
-      balance: emp.balance - days,
-      status: "إجازة",
-    }).eq("id", emp.id);
+    // خصم الرصيد، مع تأجيل الحالة حتى أول يوم فعلي.
+    const directPayload: any = { balance: Number(emp.balance) - days, leave_start_date: effectiveStart };
+    if (todayStr >= effectiveStart) directPayload.status = "إجازة";
+    await supabase.from("employees").update(directPayload).eq("id", emp.id);
     await logAction("direct_vacation", "vacation_requests", null, null, { employee: emp.name, days, start_date: directVacForm.start_date });
     setShowDirectVacModal(false);
     setDirectVacForm({ employee_id: "", days: 1, start_date: "", notes: "", vacation_type_id: "" });
@@ -2041,6 +2087,47 @@ useEffect(() => {
     await fetchData();
     alert(`✅ تمت إضافة إجازة ${emp.name} بنجاح!
 تاريخ العودة: ${formatDate(back)}`);
+  };
+
+  // ========== PENALTIES OPERATIONS ==========
+  const handleSavePenalty = async (printAfterSave = false) => {
+    const employee = employees.find(e => e.id === penaltyForm.employee_id);
+    if (!employee) return alert("اختر الموظف أولاً");
+    if (!penaltyForm.reason.trim()) return alert("اكتب سبب الجزاء");
+    const originalDays = Math.max(0, Number(penaltyForm.days || 0));
+    const multiplier = Math.max(1, Number(penaltyForm.multiplier || 1));
+    const penaltyDays = originalDays * multiplier;
+    const dept = departments.find(d => d.id === employee.department_id);
+    const payload = {
+      employee_id: employee.id, incident_date: penaltyForm.incident_date,
+      reason: penaltyForm.reason.trim(), action_type: penaltyForm.action_type,
+      original_days: originalDays, multiplier, penalty_days: penaltyDays,
+      notes: penaltyForm.notes.trim() || null, created_by: currentUser?.name || "المدير",
+    };
+    const { data, error } = await supabase.from("penalties").insert([payload]).select().single();
+    if (error) return alert("تعذر حفظ الجزاء: " + error.message);
+    await logAction("create", "penalties", data?.id || null, null, payload);
+    if (penaltyForm.action_type.includes("الرصيد") && penaltyDays > 0) {
+      const newBalance = Number(employee.balance || 0) - penaltyDays;
+      await supabase.from("employees").update({ balance: newBalance }).eq("id", employee.id);
+      await supabase.from("balance_updates").insert([{ employee_id: employee.id, amount: -penaltyDays, update_date: penaltyForm.incident_date, description: `جزاء: ${penaltyForm.reason.trim()} — ${penaltyDays} يوم` }]);
+    }
+    if (printAfterSave) {
+      const html = `<html dir="rtl"><head><meta charset="UTF-8"><title>نموذج جزاء</title><style>body{font-family:Arial,sans-serif;padding:36px;direction:rtl;color:#111827}h1{text-align:center;border-bottom:3px solid #1e3a8a;padding-bottom:14px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:22px 0}.field{border:1px solid #cbd5e1;border-radius:8px;padding:12px}.label{font-size:12px;color:#64748b;margin-bottom:5px}.value{font-weight:700;min-height:22px}.reason{border:1px solid #cbd5e1;border-radius:8px;padding:16px;min-height:90px}.sign{display:flex;justify-content:space-around;margin-top:90px;font-weight:700}</style></head><body><h1>نموذج توقيع جزاء</h1><div class="grid"><div class="field"><div class="label">اسم الموظف</div><div class="value">${employee.name}</div></div><div class="field"><div class="label">الكود الوظيفي</div><div class="value">${employee.code || "-"}</div></div><div class="field"><div class="label">الوظيفة</div><div class="value">${employee.position || "-"}</div></div><div class="field"><div class="label">مكان السكن</div><div class="value">${employee.residence || "-"}</div></div><div class="field"><div class="label">القسم</div><div class="value">${dept?.name || "-"}</div></div><div class="field"><div class="label">تاريخ الواقعة</div><div class="value">${formatDate(payload.incident_date)}</div></div><div class="field"><div class="label">نوع الجزاء</div><div class="value">${payload.action_type}</div></div><div class="field"><div class="label">قيمة الجزاء</div><div class="value">${penaltyDays} يوم</div></div></div><div class="reason"><div class="label">سبب الجزاء</div><div class="value">${payload.reason}</div>${payload.notes ? `<p>${payload.notes}</p>` : ""}</div><div class="sign"><span>توقيع الموظف: ................</span><span>اعتماد المدير: ................</span></div></body></html>`;
+      printHTMLContent(html);
+    }
+    setPenaltyForm({ employee_id: "", incident_date: new Date().toISOString().split("T")[0], reason: "", days: 1, multiplier: 1, action_type: "خصم من الرصيد", notes: "" });
+    setPenaltyEmployeeSearch("");
+    await fetchData();
+    alert("✅ تم حفظ الجزاء بنجاح");
+  };
+
+  const handlePrintExistingPenalty = (penalty: any) => {
+    const employee = employees.find(e => e.id === penalty.employee_id);
+    if (!employee) return;
+    const dept = departments.find(d => d.id === employee.department_id);
+    const html = `<html dir="rtl"><head><meta charset="UTF-8"><title>نموذج جزاء</title><style>body{font-family:Arial,sans-serif;padding:36px;direction:rtl}h1{text-align:center;border-bottom:3px solid #1e3a8a;padding-bottom:14px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:22px 0}.field{border:1px solid #cbd5e1;border-radius:8px;padding:12px}.label{font-size:12px;color:#64748b}.value{font-weight:700;margin-top:5px}.reason{border:1px solid #cbd5e1;border-radius:8px;padding:16px;min-height:90px}.sign{display:flex;justify-content:space-around;margin-top:90px;font-weight:700}</style></head><body><h1>نموذج توقيع جزاء</h1><div class="grid"><div class="field"><div class="label">اسم الموظف</div><div class="value">${employee.name}</div></div><div class="field"><div class="label">الكود الوظيفي</div><div class="value">${employee.code || "-"}</div></div><div class="field"><div class="label">القسم</div><div class="value">${dept?.name || "-"}</div></div><div class="field"><div class="label">تاريخ الواقعة</div><div class="value">${formatDate(penalty.incident_date)}</div></div><div class="field"><div class="label">نوع الجزاء</div><div class="value">${penalty.action_type || "-"}</div></div><div class="field"><div class="label">القيمة</div><div class="value">${penalty.penalty_days || 0} يوم</div></div></div><div class="reason"><div class="label">السبب</div><div class="value">${penalty.reason || "-"}</div><p>${penalty.notes || ""}</p></div><div class="sign"><span>توقيع الموظف: ................</span><span>اعتماد المدير: ................</span></div></body></html>`;
+    printHTMLContent(html);
   };
 
   // ========== DEPARTMENT OPERATIONS ==========
@@ -2176,7 +2263,7 @@ useEffect(() => {
   // ========== FILTERED DATA ==========
   const filteredEmployees = useMemo(() => {
     let result = scopedEmployees.filter(emp => {
-      const matchSearch = emp.name.includes(empSearch) || emp.code.includes(empSearch) || (emp.position||"").includes(empSearch);
+      const matchSearch = emp.name.includes(empSearch) || emp.code.includes(empSearch) || (emp.position||"").includes(empSearch) || (emp.residence||"").includes(empSearch);
       const matchDept = departmentFilter === "all" || emp.department_id === departmentFilter;
       // الحالة تُقرأ مباشرة من قاعدة البيانات
       const empStatus = emp.status === "إجازة" ? "إجازة" : "عمل";
@@ -2195,9 +2282,14 @@ useEffect(() => {
           va = calculateWorkedDays(a.return_date, a.status === "إجازة");
           vb = calculateWorkedDays(b.return_date, b.status === "إجازة");
         }
+        else if (empSortField === "leaveDays") {
+          va = calculateCurrentLeaveDays(a, requests);
+          vb = calculateCurrentLeaveDays(b, requests);
+        }
         else if (empSortField === "name")     { va = (a.name||"").toLowerCase();   vb = (b.name||"").toLowerCase(); }
         else if (empSortField === "code")     { va = (a.code||"");                 vb = (b.code||""); }
         else if (empSortField === "position") { va = (a.position||"").toLowerCase(); vb = (b.position||"").toLowerCase(); }
+        else if (empSortField === "residence") { va = (a.residence||"").toLowerCase(); vb = (b.residence||"").toLowerCase(); }
         else if (empSortField === "dept")     {
           const da = departments.find((d:any)=>d.id===a.department_id);
           const db = departments.find((d:any)=>d.id===b.department_id);
@@ -2287,12 +2379,22 @@ useEffect(() => {
           الكود: emp.code,
           المنصب: emp.position || "-",
           البريد: emp.email || "-",
+          مكان_السكن: emp.residence || "-",
           القسم: departments.find(d => d.id === emp.department_id)?.name || "-",
           الرصيد: emp.balance,
           الرصيد_الشهري: emp.monthly_balance || 0,
           تاريخ_التعيين: emp.hire_date || "-",
           تاريخ_العودة: emp.return_date || "-",
           الحالة: getEmployeeStatus(emp),
+        })),
+        penalties: penalties.map(p => ({
+          الموظف: employees.find(e => e.id === p.employee_id)?.name || p.employee_id,
+          تاريخ_الواقعة: p.incident_date,
+          السبب: p.reason,
+          نوع_الجزاء: p.action_type,
+          الأيام_الأصلية: p.original_days,
+          معامل_الجزاء: p.multiplier,
+          إجمالي_الجزاء: p.penalty_days,
         })),
         requests: requests.map(req => ({
           الموظف: req.employee_name,
@@ -2576,6 +2678,7 @@ useEffect(() => {
               { id: "holidays",    label: "العطلات",          icon: CalendarDays,    ownerOnly: true,  managerAllowed: false },
               { id: "history",     label: "السجل",            icon: History,         ownerOnly: false, managerAllowed: true  },
               { id: "active_vacations", label: "الإجازات الفعلية", icon: CheckCircle, ownerOnly: false, managerAllowed: true  },
+              { id: "penalties",  label: "الجزاءات",          icon: ShieldCheck,    ownerOnly: false, managerAllowed: true  },
               { id: "notifications_center", label: "الاشعارات",   icon: Bell,            ownerOnly: false, managerAllowed: false },
               { id: "admin_affairs", label: "الشؤون الإدارية", icon: Briefcase, ownerOnly: true, managerAllowed: false, adminAffairsManager: true, deptAdminAffairs: true },
             ] as {id:string,label:string,icon:any,ownerOnly:boolean,managerAllowed:boolean,adminAffairsManager?:boolean,deptAdminAffairs?:boolean}[])
@@ -3341,9 +3444,11 @@ useEffect(() => {
                             <SortTh label="الاسم"      field="name"       align="right"  sortField={empSortField} sortDir={empSortDir} sortDropdown={empSortDropdown} onSort={(f,d)=>{setEmpSortField(f);setEmpSortDir(d);setEmpSortDropdown("");}} onClear={()=>{setEmpSortField("");setEmpSortDropdown("");}} onToggle={f=>setEmpSortDropdown(d=>d===f?"":f)} />
                             <SortTh label="الكود"      field="code"       align="center" sortField={empSortField} sortDir={empSortDir} sortDropdown={empSortDropdown} onSort={(f,d)=>{setEmpSortField(f);setEmpSortDir(d);setEmpSortDropdown("");}} onClear={()=>{setEmpSortField("");setEmpSortDropdown("");}} onToggle={f=>setEmpSortDropdown(d=>d===f?"":f)} />
                             <SortTh label="المنصب"     field="position"   align="right"  sortField={empSortField} sortDir={empSortDir} sortDropdown={empSortDropdown} onSort={(f,d)=>{setEmpSortField(f);setEmpSortDir(d);setEmpSortDropdown("");}} onClear={()=>{setEmpSortField("");setEmpSortDropdown("");}} onToggle={f=>setEmpSortDropdown(d=>d===f?"":f)} />
+                            <SortTh label="مكان السكن" field="residence" align="center" sortField={empSortField} sortDir={empSortDir} sortDropdown={empSortDropdown} onSort={(f,d)=>{setEmpSortField(f);setEmpSortDir(d);setEmpSortDropdown("");}} onClear={()=>{setEmpSortField("");setEmpSortDropdown("");}} onToggle={f=>setEmpSortDropdown(d=>d===f?"":f)} />
                             <SortTh label="القسم"      field="dept"       align="center" sortField={empSortField} sortDir={empSortDir} sortDropdown={empSortDropdown} onSort={(f,d)=>{setEmpSortField(f);setEmpSortDir(d);setEmpSortDropdown("");}} onClear={()=>{setEmpSortField("");setEmpSortDropdown("");}} onToggle={f=>setEmpSortDropdown(d=>d===f?"":f)} />
                             <SortTh label="الرصيد"     field="balance"    align="center" sortField={empSortField} sortDir={empSortDir} sortDropdown={empSortDropdown} onSort={(f,d)=>{setEmpSortField(f);setEmpSortDir(d);setEmpSortDropdown("");}} onClear={()=>{setEmpSortField("");setEmpSortDropdown("");}} onToggle={f=>setEmpSortDropdown(d=>d===f?"":f)} />
                             <SortTh label="شهري"       field="monthly"    align="center" sortField={empSortField} sortDir={empSortDir} sortDropdown={empSortDropdown} onSort={(f,d)=>{setEmpSortField(f);setEmpSortDir(d);setEmpSortDropdown("");}} onClear={()=>{setEmpSortField("");setEmpSortDropdown("");}} onToggle={f=>setEmpSortDropdown(d=>d===f?"":f)} />
+                            <SortTh label="أيام الإجازة" field="leaveDays" align="center" sortField={empSortField} sortDir={empSortDir} sortDropdown={empSortDropdown} onSort={(f,d)=>{setEmpSortField(f);setEmpSortDir(d);setEmpSortDropdown("");}} onClear={()=>{setEmpSortField("");setEmpSortDropdown("");}} onToggle={f=>setEmpSortDropdown(d=>d===f?"":f)} />
                             <SortTh label="أيام العمل" field="workedDays" align="center" sortField={empSortField} sortDir={empSortDir} sortDropdown={empSortDropdown} onSort={(f,d)=>{setEmpSortField(f);setEmpSortDir(d);setEmpSortDropdown("");}} onClear={()=>{setEmpSortField("");setEmpSortDropdown("");}} onToggle={f=>setEmpSortDropdown(d=>d===f?"":f)} />
                             <SortTh label="الحالة"     field="status"     align="center" sortField={empSortField} sortDir={empSortDir} sortDropdown={empSortDropdown} onSort={(f,d)=>{setEmpSortField(f);setEmpSortDir(d);setEmpSortDropdown("");}} onClear={()=>{setEmpSortField("");setEmpSortDropdown("");}} onToggle={f=>setEmpSortDropdown(d=>d===f?"":f)} />
                             <th style={{ border:"1px solid #94a3b8", padding:"12px 8px", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center" }}>إجراءات</th>
@@ -3353,6 +3458,7 @@ useEffect(() => {
                           {filteredEmployees.map((emp, idx) => {
                             const empStatus = getEmployeeStatus(emp);
                             const workedDays = calculateWorkedDays(emp.return_date, empStatus === "إجازة");
+                            const leaveDays = calculateCurrentLeaveDays(emp, requests);
                             const dept = departments.find(d => d.id === emp.department_id);
                             const isOnLeave = empStatus === "إجازة";
                             return (
@@ -3370,6 +3476,8 @@ useEffect(() => {
                                 </td>
                                 {/* المنصب */}
                                 <td style={{ border:"1px solid #94a3b8", padding:"10px 8px", color:"#1e293b", textAlign:"center" }}>{emp.position || "-"}</td>
+                                {/* مكان السكن والقسم */}
+                                <td style={{ border:"1px solid #94a3b8", padding:"10px 8px", color:"#1e293b", textAlign:"center" }}>{emp.residence || "-"}</td>
                                 {/* القسم */}
                                 <td style={{ border:"1px solid #94a3b8", padding:"10px 8px", color:"#1e293b", textAlign:"center" }}>
                                   {dept ? <span style={{ background:"#ede9fe", color:"#7c3aed", padding:"3px 10px", borderRadius:"20px", fontSize:"11px", fontWeight:"700" }}>{dept.name}</span> : <span style={{ color:"#cbd5e1" }}>-</span>}
@@ -3384,6 +3492,10 @@ useEffect(() => {
                                   {emp.monthly_balance > 0
                                     ? <span style={{ background:"#dcfce7", color:"#16a34a", padding:"3px 8px", borderRadius:"20px", fontSize:"11px", fontWeight:"700" }}>+{emp.monthly_balance}</span>
                                     : <span style={{ color:"#cbd5e1", fontSize:"12px" }}>-</span>}
+                                </td>
+                                {/* أيام الإجازة الحالية */}
+                                <td style={{ border:"1px solid #94a3b8", padding:"10px 8px", color:"#1e293b", textAlign:"center" }}>
+                                  {isOnLeave ? <span style={{ fontWeight:"900", color:"#d97706" }}>{leaveDays} يوم</span> : <span style={{ color:"#cbd5e1" }}>-</span>}
                                 </td>
                                 {/* أيام العمل */}
                                 <td style={{ border:"1px solid #94a3b8", padding:"10px 8px", color:"#1e293b", textAlign:"center" }}>{workedDays > 0 ? workedDays : "-"}</td>
@@ -3810,8 +3922,10 @@ useEffect(() => {
                   const back = lastReq ? calcDates.back : (emp.return_date || "");
                   const end = lastReq ? calcDates.end : (emp.return_date || "");
                   const today = new Date().toISOString().split("T")[0];
+                  const effectiveStart = lastReq?.effective_start_date || lastReq?.start_date || emp.leave_start_date || "";
+                  const daysElapsed = effectiveStart ? Math.max(0, Math.floor((new Date(today).getTime() - new Date(effectiveStart).getTime()) / 86400000) + 1) : 0;
                   const daysLeft = back ? Math.ceil((new Date(back).getTime() - new Date(today).getTime()) / 86400000) : null;
-                  return { emp, lastReq, dept, vacType, back, end, daysLeft, source: lastReq ? "طلب" : "يدوي" };
+                  return { emp, lastReq, dept, vacType, back, end, daysLeft, daysElapsed, source: lastReq ? "طلب" : "يدوي" };
                 });
 
                 // فلترة بحث وقسم
@@ -4309,6 +4423,7 @@ useEffect(() => {
                               <th style={{ border:"1px solid #94a3b8", padding:"12px 8px", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center" }}>نوع الإجازة</th>
                               <SortTh label="تاريخ البداية" field="start" align="center" sortField={activeVacSortField} sortDir={activeVacSortDir} sortDropdown={activeVacSortDropdown} onSort={(f,d)=>{setActiveVacSortField(f);setActiveVacSortDir(d);setActiveVacSortDropdown("");}} onClear={()=>{setActiveVacSortField("");setActiveVacSortDropdown("");}} onToggle={f=>setActiveVacSortDropdown(d=>d===f?"":f)} />
                               <SortTh label="المدة"         field="days"  align="center" sortField={activeVacSortField} sortDir={activeVacSortDir} sortDropdown={activeVacSortDropdown} onSort={(f,d)=>{setActiveVacSortField(f);setActiveVacSortDir(d);setActiveVacSortDropdown("");}} onClear={()=>{setActiveVacSortField("");setActiveVacSortDropdown("");}} onToggle={f=>setActiveVacSortDropdown(d=>d===f?"":f)} />
+                              <th style={{ border:"1px solid #94a3b8", padding:"12px 8px", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center" }}>أيام مضت</th>
                               <SortTh label="نهاية الإجازة" field="back" align="center" sortField={activeVacSortField} sortDir={activeVacSortDir} sortDropdown={activeVacSortDropdown} onSort={(f,d)=>{setActiveVacSortField(f);setActiveVacSortDir(d);setActiveVacSortDropdown("");}} onClear={()=>{setActiveVacSortField("");setActiveVacSortDropdown("");}} onToggle={f=>setActiveVacSortDropdown(d=>d===f?"":f)} />
                               <th style={{ border:"1px solid #94a3b8", padding:"12px 8px", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center" }}>الرصيد</th>
                               <th style={{ border:"1px solid #94a3b8", padding:"12px 8px", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center" }}>المصدر</th>
@@ -4317,7 +4432,7 @@ useEffect(() => {
                             </thead>
                             <tbody>
                               {filtered.map(row => {
-                                const { emp, lastReq, dept, vacType, back, end, daysLeft, source } = row;
+                                const { emp, lastReq, dept, vacType, back, end, daysLeft, daysElapsed, source } = row;
                                 return (
                                   <tr key={emp.id} style={{ borderBottom:"1px solid #f1f5f9" }}
                                     onMouseEnter={e => (e.currentTarget.style.background="#f8fafc")}
@@ -4347,6 +4462,10 @@ useEffect(() => {
                                     </td>
                                     <td style={{ border:"1px solid #94a3b8", padding:"10px 8px", color:"#1e293b", textAlign:"center" }}>
                                       {lastReq ? `${lastReq.days} يوم` : "-"}
+                                    </td>
+                                    <td style={{ border:"1px solid #94a3b8", padding:"10px 8px", color:"#1e293b", textAlign:"center" }}>
+                                      <span style={{ fontWeight:"900", color:"#d97706" }}>{daysElapsed || "-"}</span>
+                                      <div style={{ fontSize:"10px", color:"#94a3b8" }}>يوم</div>
                                     </td>
                                     <td style={{ border:"1px solid #94a3b8", padding:"10px 8px", color:"#1e293b", textAlign:"center" }}>
                                       {end ? (
@@ -4484,6 +4603,7 @@ useEffect(() => {
                       {directVacForm.start_date && directVacForm.days > 0 && (
                         <div style={{ background:"#eef2ff", borderRadius:"10px", padding:"10px 14px", fontSize:"13px", color:"#4f46e5", fontWeight:"700" }}>
                           📅 تاريخ العودة: {formatDate(getCalculatedDates(directVacForm.start_date, directVacForm.days).back)}
+                          {directVacForm.start_date > new Date().toISOString().split("T")[0] && <div style={{ marginTop:"5px", color:"#b45309" }}>⏳ الحالة ستتغير إلى إجازة مع بداية يوم {formatDate(directVacForm.start_date)}</div>}
                         </div>
                       )}
                       <div>
@@ -4870,6 +4990,29 @@ useEffect(() => {
                   </div>
                 </div>
               )}
+              {/* ===== الجزاءات ===== */}
+              {activeTab === "penalties" && (
+                <div className="space-y-5" dir="rtl">
+                  <div><h2 className="text-2xl font-black">الجزاءات</h2><p className="text-sm text-slate-500 mt-1">تسجيل الجزاء وربطه بالموظف، ثم طباعة نموذج التوقيع.</p></div>
+                  <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm">
+                    <h3 className="font-black text-lg mb-4">إضافة جزاء جديد</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="relative md:col-span-2"><label className="text-xs font-bold text-slate-500 block mb-1">الموظف *</label><input className="w-full p-3 border rounded-xl" placeholder="ابحث بالاسم أو الكود" value={penaltyEmployeeSearch} onChange={e => { setPenaltyEmployeeSearch(e.target.value); setPenaltyForm({...penaltyForm, employee_id: ""}); }} />
+                        {penaltyEmployeeSearch && !penaltyForm.employee_id && <div className="absolute z-10 bg-white border rounded-xl shadow-lg w-full mt-1 max-h-48 overflow-auto">{employees.filter(e => e.name?.includes(penaltyEmployeeSearch) || e.code?.includes(penaltyEmployeeSearch)).slice(0,8).map(e => <button key={e.id} className="w-full text-right p-3 hover:bg-slate-50 border-b" onClick={() => { setPenaltyForm({...penaltyForm, employee_id:e.id}); setPenaltyEmployeeSearch(`${e.name} (${e.code})`); }}>{e.name} — {e.code}</button>)}</div>}
+                      </div>
+                      <div><label className="text-xs font-bold text-slate-500 block mb-1">تاريخ الواقعة</label><input type="date" className="w-full p-3 border rounded-xl" value={penaltyForm.incident_date} onChange={e => setPenaltyForm({...penaltyForm, incident_date:e.target.value})}/></div>
+                      <div><label className="text-xs font-bold text-slate-500 block mb-1">نوع الجزاء</label><select className="w-full p-3 border rounded-xl" value={penaltyForm.action_type} onChange={e => setPenaltyForm({...penaltyForm, action_type:e.target.value})}><option>خصم من الرصيد</option><option>جزاء إداري</option><option>إنذار كتابي</option><option>خصم مالي</option></select></div>
+                      <div><label className="text-xs font-bold text-slate-500 block mb-1">عدد الأيام الأصلية</label><input type="number" min="0" step="0.5" className="w-full p-3 border rounded-xl" value={penaltyForm.days} onChange={e => setPenaltyForm({...penaltyForm, days:Number(e.target.value)})}/></div>
+                      <div><label className="text-xs font-bold text-slate-500 block mb-1">معامل الجزاء</label><input type="number" min="1" step="1" className="w-full p-3 border rounded-xl" value={penaltyForm.multiplier} onChange={e => setPenaltyForm({...penaltyForm, multiplier:Number(e.target.value)})}/></div>
+                      <div className="md:col-span-2"><label className="text-xs font-bold text-slate-500 block mb-1">سبب الجزاء *</label><textarea className="w-full p-3 border rounded-xl" rows={3} value={penaltyForm.reason} onChange={e => setPenaltyForm({...penaltyForm, reason:e.target.value})}/></div>
+                      <div className="md:col-span-2"><label className="text-xs font-bold text-slate-500 block mb-1">ملاحظات</label><textarea className="w-full p-3 border rounded-xl" rows={2} value={penaltyForm.notes} onChange={e => setPenaltyForm({...penaltyForm, notes:e.target.value})}/></div>
+                    </div>
+                    <div className="mt-4 p-3 rounded-xl bg-indigo-50 text-indigo-700 font-bold">إجمالي الجزاء: {Number(penaltyForm.days || 0) * Math.max(1, Number(penaltyForm.multiplier || 1))} يوم</div>
+                    <div className="flex gap-3 mt-4"><button onClick={() => handleSavePenalty(false)} className="flex-1 bg-indigo-600 text-white p-3 rounded-xl font-black">حفظ الجزاء</button><button onClick={() => handleSavePenalty(true)} className="flex-1 bg-slate-800 text-white p-3 rounded-xl font-black">حفظ وطباعة النموذج</button></div>
+                  </div>
+                  <div className="bg-white rounded-3xl border border-slate-200 overflow-x-auto"><table className="w-full text-sm"><thead className="bg-slate-100"><tr><th className="p-3">الموظف</th><th className="p-3">التاريخ</th><th className="p-3">السبب</th><th className="p-3">الجزاء</th><th className="p-3">إجراء</th></tr></thead><tbody>{penalties.filter(p => !isDeptMgr || myDeptIds.includes(String(employees.find(e => e.id === p.employee_id)?.department_id))).map(p => <tr key={p.id} className="border-t"><td className="p-3">{employees.find(e => e.id === p.employee_id)?.name || p.employee_id}</td><td className="p-3">{formatDate(p.incident_date)}</td><td className="p-3">{p.reason}</td><td className="p-3 font-black">{p.penalty_days || 0} يوم</td><td className="p-3"><button onClick={() => handlePrintExistingPenalty(p)} className="text-indigo-600 font-bold">🖨️ طباعة</button></td></tr>)}</tbody></table>{penalties.filter(p => !isDeptMgr || myDeptIds.includes(String(employees.find(e => e.id === p.employee_id)?.department_id))).length === 0 && <div className="p-8 text-center text-slate-400">لا توجد جزاءات مسجلة</div>}</div>
+                </div>
+              )}
               {/* ===== الشؤون الإدارية ===== */}
               {activeTab === "admin_affairs" && (
                 <AdminAffairsTab supabase={supabase} logAction={logAction} currentUser={currentUser} userRole={currentUser?.role} />
@@ -5054,6 +5197,7 @@ useEffect(() => {
                 <div className="grid grid-cols-2 gap-4">
                   <input className="p-4 border rounded-2xl outline-none" placeholder="الكود الوظيفي *" value={newEmp.code} onChange={(e) => setNewEmp({...newEmp, code: e.target.value})} />
                   <input className="p-4 border rounded-2xl outline-none" placeholder="المنصب" value={newEmp.position} onChange={(e) => setNewEmp({...newEmp, position: e.target.value})} />
+                  <input className="p-4 border rounded-2xl outline-none" placeholder="مكان السكن" value={newEmp.residence} onChange={(e) => setNewEmp({...newEmp, residence: e.target.value})} />
                 </div>
                 <input type="email" className="w-full p-4 border rounded-2xl outline-none focus:border-indigo-500" placeholder="البريد الإلكتروني" value={newEmp.email} onChange={(e) => setNewEmp({...newEmp, email: e.target.value})} />
                 {departments.length > 0 && (
@@ -5095,6 +5239,7 @@ useEffect(() => {
                 <div className="grid grid-cols-2 gap-4">
                   <input className="p-4 border rounded-2xl" placeholder="الكود" value={editingEmp.code || ''} onChange={(e) => setEditingEmp({...editingEmp, code: e.target.value})} />
                   <input className="p-4 border rounded-2xl" placeholder="المنصب" value={editingEmp.position || ''} onChange={(e) => setEditingEmp({...editingEmp, position: e.target.value})} />
+                  <input className="p-4 border rounded-2xl" placeholder="مكان السكن" value={editingEmp.residence || ''} onChange={(e) => setEditingEmp({...editingEmp, residence: e.target.value})} />
                 </div>
                 <input type="email" className="w-full p-4 border rounded-2xl" placeholder="البريد الإلكتروني" value={editingEmp.email || ''} onChange={(e) => setEditingEmp({...editingEmp, email: e.target.value})} />
                 {departments.length > 0 && (
@@ -5369,6 +5514,7 @@ useEffect(() => {
           const e = empInfoTarget;
           const eStatus = getEmployeeStatus(e);
           const workedDays = calculateWorkedDays(e.return_date, eStatus === "إجازة");
+          const leaveDays = calculateCurrentLeaveDays(e, requests);
           const dept = departments.find(d => d.id === e.department_id);
           const totalApproved = requests.filter(r => r.employee_id === e.id && r.status === "approved").reduce((s,r)=>s+Number(r.days),0);
           const pendingCount = requests.filter(r => r.employee_id === e.id && (r.status==="pending"||r.status==="dept_approved")).length;
@@ -5411,6 +5557,10 @@ useEffect(() => {
                   <div style={{ fontSize:"26px", fontWeight:"900", color:"#d97706" }}>{workedDays}</div>
                   <div style={{ fontSize:"10px", color:"#64748b", marginTop:"2px", fontWeight:"600" }}>أيام العمل</div>
                 </div>
+                <div style={{ background:"#fff7ed", borderRadius:"14px", padding:"12px", textAlign:"center", border:"1px solid #fed7aa" }}>
+                  <div style={{ fontSize:"26px", fontWeight:"900", color:"#ea580c" }}>{leaveDays}</div>
+                  <div style={{ fontSize:"10px", color:"#64748b", marginTop:"2px", fontWeight:"600" }}>أيام الإجازة الحالية</div>
+                </div>
                 <div style={{ background:"#f5f3ff", borderRadius:"14px", padding:"12px", textAlign:"center", border:"1px solid #ddd6fe" }}>
                   <div style={{ fontSize:"26px", fontWeight:"900", color:"#7c3aed" }}>{totalApproved}</div>
                   <div style={{ fontSize:"10px", color:"#64748b", marginTop:"2px", fontWeight:"600" }}>إجمالي الإجازات</div>
@@ -5419,6 +5569,7 @@ useEffect(() => {
 
               {/* بيانات إضافية */}
               <div style={{ padding:"16px 20px", display:"flex", flexDirection:"column", gap:"8px", borderBottom:"1px solid #f1f5f9" }}>
+                {e.residence && <div style={{ display:"flex", justifyContent:"space-between", fontSize:"13px" }}><span style={{ color:"#94a3b8", fontWeight:"600" }}>📍 مكان السكن</span><span style={{ fontWeight:"700", color:"#1e293b" }}>{e.residence}</span></div>}
                 {e.hire_date && (
                   <div style={{ display:"flex", justifyContent:"space-between", fontSize:"13px" }}>
                     <span style={{ color:"#94a3b8", fontWeight:"600" }}>📅 تاريخ التعيين</span>
@@ -5534,6 +5685,15 @@ useEffect(() => {
                 <div>
                   <label className="text-sm font-black mb-2 block text-indigo-700">تاريخ العودة الفعلي (سيُحفظ في بيانات الموظف لحساب أيام العمل)</label>
                   <input type="date" className="w-full p-4 border-2 border-indigo-300 rounded-2xl" value={returnData.actual_return_date} onChange={(e) => setReturnData({...returnData, actual_return_date: e.target.value})} />
+                </div>
+                <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 space-y-3">
+                  <label className="text-sm font-black block text-amber-800">طريقة التعامل مع التأخير</label>
+                  <select className="w-full p-3 border rounded-xl" value={returnData.late_return_mode || "balance"} onChange={(e) => setReturnData({...returnData, late_return_mode: e.target.value})}>
+                    <option value="balance">خصم يوم بيوم من الرصيد</option>
+                    <option value="disciplinary">تسجيل جزاء مضاعف</option>
+                  </select>
+                  {returnData.late_return_mode === "disciplinary" && <div><label className="text-xs font-bold text-amber-700">معامل الجزاء</label><input type="number" min="2" step="1" className="w-full p-3 border rounded-xl" value={returnData.late_return_multiplier || 2} onChange={(e) => setReturnData({...returnData, late_return_multiplier: Number(e.target.value)})} /></div>}
+                  <p className="text-xs text-amber-700 m-0">سيظهر عدد أيام التأخير وقيمة الخصم بعد اختيار تاريخ العودة.</p>
                 </div>
                 <button onClick={handleReturnFromVacation} className="w-full bg-emerald-600 text-white p-5 rounded-2xl font-black">تأكيد العودة وتحديث البيانات</button>
               </div>
