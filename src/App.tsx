@@ -158,6 +158,16 @@ const getLocalISODate = (date = new Date()): string => {
   return `${y}-${m}-${d}`;
 };
 
+// توحيد أي صيغة تاريخ إلى YYYY-MM-DD حتى تعمل فلاتر input[type=date] بثبات.
+const normalizeDateKey = (value: any): string => {
+  if (!value) return "";
+  const text = String(value);
+  const direct = text.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (direct) return direct[1];
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? "" : getLocalISODate(parsed);
+};
+
 // يحوّل أي أرقام إنجليزية داخل نص/رقم إلى أرقام عربية (هندية) — لتوحيد شكل الأرقام في الطباعة
 const toArabicDigits = (value: string | number | null | undefined): string => {
   if (value === null || value === undefined || value === "") return "";
@@ -4130,6 +4140,7 @@ useEffect(() => {
                       end: calc.end,
                       daysLeft,
                       daysElapsed,
+                      selectionId: `request:${String(r.id || `${r.employee_id}-${effectiveStart}-${r.days}`)}`,
                       source: "طلب مقبول",
                     };
                   })
@@ -4153,6 +4164,7 @@ useEffect(() => {
                       end: emp.return_date || "",
                       daysLeft: emp.return_date ? Math.max(0, Math.ceil((new Date(emp.return_date).getTime() - new Date(today).getTime()) / 86400000)) : null,
                       daysElapsed,
+                      selectionId: `manual:${String(emp.id)}`,
                       source: "إجازة مباشرة",
                     };
                   });
@@ -4164,14 +4176,14 @@ useEffect(() => {
                   const matchSearch = !vacSearch2 || row.emp.name?.includes(vacSearch2) || (row.emp.code||"").includes(vacSearch2);
                   const matchDept = vacDeptFilters2.length === 0 || vacDeptFilters2.includes(String(row.emp.department_id || ""));
                   const matchType = !vacTypeFilter2 || vacTypeFilter2 === "all" || row.lastReq?.vacation_type_id === vacTypeFilter2;
-                  const rowStartDate = row.lastReq?.__effectiveStart || row.lastReq?.effective_start_date || row.lastReq?.start_date || row.emp.leave_start_date || "";
-                  const matchDateFrom = !activeVacDateFrom || rowStartDate >= activeVacDateFrom;
-                  const matchDateTo = !activeVacDateTo || rowStartDate <= activeVacDateTo;
+                  const rowStartDate = normalizeDateKey(row.lastReq?.__effectiveStart || row.lastReq?.effective_start_date || row.lastReq?.start_date || row.emp.leave_start_date || "");
+                  const matchDateFrom = !activeVacDateFrom || (rowStartDate && rowStartDate >= activeVacDateFrom);
+                  const matchDateTo = !activeVacDateTo || (rowStartDate && rowStartDate <= activeVacDateTo);
                   return matchSearch && matchDept && matchType && matchDateFrom && matchDateTo;
                 }).sort((a, b) => {
                   let va: any = "", vb: any = "";
                   if (activeVacSortField === "back"  || activeVacSortField === "") { va = a.back || ""; vb = b.back || ""; }
-                  else if (activeVacSortField === "start") { va = a.lastReq?.__effectiveStart || a.lastReq?.start_date || a.emp.leave_start_date || ""; vb = b.lastReq?.__effectiveStart || b.lastReq?.start_date || b.emp.leave_start_date || ""; }
+                  else if (activeVacSortField === "start") { va = normalizeDateKey(a.lastReq?.__effectiveStart || a.lastReq?.start_date || a.emp.leave_start_date || ""); vb = normalizeDateKey(b.lastReq?.__effectiveStart || b.lastReq?.start_date || b.emp.leave_start_date || ""); }
                   else if (activeVacSortField === "name")  { va = a.emp.name || ""; vb = b.emp.name || ""; }
                   else if (activeVacSortField === "days")  { va = Number(a.lastReq?.days || 0); vb = Number(b.lastReq?.days || 0); }
                   if (typeof va === "number") return activeVacSortDir === "desc" ? vb - va : va - vb;
@@ -4482,7 +4494,7 @@ useEffect(() => {
                 const printLinahTemplate = () => {
                   // إذا ما اختار حد، طبع كل الموجودين
                   const selectedRows = selectedPrintIds.size > 0
-                    ? filtered.filter(f => selectedPrintIds.has(f.emp.id))
+                    ? filtered.filter(f => selectedPrintIds.has(f.selectionId))
                     : filtered;
 
                   if (selectedRows.length === 0) {
@@ -4496,7 +4508,7 @@ useEffect(() => {
                 // ===== تصدير المحدد كملف PDF =====
                 const exportLinahTemplatePDF = () => {
                   const selectedRows = selectedPrintIds.size > 0
-                    ? filtered.filter(f => selectedPrintIds.has(f.emp.id))
+                    ? filtered.filter(f => selectedPrintIds.has(f.selectionId))
                     : filtered;
 
                   if (selectedRows.length === 0) {
@@ -4538,7 +4550,7 @@ useEffect(() => {
                         {/* أزرار الاختيار */}
                         {filtered.length > 0 && (
                           <div style={{ display:"flex", gap:"8px" }}>
-                            <button onClick={() => setSelectedPrintIds(new Set(filtered.map(f => f.emp.id)))}
+                            <button onClick={() => setSelectedPrintIds(new Set(filtered.map(f => f.selectionId)))}
                               style={{ display:"flex", alignItems:"center", gap:"6px", padding:"10px 14px", background:"#f0f4ff", color:"#4f46e5", border:"1px solid #4f46e5", borderRadius:"12px", fontWeight:"700", cursor:"pointer", fontSize:"12px", fontFamily:"inherit" }}>
                               ✓ اختر الكل ({filtered.length})
                             </button>
@@ -4644,7 +4656,7 @@ useEffect(() => {
                             <thead style={{ border:"1px solid #94a3b8", padding:"12px 8px", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center" }}>
                               <tr>
                                 <th style={{ border:"1px solid #94a3b8", padding:"12px 8px", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center", width:"40px" }}>
-                                  <input type="checkbox" checked={filtered.length > 0 && filtered.every(row => selectedPrintIds.has(row.emp.id))} onChange={e => { const next = new Set(selectedPrintIds); filtered.forEach(row => e.target.checked ? next.add(row.emp.id) : next.delete(row.emp.id)); setSelectedPrintIds(next); }} style={{ width:"18px", height:"18px", cursor:"pointer" }} />
+                                  <input type="checkbox" checked={filtered.length > 0 && filtered.every(row => selectedPrintIds.has(row.selectionId))} onChange={e => { const next = new Set(selectedPrintIds); filtered.forEach(row => e.target.checked ? next.add(row.selectionId) : next.delete(row.selectionId)); setSelectedPrintIds(next); }} style={{ width:"18px", height:"18px", cursor:"pointer" }} />
                                 </th>
                                 <SortTh label="الموظف"        field="name"  align="right"  sortField={activeVacSortField} sortDir={activeVacSortDir} sortDropdown={activeVacSortDropdown} onSort={(f,d)=>{setActiveVacSortField(f);setActiveVacSortDir(d);setActiveVacSortDropdown("");}} onClear={()=>{setActiveVacSortField("");setActiveVacSortDropdown("");}} onToggle={f=>setActiveVacSortDropdown(d=>d===f?"":f)} />
                               <th style={{ border:"1px solid #94a3b8", padding:"12px 8px", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center" }}>القسم</th>
@@ -4662,15 +4674,15 @@ useEffect(() => {
                               {filtered.map(row => {
                                 const { emp, lastReq, dept, vacType, back, end, daysLeft, daysElapsed, source } = row;
                                 return (
-                                  <tr key={emp.id} style={{ borderBottom:"1px solid #f1f5f9" }}
+                                  <tr key={row.selectionId} style={{ borderBottom:"1px solid #f1f5f9" }}
                                     onMouseEnter={e => (e.currentTarget.style.background="#f8fafc")}
                                     onMouseLeave={e => (e.currentTarget.style.background="white")}>
                                     <td style={{ border:"1px solid #94a3b8", padding:"10px 8px", textAlign:"center" }}>
-                                      <input type="checkbox" checked={selectedPrintIds.has(emp.id)} 
+                                      <input type="checkbox" checked={selectedPrintIds.has(row.selectionId)} 
                                         onChange={(e) => {
                                           const newSet = new Set(selectedPrintIds);
-                                          if (e.target.checked) newSet.add(emp.id);
-                                          else newSet.delete(emp.id);
+                                          if (e.target.checked) newSet.add(row.selectionId);
+                                          else newSet.delete(row.selectionId);
                                           setSelectedPrintIds(newSet);
                                         }}
                                         style={{ width:"18px", height:"18px", cursor:"pointer" }}/>
@@ -4686,7 +4698,7 @@ useEffect(() => {
                                         : <span style={{ color:"#94a3b8", fontSize:"11px" }}>غير محدد</span>}
                                     </td>
                                     <td style={{ border:"1px solid #94a3b8", padding:"10px 8px", color:"#1e293b", textAlign:"center" }}>
-                                      {lastReq ? formatDate(lastReq.start_date) : "-"}
+                                      {lastReq ? formatDate(lastReq.__effectiveStart || lastReq.effective_start_date || lastReq.start_date) : (row.emp.leave_start_date ? formatDate(row.emp.leave_start_date) : "-")}
                                     </td>
                                     <td style={{ border:"1px solid #94a3b8", padding:"10px 8px", color:"#1e293b", textAlign:"center" }}>
                                       {lastReq ? `${lastReq.days} يوم` : "-"}
