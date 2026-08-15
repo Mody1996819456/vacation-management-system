@@ -168,6 +168,14 @@ const normalizeDateKey = (value: any): string => {
   return Number.isNaN(parsed.getTime()) ? "" : getLocalISODate(parsed);
 };
 
+const normalizeSearchText = (value: any): string => {
+  const arabicDigits = "٠١٢٣٤٥٦٧٨٩";
+  return String(value ?? "")
+    .trim()
+    .toLocaleLowerCase("ar")
+    .replace(/[٠-٩]/g, digit => String(arabicDigits.indexOf(digit)));
+};
+
 // يحوّل أي أرقام إنجليزية داخل نص/رقم إلى أرقام عربية (هندية) — لتوحيد شكل الأرقام في الطباعة
 const toArabicDigits = (value: string | number | null | undefined): string => {
   if (value === null || value === undefined || value === "") return "";
@@ -4123,7 +4131,7 @@ useEffect(() => {
                 const scopedEmployeeMap = new Map(scopedVacEmployees.map(emp => [String(emp.id), emp]));
                 const approvedVacationRows = requests
                   .filter(r => r.status === "approved" && !r.actual_return_date && scopedEmployeeMap.has(String(r.employee_id)))
-                  .map(r => {
+                  .map((r, requestIndex) => {
                     const emp = scopedEmployeeMap.get(String(r.employee_id));
                     const effectiveStart = r.effective_start_date || r.start_date || getActualStartDate(r.departure_date || r.start_date, r.departure_time || "actual");
                     const calc = getCalculatedDates(effectiveStart, Number(r.days || 0));
@@ -4140,7 +4148,7 @@ useEffect(() => {
                       end: calc.end,
                       daysLeft,
                       daysElapsed,
-                      selectionId: `request:${String(r.id || `${r.employee_id}-${effectiveStart}-${r.days}`)}`,
+                      selectionId: `request:${String(r.id || `${r.employee_id}-${effectiveStart}-${r.days}-${requestIndex}`)}`,
                       source: "طلب مقبول",
                     };
                   })
@@ -4172,9 +4180,12 @@ useEffect(() => {
                 const vacRows = [...approvedVacationRows, ...manualVacationRows];
 
                 // فلترة بحث وقسم
+                const activeVacationSearch = normalizeSearchText(vacSearch2);
                 const filtered = vacRows.filter(row => {
-                  const matchSearch = !vacSearch2 || row.emp.name?.includes(vacSearch2) || (row.emp.code||"").includes(vacSearch2);
-                  const matchDept = vacDeptFilters2.length === 0 || vacDeptFilters2.includes(String(row.emp.department_id || ""));
+                  const employeeName = normalizeSearchText(row.emp?.name);
+                  const employeeCode = normalizeSearchText(row.emp?.code);
+                  const matchSearch = !activeVacationSearch || employeeName.includes(activeVacationSearch) || employeeCode.includes(activeVacationSearch);
+                  const matchDept = vacDeptFilters2.length === 0 || vacDeptFilters2.includes(String(row.emp?.department_id ?? ""));
                   const matchType = !vacTypeFilter2 || vacTypeFilter2 === "all" || row.lastReq?.vacation_type_id === vacTypeFilter2;
                   const rowStartDate = normalizeDateKey(row.lastReq?.__effectiveStart || row.lastReq?.effective_start_date || row.lastReq?.start_date || row.emp.leave_start_date || "");
                   const matchDateFrom = !activeVacDateFrom || (rowStartDate && rowStartDate >= activeVacDateFrom);
@@ -4609,7 +4620,8 @@ useEffect(() => {
                           style={{ width:"100%", paddingRight:"36px", paddingLeft:"12px", padding:"10px 36px 10px 12px", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:"10px", outline:"none", fontSize:"13px", boxSizing:"border-box" as any }}
                           placeholder="ابحث بالاسم أو الكود..."
                           value={vacSearch2}
-                          onChange={e => setVacSearch2(e.target.value)}
+                          onInput={e => setVacSearch2(String(e.currentTarget.value))}
+                          onChange={e => setVacSearch2(String(e.currentTarget.value))}
                         />
                       </div>
                       {!isDeptMgr && <MultiSelectDropdown options={departments} selected={vacDeptFilters2} onChange={setVacDeptFilters2} label="الأقسام" minWidth="210px" />}
