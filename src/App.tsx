@@ -183,13 +183,25 @@ const calculateWorkedDays = (returnDate: string, isOnVacation: boolean = false) 
   return Math.floor((today.getTime() - start.getTime()) / 86400000) + 1;
 };
 
-// عدد أيام الإجازة الفعلية حتى اليوم، مع عدم تجاوز مدة الطلب.
+// الطلب المقبول الجاري للموظف، مع احترام تاريخ البداية الفعلي وعدم احتساب الطلبات المستقبلية.
+const getCurrentApprovedVacationRequest = (employee: any, employeeRequests: any[] = [], today = getLocalISODate()) => {
+  if (!employee) return null;
+  return employeeRequests
+    .filter(r => r.employee_id === employee.id && r.status === "approved" && !r.actual_return_date)
+    .map(r => {
+      const effectiveStart = r.effective_start_date || r.start_date || getActualStartDate(r.departure_date || r.start_date, r.departure_time || "actual");
+      const { back } = getCalculatedDates(effectiveStart, Number(r.days || 0));
+      return { ...r, __effectiveStart: effectiveStart, __back: back };
+    })
+    .filter(r => r.__effectiveStart && today >= r.__effectiveStart && today < r.__back)
+    .sort((a, b) => String(b.__effectiveStart).localeCompare(String(a.__effectiveStart)))[0] || null;
+};
+
+// عدد أيام الإجازة الفعلية حتى اليوم، مع عدم تجاوز مدة الطلب الجاري.
 const calculateCurrentLeaveDays = (employee: any, employeeRequests: any[] = []) => {
   if (!employee || employee.status !== "إجازة") return 0;
-  const openReq = employeeRequests
-    .filter(r => r.employee_id === employee.id && r.status === "approved" && !r.actual_return_date)
-    .sort((a, b) => String(b.effective_start_date || b.start_date || "").localeCompare(String(a.effective_start_date || a.start_date || "")))[0];
-  const startDate = employee.leave_start_date || openReq?.effective_start_date || openReq?.start_date;
+  const openReq = getCurrentApprovedVacationRequest(employee, employeeRequests);
+  const startDate = employee.leave_start_date || openReq?.__effectiveStart;
   if (!startDate) return 0;
   const start = new Date(startDate);
   const today = new Date();
@@ -201,17 +213,13 @@ const calculateCurrentLeaveDays = (employee: any, employeeRequests: any[] = []) 
   return Math.max(0, Math.min(elapsed, planned));
 };
 
-// أيام العمل في الجدول تعني أيام الفترة الحالية، سواء كان الموظف يعمل أو في إجازة.
+// أيام الفترة الحالية: في العمل من تاريخ العودة، وفي الإجازة من تاريخ بدايتها الفعلية.
 const calculateCurrentPeriodDays = (employee: any, employeeRequests: any[] = []) => {
   if (!employee) return 0;
   const isOnVacation = employee.status === "إجازة";
-  const openReq = isOnVacation
-    ? employeeRequests
-        .filter(r => r.employee_id === employee.id && r.status === "approved" && !r.actual_return_date)
-        .sort((a, b) => String(b.effective_start_date || b.start_date || "").localeCompare(String(a.effective_start_date || a.start_date || "")))[0]
-    : null;
+  const openReq = isOnVacation ? getCurrentApprovedVacationRequest(employee, employeeRequests) : null;
   const startDate = isOnVacation
-    ? (employee.leave_start_date || openReq?.effective_start_date || openReq?.start_date || "")
+    ? (employee.leave_start_date || openReq?.__effectiveStart || "")
     : (employee.return_date || "");
   if (!startDate) return 0;
   const start = new Date(startDate);
@@ -677,6 +685,7 @@ const VacationManagementSystem = () => {
   const [activeVacSortField, setActiveVacSortField] = useState("back");
   const [selectedPrintIds, setSelectedPrintIds] = useState<Set<string>>(new Set());
   const [selectedDeptIds, setSelectedDeptIds] = useState<string[]>([]);
+  const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<string[]>([]);
   const [requestDepartmentFilters, setRequestDepartmentFilters] = useState<string[]>([]);
   const [selectedRequestIds, setSelectedRequestIds] = useState<string[]>([]);
   const [activeVacSortDir, setActiveVacSortDir] = useState<"asc"|"desc">("asc");
@@ -722,7 +731,7 @@ const VacationManagementSystem = () => {
       try {
         const latitude = position.coords.latitude;
         const longitude = position.coords.longitude;
-        const url = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,relative_humidity_2m,wind_speed_10m&daily=temperature_2m_min,temperature_2m_max&timezone=auto&forecast_days=1`;
+        const url = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,relative_humidity_2m,wind_speed_10m&daily=temperature_2m_min,temperature_2m_max,relative_humidity_2m_mean,wind_speed_10m_max,weather_code&timezone=auto&forecast_days=5`;
         const response = await fetch(url);
         if (!response.ok) throw new Error("weather request failed");
         const data = await response.json();
@@ -736,6 +745,15 @@ const VacationManagementSystem = () => {
           max: data.daily?.temperature_2m_max?.[0],
           unit: data.current_units?.temperature_2m || "°C",
           windUnit: data.current_units?.wind_speed_10m || "km/h",
+          humidityUnit: data.daily_units?.relative_humidity_2m_mean || "%",
+          forecast: (data.daily?.time || []).map((date: string, index: number) => ({
+            date,
+            min: data.daily?.temperature_2m_min?.[index],
+            max: data.daily?.temperature_2m_max?.[index],
+            humidity: data.daily?.relative_humidity_2m_mean?.[index],
+            wind: data.daily?.wind_speed_10m_max?.[index],
+            code: data.daily?.weather_code?.[index],
+          })),
         });
       } catch {
         setWeatherError("تعذر تحميل بيانات الطقس حاليًا");
@@ -940,27 +958,50 @@ useEffect(() => {
   // ========== تحديث حالة الموظف تلقائياً بناءً على أول يوم فعلي ==========
   useEffect(() => {
     let cancelled = false;
-    const autoUpdateStatuses = async () => {
-      if (cancelled || employees.length === 0 || requests.length === 0) return;
+    const reconcileExistingEmployeeLeaveStatuses = async () => {
+      if (cancelled || employees.length === 0 || !currentUser || !["admin", "owner", "dept_manager"].includes(currentUser.role)) return;
       const today = getLocalISODate();
-      for (const emp of employees) {
-        if (cancelled) return;
-        const activeReq = requests.find(r => {
-          if (r.employee_id !== emp.id || r.status !== "approved" || r.actual_return_date) return false;
-          const effectiveStart = r.effective_start_date || r.start_date || getActualStartDate(r.departure_date || r.start_date, r.departure_time || "actual");
-          const { back } = getCalculatedDates(effectiveStart, r.days);
-          return today >= effectiveStart && today < back;
-        });
-        if (activeReq && emp.status !== "إجازة") {
-          const effectiveStart = activeReq.effective_start_date || activeReq.start_date;
-          await supabase.from("employees").update({ status: "إجازة", leave_start_date: effectiveStart }).eq("id", emp.id);
+      const nextEmployees = [...employees];
+      const updates: Array<{ id: string; payload: any; index: number }> = [];
+
+      employees.forEach((emp, index) => {
+        const approved = requests
+          .filter(r => r.employee_id === emp.id && r.status === "approved" && !r.actual_return_date)
+          .map(r => {
+            const effectiveStart = r.effective_start_date || r.start_date || getActualStartDate(r.departure_date || r.start_date, r.departure_time || "actual");
+            const { back } = getCalculatedDates(effectiveStart, Number(r.days || 0));
+            return { ...r, __effectiveStart: effectiveStart, __back: back };
+          })
+          .filter(r => r.__effectiveStart)
+          .sort((a, b) => String(a.__effectiveStart).localeCompare(String(b.__effectiveStart)));
+
+        const activeReq = approved.filter(r => today >= r.__effectiveStart && today < r.__back).sort((a, b) => String(b.__effectiveStart).localeCompare(String(a.__effectiveStart)))[0];
+        const futureReq = approved.filter(r => today < r.__effectiveStart).sort((a, b) => String(a.__effectiveStart).localeCompare(String(b.__effectiveStart)))[0];
+        const lastClosedReq = approved.filter(r => today >= r.__back).sort((a, b) => String(b.__back).localeCompare(String(a.__back)))[0];
+        const targetStatus = activeReq ? "إجازة" : "عمل";
+        const targetLeaveStart = activeReq?.__effectiveStart || futureReq?.__effectiveStart || null;
+        const targetReturnDate = activeReq?.__back || futureReq?.__back || lastClosedReq?.__back || emp.return_date || null;
+        const payload: any = {};
+
+        if ((emp.status === "إجازة" ? "إجازة" : "عمل") !== targetStatus) payload.status = targetStatus;
+        if ((emp.leave_start_date || null) !== targetLeaveStart) payload.leave_start_date = targetLeaveStart;
+        if (targetReturnDate && (emp.return_date || null) !== targetReturnDate) payload.return_date = targetReturnDate;
+
+        if (Object.keys(payload).length > 0) {
+          updates.push({ id: emp.id, payload, index });
+          nextEmployees[index] = { ...emp, ...payload };
         }
-      }
+      });
+
+      if (updates.length === 0 || cancelled) return;
+      const results = await Promise.all(updates.map(update => supabase.from("employees").update(update.payload).eq("id", update.id)));
+      if (!cancelled && results.every(result => !result.error)) setEmployees(nextEmployees);
     };
-    autoUpdateStatuses();
-    const timer = window.setInterval(autoUpdateStatuses, 60_000);
+
+    reconcileExistingEmployeeLeaveStatuses();
+    const timer = window.setInterval(reconcileExistingEmployeeLeaveStatuses, 60_000);
     return () => { cancelled = true; window.clearInterval(timer); };
-  }, [employees, requests, currentView]);
+  }, [employees, requests, currentView, currentUser]);
 
   // ========== حالة الموظف تلقائياً ==========
   const getEmployeeStatus = (emp: any) => {
@@ -2392,6 +2433,21 @@ useEffect(() => {
     setPrintFrom(""); setPrintTo(""); setShowPrintModal(true);
   };
 
+  const toggleEmployeeSelection = (id: string) => {
+    setSelectedEmployeeIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+  const selectAllEmployees = () => {
+    const ids = filteredEmployees.map(emp => String(emp.id));
+    setSelectedEmployeeIds(prev => ids.length > 0 && ids.every(id => prev.includes(id))
+      ? prev.filter(id => !ids.includes(id))
+      : Array.from(new Set([...prev, ...ids])));
+  };
+  const exportSelectedEmployees = () => {
+    const selected = filteredEmployees.filter(emp => selectedEmployeeIds.includes(String(emp.id)));
+    if (selected.length === 0) return alert("حدد موظفًا واحدًا على الأقل للتصدير");
+    exportToExcel(selected, "الموظفون_المحددون");
+  };
+
   // ==================== GOOGLE SHEETS BACKUP ====================
   const handleBackup = async () => {
     if (!GOOGLE_SCRIPT_URL) {
@@ -3146,13 +3202,32 @@ useEffect(() => {
                     </div>
                     {weatherError && <div style={{ color:"#b45309", background:"#fffbeb", borderRadius:"10px", padding:"10px 12px", fontSize:"12px", fontWeight:"700" }}>{weatherError}</div>}
                     {weatherLoading && !weatherData && <div style={{ color:"#64748b", fontSize:"12px" }}>جاري تحميل بيانات الطقس...</div>}
-                    {weatherData && <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))", gap:"10px" }}>
-                      <div style={{ background:"#eff6ff", borderRadius:"12px", padding:"12px", textAlign:"center" }}><div style={{ color:"#64748b", fontSize:"11px" }}>الصغرى اليوم</div><div style={{ color:"#2563eb", fontSize:"23px", fontWeight:"900" }}>{weatherData.min}°</div></div>
-                      <div style={{ background:"#fff7ed", borderRadius:"12px", padding:"12px", textAlign:"center" }}><div style={{ color:"#64748b", fontSize:"11px" }}>الكبرى اليوم</div><div style={{ color:"#ea580c", fontSize:"23px", fontWeight:"900" }}>{weatherData.max}°</div></div>
-                      <div style={{ background:"#ecfeff", borderRadius:"12px", padding:"12px", textAlign:"center" }}><div style={{ color:"#64748b", fontSize:"11px" }}>الرطوبة الآن</div><div style={{ color:"#0891b2", fontSize:"23px", fontWeight:"900" }}>{weatherData.humidity}%</div></div>
-                      <div style={{ background:"#f0fdf4", borderRadius:"12px", padding:"12px", textAlign:"center" }}><div style={{ color:"#64748b", fontSize:"11px" }}>سرعة الرياح</div><div style={{ color:"#16a34a", fontSize:"23px", fontWeight:"900" }}>{weatherData.wind} <span style={{ fontSize:"11px" }}>{weatherData.windUnit}</span></div></div>
-                      <div style={{ background:"#f5f3ff", borderRadius:"12px", padding:"12px", textAlign:"center" }}><div style={{ color:"#64748b", fontSize:"11px" }}>الوقت المحلي للموقع</div><div style={{ color:"#7c3aed", fontSize:"16px", fontWeight:"900", direction:"ltr" }}>{currentTime.toLocaleTimeString("ar-EG", { timeZone: weatherData.timezone, hour:"2-digit", minute:"2-digit", second:"2-digit" })}</div></div>
-                    </div>}
+                    {weatherData && <>
+                      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))", gap:"10px" }}>
+                        <div style={{ background:"#eff6ff", borderRadius:"12px", padding:"12px", textAlign:"center" }}><div style={{ color:"#64748b", fontSize:"11px" }}>الصغرى اليوم</div><div style={{ color:"#2563eb", fontSize:"23px", fontWeight:"900" }}>{weatherData.min}°</div></div>
+                        <div style={{ background:"#fff7ed", borderRadius:"12px", padding:"12px", textAlign:"center" }}><div style={{ color:"#64748b", fontSize:"11px" }}>الكبرى اليوم</div><div style={{ color:"#ea580c", fontSize:"23px", fontWeight:"900" }}>{weatherData.max}°</div></div>
+                        <div style={{ background:"#ecfeff", borderRadius:"12px", padding:"12px", textAlign:"center" }}><div style={{ color:"#64748b", fontSize:"11px" }}>الرطوبة الآن</div><div style={{ color:"#0891b2", fontSize:"23px", fontWeight:"900" }}>{weatherData.humidity}%</div></div>
+                        <div style={{ background:"#f0fdf4", borderRadius:"12px", padding:"12px", textAlign:"center" }}><div style={{ color:"#64748b", fontSize:"11px" }}>سرعة الرياح</div><div style={{ color:"#16a34a", fontSize:"23px", fontWeight:"900" }}>{weatherData.wind} <span style={{ fontSize:"11px" }}>{weatherData.windUnit}</span></div></div>
+                        <div style={{ background:"#f5f3ff", borderRadius:"12px", padding:"12px", textAlign:"center" }}><div style={{ color:"#64748b", fontSize:"11px" }}>الوقت المحلي للموقع</div><div style={{ color:"#7c3aed", fontSize:"16px", fontWeight:"900", direction:"ltr" }}>{currentTime.toLocaleTimeString("ar-EG", { timeZone: weatherData.timezone, hour:"2-digit", minute:"2-digit", second:"2-digit" })}</div></div>
+                      </div>
+                      <div style={{ marginTop:"16px" }}>
+                        <div style={{ fontWeight:"900", color:"#334155", fontSize:"14px", marginBottom:"10px" }}>توقعات الأيام الخمسة القادمة</div>
+                        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(145px,1fr))", gap:"10px" }}>
+                          {(weatherData.forecast || []).map((day: any, index: number) => {
+                            const code = Number(day.code);
+                            const description = code === 0 ? "صافي" : code <= 3 ? "غائم جزئيًا" : code <= 48 ? "ضباب" : code <= 67 ? "أمطار" : code <= 77 ? "ثلوج" : code <= 82 ? "زخات" : "عواصف";
+                            const dateLabel = new Date(`${day.date}T00:00:00`).toLocaleDateString("ar-EG", { weekday:"short", day:"numeric", month:"short" });
+                            return <div key={day.date || index} style={{ background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:"14px", padding:"12px", textAlign:"center" }}>
+                              <div style={{ color:"#475569", fontWeight:"900", fontSize:"12px" }}>{index === 0 ? "اليوم" : dateLabel}</div>
+                              <div style={{ color:"#64748b", fontSize:"11px", margin:"5px 0" }}>{description}</div>
+                              <div style={{ display:"flex", justifyContent:"center", gap:"10px", direction:"ltr", fontWeight:"900" }}><span style={{ color:"#2563eb" }}>{day.min}°</span><span style={{ color:"#ea580c" }}>{day.max}°</span></div>
+                              <div style={{ color:"#0891b2", fontSize:"11px", marginTop:"6px" }}>رطوبة {day.humidity}%</div>
+                              <div style={{ color:"#16a34a", fontSize:"11px", marginTop:"3px" }}>رياح {day.wind} {weatherData.windUnit}</div>
+                            </div>;
+                          })}
+                        </div>
+                      </div>
+                    </>}
                   </div>
                   {/* شريط الأدوات العلوي */}
                   <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:"12px", flexWrap:"wrap" }}>
@@ -3438,7 +3513,14 @@ useEffect(() => {
                       </button>
                     )}
                     {/* أزرار */}
-                    <div style={{ display:"flex", gap:"8px", marginRight:"auto" }}>
+                    <div style={{ display:"flex", gap:"8px", marginRight:"auto", flexWrap:"wrap" }}>
+                      <button onClick={selectAllEmployees} style={{ display:"flex", alignItems:"center", gap:"6px", padding:"10px 14px", background:"#eef2ff", color:"#4338ca", border:"1px solid #c7d2fe", borderRadius:"12px", fontSize:"13px", fontWeight:"800", cursor:"pointer" }}>
+                        ✓ {filteredEmployees.length > 0 && filteredEmployees.every(emp => selectedEmployeeIds.includes(String(emp.id))) ? "إلغاء تحديد الكل" : "تحديد الكل"}
+                      </button>
+                      {selectedEmployeeIds.length > 0 && <>
+                        <button onClick={() => setSelectedEmployeeIds([])} style={{ padding:"10px 14px", background:"#fff1f2", color:"#dc2626", border:"1px solid #fecdd3", borderRadius:"12px", fontSize:"13px", fontWeight:"800", cursor:"pointer" }}>إلغاء ({selectedEmployeeIds.length})</button>
+                        <button onClick={exportSelectedEmployees} style={{ padding:"10px 14px", background:"#0f766e", color:"white", border:"none", borderRadius:"12px", fontSize:"13px", fontWeight:"800", cursor:"pointer" }}>تصدير المحدد</button>
+                      </>}
                       <button onClick={() => setShowImportModal(true)} style={{ display:"flex", alignItems:"center", gap:"6px", padding:"10px 16px", background:"#059669", color:"white", border:"none", borderRadius:"12px", fontSize:"13px", fontWeight:"700", cursor:"pointer" }}>
                         <Upload size={15} /> Excel
                       </button>
@@ -3472,6 +3554,9 @@ useEffect(() => {
                       <table style={{ width:"100%", borderCollapse:"collapse", border:"2px solid #94a3b8", fontSize:"13px", backgroundColor:"#ffffff" }}>
                         <thead>
                           <tr style={{ background:"linear-gradient(90deg, #3b82f6 0%, #f59e0b 14%, #a855f7 28%, #ef4444 42%, #10b981 56%, #eab308 70%, #06b6d4 84%, #14b8a6 100%)", borderBottom:"2px solid #cbd5e1", position:"sticky", top:0, zIndex:5 }}>
+                            <th style={{ border:"1px solid #94a3b8", padding:"12px 8px", backgroundColor:"#4f46e5", color:"white", fontWeight:"900", textAlign:"center", width:"42px" }}>
+                              <input type="checkbox" checked={filteredEmployees.length > 0 && filteredEmployees.every(emp => selectedEmployeeIds.includes(String(emp.id)))} onChange={selectAllEmployees} style={{ width:"18px", height:"18px", cursor:"pointer" }} />
+                            </th>
                             <SortTh label="الاسم"      field="name"       align="right"  sortField={empSortField} sortDir={empSortDir} sortDropdown={empSortDropdown} onSort={(f,d)=>{setEmpSortField(f);setEmpSortDir(d);setEmpSortDropdown("");}} onClear={()=>{setEmpSortField("");setEmpSortDropdown("");}} onToggle={f=>setEmpSortDropdown(d=>d===f?"":f)} />
                             <SortTh label="الكود"      field="code"       align="center" sortField={empSortField} sortDir={empSortDir} sortDropdown={empSortDropdown} onSort={(f,d)=>{setEmpSortField(f);setEmpSortDir(d);setEmpSortDropdown("");}} onClear={()=>{setEmpSortField("");setEmpSortDropdown("");}} onToggle={f=>setEmpSortDropdown(d=>d===f?"":f)} />
                             <SortTh label="المنصب"     field="position"   align="right"  sortField={empSortField} sortDir={empSortDir} sortDropdown={empSortDropdown} onSort={(f,d)=>{setEmpSortField(f);setEmpSortDir(d);setEmpSortDropdown("");}} onClear={()=>{setEmpSortField("");setEmpSortDropdown("");}} onToggle={f=>setEmpSortDropdown(d=>d===f?"":f)} />
@@ -3496,6 +3581,9 @@ useEffect(() => {
                               <tr key={emp.id} style={{ borderBottom:"1px solid #f1f5f9", background: isOnLeave ? "#fffbeb" : (idx % 2 === 0 ? "white" : "#fafafa"), transition:"background 0.15s" }}
                                 onMouseEnter={e => (e.currentTarget.style.background = "#f0f4ff")}
                                 onMouseLeave={e => (e.currentTarget.style.background = isOnLeave ? "#fffbeb" : (idx % 2 === 0 ? "white" : "#fafafa"))}>
+                                <td style={{ border:"1px solid #94a3b8", padding:"10px 8px", color:"#1e293b", textAlign:"center" }}>
+                                  <input type="checkbox" checked={selectedEmployeeIds.includes(String(emp.id))} onChange={() => toggleEmployeeSelection(String(emp.id))} style={{ width:"18px", height:"18px", cursor:"pointer" }} />
+                                </td>
                                 {/* الاسم */}
                                 <td style={{ border:"1px solid #94a3b8", padding:"10px 8px", color:"#1e293b", textAlign:"center" }}>
                                   <div style={{ fontWeight:"700", color:"#1e293b", fontSize:"13px" }}>{emp.name}</div>
