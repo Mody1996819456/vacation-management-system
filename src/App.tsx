@@ -686,6 +686,7 @@ const VacationManagementSystem = () => {
   const [selectedPrintIds, setSelectedPrintIds] = useState<Set<string>>(new Set());
   const [selectedDeptIds, setSelectedDeptIds] = useState<string[]>([]);
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<string[]>([]);
+  const [employeeDepartmentFilters, setEmployeeDepartmentFilters] = useState<string[]>([]);
   const [requestDepartmentFilters, setRequestDepartmentFilters] = useState<string[]>([]);
   const [selectedRequestIds, setSelectedRequestIds] = useState<string[]>([]);
   const [activeVacSortDir, setActiveVacSortDir] = useState<"asc"|"desc">("asc");
@@ -975,6 +976,8 @@ useEffect(() => {
           .filter(r => r.__effectiveStart)
           .sort((a, b) => String(a.__effectiveStart).localeCompare(String(b.__effectiveStart)));
 
+        // لا نغيّر الموظف الذي لا يملك طلب إجازة؛ قد تكون إجازته يدوية.
+        if (approved.length === 0) return;
         const activeReq = approved.filter(r => today >= r.__effectiveStart && today < r.__back).sort((a, b) => String(b.__effectiveStart).localeCompare(String(a.__effectiveStart)))[0];
         const futureReq = approved.filter(r => today < r.__effectiveStart).sort((a, b) => String(a.__effectiveStart).localeCompare(String(b.__effectiveStart)))[0];
         const lastClosedReq = approved.filter(r => today >= r.__back).sort((a, b) => String(b.__back).localeCompare(String(a.__back)))[0];
@@ -2318,7 +2321,7 @@ useEffect(() => {
   const filteredEmployees = useMemo(() => {
     let result = scopedEmployees.filter(emp => {
       const matchSearch = emp.name.includes(empSearch) || emp.code.includes(empSearch) || (emp.position||"").includes(empSearch) || (emp.residence||"").includes(empSearch);
-      const matchDept = departmentFilter === "all" || emp.department_id === departmentFilter;
+      const matchDept = employeeDepartmentFilters.length === 0 || employeeDepartmentFilters.includes(String(emp.department_id || ""));
       // الحالة تُقرأ مباشرة من قاعدة البيانات
       const empStatus = emp.status === "إجازة" ? "إجازة" : "عمل";
       const matchStatus = empStatusFilter === "all" || empStatus === empStatusFilter;
@@ -2357,7 +2360,7 @@ useEffect(() => {
       });
     }
     return result;
-  }, [scopedEmployees, empSearch, departmentFilter, empStatusFilter, empHireFrom, empHireTo, empSortField, empSortDir, requests]);
+  }, [scopedEmployees, empSearch, employeeDepartmentFilters, empStatusFilter, empHireFrom, empHireTo, empSortField, empSortDir, requests]);
 
   const filteredRequests = useMemo(() => {
     return scopedRequests.filter(req => {
@@ -3483,13 +3486,8 @@ useEffect(() => {
                         onChange={(e) => setEmpSearch(e.target.value)}
                       />
                     </div>
-                    {/* فلاتر - المالك فقط يرى dropdown الأقسام */}
-                    {!isDeptMgr && departments.length > 0 && (
-                      <select style={{ padding:"10px 14px", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:"12px", fontSize:"13px", outline:"none", color:"#475569" }} value={departmentFilter} onChange={(e) => setDepartmentFilter(e.target.value)}>
-                        <option value="all">كل الأقسام</option>
-                        {departments.map(dept => <option key={dept.id} value={dept.id}>{dept.name}</option>)}
-                      </select>
-                    )}
+                    {/* فلتر الأقسام بنفس قائمة التحديد المتعدد المستخدمة في الطلبات */}
+                    {!isDeptMgr && departments.length > 0 && <MultiSelectDropdown options={departments} selected={employeeDepartmentFilters} onChange={setEmployeeDepartmentFilters} label="الأقسام" minWidth="220px" />}
                     <select style={{ padding:"10px 14px", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:"12px", fontSize:"13px", outline:"none", color:"#475569" }} value={empStatusFilter} onChange={(e) => setEmpStatusFilter(e.target.value)}>
                       <option value="all">كل الحالات</option>
                       <option value="عمل">🟢 في العمل</option>
@@ -3506,8 +3504,8 @@ useEffect(() => {
                       <input type="date" style={{ padding:"9px 10px", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:"10px", fontSize:"12px", outline:"none" }}
                         value={empHireTo} onChange={e => setEmpHireTo(e.target.value)} />
                     </div>
-                    {(empHireFrom || empHireTo) && (
-                      <button onClick={() => { setEmpHireFrom(""); setEmpHireTo(""); }}
+                    {(empHireFrom || empHireTo || employeeDepartmentFilters.length > 0) && (
+                      <button onClick={() => { setEmpHireFrom(""); setEmpHireTo(""); setEmployeeDepartmentFilters([]); }}
                         style={{ padding:"9px 14px", background:"#fee2e2", color:"#dc2626", border:"none", borderRadius:"10px", fontSize:"12px", fontWeight:"700", cursor:"pointer" }}>
                         ✕ مسح التاريخ
                       </button>
@@ -4040,27 +4038,34 @@ useEffect(() => {
               {/* ===== MANAGERS ===== */}
               {/* ===== ACTIVE VACATIONS ===== */}
               {activeTab === "active_vacations" && (() => {
-                // ===== بناء قائمة الإجازات الفعلية من مصدرين =====
-                // 1. موظفون حالتهم "إجازة" في DB (سواء يدوي أو بطلب)
-                const empOnVac = (isDeptMgr
+                // ===== بناء قائمة الإجازات الفعلية =====
+                // نعتمد على حالة الموظف أو وجود طلب مقبول بدأ فعليًا، حتى لا تختفي البيانات إذا تأخرت مزامنة الحالة.
+                const today = getLocalISODate();
+                const scopedVacEmployees = isDeptMgr
                   ? employees.filter(e => myDeptIds.includes(String(e.department_id)))
-                  : employees
-                ).filter(e => e.status === "إجازة");
+                  : employees;
+                const activeRequestByEmployee = new Map<string, any>();
+                requests
+                  .filter(r => r.status === "approved" && !r.actual_return_date)
+                  .forEach(r => {
+                    const effectiveStart = r.effective_start_date || r.start_date || getActualStartDate(r.departure_date || r.start_date, r.departure_time || "actual");
+                    const calc = getCalculatedDates(effectiveStart, Number(r.days || 0));
+                    if (effectiveStart && today >= effectiveStart && today < calc.back) {
+                      const current = activeRequestByEmployee.get(String(r.employee_id));
+                      if (!current || String(effectiveStart) > String(current.__effectiveStart)) activeRequestByEmployee.set(String(r.employee_id), { ...r, __effectiveStart: effectiveStart, __end: calc.end, __back: calc.back });
+                    }
+                  });
+                const empOnVac = scopedVacEmployees.filter(e => e.status === "إجازة" || activeRequestByEmployee.has(String(e.id)));
 
-                // 2. لكل موظف في إجازة، نجيب آخر طلب approved له لو وجد
                 const vacRows = empOnVac.map(emp => {
-                  const lastReq = requests
-                    .filter(r => r.employee_id === emp.id && r.status === "approved")
-                    .sort((a, b) => b.start_date.localeCompare(a.start_date))[0];
+                  const lastReq = activeRequestByEmployee.get(String(emp.id)) || null;
                   const dept = departments.find(d => d.id === emp.department_id);
                   const vacType = lastReq ? vacationTypes.find(vt => vt.id === lastReq.vacation_type_id) : null;
-                  const calcDates = lastReq ? getCalculatedDates(lastReq.start_date, lastReq.days) : { end: "", back: "" };
-                  const back = lastReq ? calcDates.back : (emp.return_date || "");
-                  const end = lastReq ? calcDates.end : (emp.return_date || "");
-                  const today = new Date().toISOString().split("T")[0];
-                  const effectiveStart = lastReq?.effective_start_date || lastReq?.start_date || emp.leave_start_date || "";
+                  const effectiveStart = lastReq?.__effectiveStart || emp.leave_start_date || "";
+                  const end = lastReq?.__end || (emp.return_date ? getCalculatedDates(effectiveStart, 1).end : "");
+                  const back = lastReq?.__back || emp.return_date || "";
                   const daysElapsed = effectiveStart ? Math.max(0, Math.floor((new Date(today).getTime() - new Date(effectiveStart).getTime()) / 86400000) + 1) : 0;
-                  const daysLeft = back ? Math.ceil((new Date(back).getTime() - new Date(today).getTime()) / 86400000) : null;
+                  const daysLeft = back ? Math.max(0, Math.ceil((new Date(back).getTime() - new Date(today).getTime()) / 86400000)) : null;
                   return { emp, lastReq, dept, vacType, back, end, daysLeft, daysElapsed, source: lastReq ? "طلب" : "يدوي" };
                 });
 
