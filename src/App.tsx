@@ -4103,49 +4103,75 @@ useEffect(() => {
               {/* ===== MANAGERS ===== */}
               {/* ===== ACTIVE VACATIONS ===== */}
               {activeTab === "active_vacations" && (() => {
-                // ===== بناء قائمة الإجازات الفعلية =====
-                // نعتمد على حالة الموظف أو وجود طلب مقبول بدأ فعليًا، حتى لا تختفي البيانات إذا تأخرت مزامنة الحالة.
+                // ===== بناء سجل الإجازات الفعلية =====
+                // يظهر الطلب المقبول فور اعتماده حتى لو كانت بدايته مستقبلية،
+                // بينما تظل حالة الموظف نفسها "عمل" حتى تاريخ البداية الفعلي.
                 const today = getLocalISODate();
                 const scopedVacEmployees = isDeptMgr
                   ? employees.filter(e => myDeptIds.includes(String(e.department_id)))
                   : employees;
-                const activeRequestByEmployee = new Map<string, any>();
-                requests
-                  .filter(r => r.status === "approved" && !r.actual_return_date)
-                  .forEach(r => {
+                const scopedEmployeeMap = new Map(scopedVacEmployees.map(emp => [String(emp.id), emp]));
+                const approvedVacationRows = requests
+                  .filter(r => r.status === "approved" && !r.actual_return_date && scopedEmployeeMap.has(String(r.employee_id)))
+                  .map(r => {
+                    const emp = scopedEmployeeMap.get(String(r.employee_id));
                     const effectiveStart = r.effective_start_date || r.start_date || getActualStartDate(r.departure_date || r.start_date, r.departure_time || "actual");
                     const calc = getCalculatedDates(effectiveStart, Number(r.days || 0));
-                    if (effectiveStart && today >= effectiveStart && today < calc.back) {
-                      const current = activeRequestByEmployee.get(String(r.employee_id));
-                      if (!current || String(effectiveStart) > String(current.__effectiveStart)) activeRequestByEmployee.set(String(r.employee_id), { ...r, __effectiveStart: effectiveStart, __end: calc.end, __back: calc.back });
-                    }
-                  });
-                const empOnVac = scopedVacEmployees.filter(e => e.status === "إجازة" || activeRequestByEmployee.has(String(e.id)));
+                    const daysElapsed = effectiveStart && today >= effectiveStart
+                      ? Math.max(0, Math.floor((new Date(today).getTime() - new Date(effectiveStart).getTime()) / 86400000) + 1)
+                      : 0;
+                    const daysLeft = calc.back ? Math.max(0, Math.ceil((new Date(calc.back).getTime() - new Date(today).getTime()) / 86400000)) : null;
+                    return {
+                      emp,
+                      lastReq: { ...r, __effectiveStart: effectiveStart, __end: calc.end, __back: calc.back },
+                      dept: departments.find(d => d.id === emp?.department_id),
+                      vacType: vacationTypes.find(vt => vt.id === r.vacation_type_id),
+                      back: calc.back,
+                      end: calc.end,
+                      daysLeft,
+                      daysElapsed,
+                      source: "طلب مقبول",
+                    };
+                  })
+                  .filter(row => row.emp && row.lastReq?.__effectiveStart);
 
-                const vacRows = empOnVac.map(emp => {
-                  const lastReq = activeRequestByEmployee.get(String(emp.id)) || null;
-                  const dept = departments.find(d => d.id === emp.department_id);
-                  const vacType = lastReq ? vacationTypes.find(vt => vt.id === lastReq.vacation_type_id) : null;
-                  const effectiveStart = lastReq?.__effectiveStart || emp.leave_start_date || "";
-                  const end = lastReq?.__end || (emp.return_date ? getCalculatedDates(effectiveStart, 1).end : "");
-                  const back = lastReq?.__back || emp.return_date || "";
-                  const daysElapsed = effectiveStart ? Math.max(0, Math.floor((new Date(today).getTime() - new Date(effectiveStart).getTime()) / 86400000) + 1) : 0;
-                  const daysLeft = back ? Math.max(0, Math.ceil((new Date(back).getTime() - new Date(today).getTime()) / 86400000)) : null;
-                  return { emp, lastReq, dept, vacType, back, end, daysLeft, daysElapsed, source: lastReq ? "طلب" : "يدوي" };
-                });
+                // الإجازة المباشرة أو اليدوية التي لا يوجد لها طلب مقبول محفوظ.
+                const approvedEmployeeIds = new Set(approvedVacationRows.map(row => String(row.emp.id)));
+                const manualVacationRows = scopedVacEmployees
+                  .filter(emp => emp.status === "إجازة" && !approvedEmployeeIds.has(String(emp.id)))
+                  .map(emp => {
+                    const effectiveStart = emp.leave_start_date || emp.return_date || "";
+                    const daysElapsed = effectiveStart && today >= effectiveStart
+                      ? Math.max(0, Math.floor((new Date(today).getTime() - new Date(effectiveStart).getTime()) / 86400000) + 1)
+                      : 0;
+                    return {
+                      emp,
+                      lastReq: null,
+                      dept: departments.find(d => d.id === emp.department_id),
+                      vacType: null,
+                      back: emp.return_date || "",
+                      end: emp.return_date || "",
+                      daysLeft: emp.return_date ? Math.max(0, Math.ceil((new Date(emp.return_date).getTime() - new Date(today).getTime()) / 86400000)) : null,
+                      daysElapsed,
+                      source: "إجازة مباشرة",
+                    };
+                  });
+
+                const vacRows = [...approvedVacationRows, ...manualVacationRows];
 
                 // فلترة بحث وقسم
                 const filtered = vacRows.filter(row => {
                   const matchSearch = !vacSearch2 || row.emp.name?.includes(vacSearch2) || (row.emp.code||"").includes(vacSearch2);
                   const matchDept = vacDeptFilters2.length === 0 || vacDeptFilters2.includes(String(row.emp.department_id || ""));
                   const matchType = !vacTypeFilter2 || vacTypeFilter2 === "all" || row.lastReq?.vacation_type_id === vacTypeFilter2;
-                  const matchDateFrom = !activeVacDateFrom || (row.lastReq?.start_date || "") >= activeVacDateFrom;
-                  const matchDateTo = !activeVacDateTo || (row.lastReq?.start_date || "") <= activeVacDateTo;
+                  const rowStartDate = row.lastReq?.__effectiveStart || row.lastReq?.effective_start_date || row.lastReq?.start_date || row.emp.leave_start_date || "";
+                  const matchDateFrom = !activeVacDateFrom || rowStartDate >= activeVacDateFrom;
+                  const matchDateTo = !activeVacDateTo || rowStartDate <= activeVacDateTo;
                   return matchSearch && matchDept && matchType && matchDateFrom && matchDateTo;
                 }).sort((a, b) => {
                   let va: any = "", vb: any = "";
                   if (activeVacSortField === "back"  || activeVacSortField === "") { va = a.back || ""; vb = b.back || ""; }
-                  else if (activeVacSortField === "start") { va = a.lastReq?.start_date || ""; vb = b.lastReq?.start_date || ""; }
+                  else if (activeVacSortField === "start") { va = a.lastReq?.__effectiveStart || a.lastReq?.start_date || a.emp.leave_start_date || ""; vb = b.lastReq?.__effectiveStart || b.lastReq?.start_date || b.emp.leave_start_date || ""; }
                   else if (activeVacSortField === "name")  { va = a.emp.name || ""; vb = b.emp.name || ""; }
                   else if (activeVacSortField === "days")  { va = Number(a.lastReq?.days || 0); vb = Number(b.lastReq?.days || 0); }
                   if (typeof va === "number") return activeVacSortDir === "desc" ? vb - va : va - vb;
