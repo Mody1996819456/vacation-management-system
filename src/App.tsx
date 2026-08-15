@@ -1684,14 +1684,41 @@ useEffect(() => {
   };
 
   const handleDeleteEmployee = async (id: string) => {
-    if (window.confirm("حذف الموظف نهائياً؟")) {
+    if (!window.confirm("حذف الموظف نهائياً؟")) return;
+    try {
       const emp = employees.find(e => e.id === id);
-      await supabase.from("vacation_requests").delete().eq("employee_id", id);
-      await supabase.from("balance_updates").delete().eq("employee_id", id);
-      await supabase.from("employees").delete().eq("id", id);
+      const reqDelete = await supabase.from("vacation_requests").delete().eq("employee_id", id);
+      if (reqDelete.error) throw reqDelete.error;
+      const balanceDelete = await supabase.from("balance_updates").delete().eq("employee_id", id);
+      if (balanceDelete.error) throw balanceDelete.error;
+      const employeeDelete = await supabase.from("employees").delete().eq("id", id);
+      if (employeeDelete.error) throw employeeDelete.error;
       await logAction("delete", "employees", id, emp);
-      fetchData();
+      setSelectedEmployeeIds(prev => prev.filter(x => x !== String(id)));
+      await fetchData();
       alert("تم حذف الموظف وكل بياناته ✅");
+    } catch (error: any) {
+      alert("تعذر حذف الموظف: " + (error?.message || "تحقق من صلاحيات Supabase والعلاقات المرتبطة"));
+    }
+  };
+
+  const handleDeleteSelectedEmployees = async () => {
+    const ids = Array.from(new Set(selectedEmployeeIds.map(String))).filter(Boolean);
+    if (ids.length === 0) return alert("حدد موظفًا واحدًا على الأقل");
+    if (!window.confirm(`سيتم حذف ${ids.length} موظف وكل طلباتهم وحركات أرصدتهم نهائيًا. هل تريد المتابعة؟`)) return;
+    try {
+      const reqDelete = await supabase.from("vacation_requests").delete().in("employee_id", ids);
+      if (reqDelete.error) throw reqDelete.error;
+      const balanceDelete = await supabase.from("balance_updates").delete().in("employee_id", ids);
+      if (balanceDelete.error) throw balanceDelete.error;
+      const employeeDelete = await supabase.from("employees").delete().in("id", ids);
+      if (employeeDelete.error) throw employeeDelete.error;
+      await Promise.all(ids.map(id => logAction("delete", "employees", id)));
+      setSelectedEmployeeIds([]);
+      await fetchData();
+      alert(`تم حذف ${ids.length} موظف بنجاح ✅`);
+    } catch (error: any) {
+      alert("تعذر حذف الموظفين المحددين: " + (error?.message || "تحقق من صلاحيات Supabase والعلاقات المرتبطة"));
     }
   };
 
@@ -2197,25 +2224,62 @@ useEffect(() => {
     alert("تم إضافة القسم ✅");
   };
 
+  const detachDepartmentRelations = async (departmentId: string) => {
+    const employeeUpdate = await supabase.from("employees").update({ department_id: null }).eq("department_id", departmentId);
+    if (employeeUpdate.error) throw employeeUpdate.error;
+
+    const managersResult = await supabase.from("department_managers").select("id, department_id, department_ids");
+    if (managersResult.error) throw managersResult.error;
+    for (const manager of managersResult.data || []) {
+      let ids: string[] = [];
+      try {
+        const raw = manager.department_ids;
+        const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+        ids = Array.isArray(parsed) ? parsed.map(String) : [];
+      } catch {
+        ids = [];
+      }
+      if (ids.length === 0 && manager.department_id) ids = [String(manager.department_id)];
+      if (!ids.includes(String(departmentId))) continue;
+      const remaining = ids.filter(id => id !== String(departmentId));
+      const managerUpdate = await supabase.from("department_managers").update({
+        department_id: remaining[0] || null,
+        department_ids: JSON.stringify(remaining),
+      }).eq("id", manager.id);
+      if (managerUpdate.error) throw managerUpdate.error;
+    }
+  };
+
   const deleteDepartment = async (id: string) => {
-    if (window.confirm("حذف القسم؟")) {
-      await supabase.from("departments").delete().eq("id", id);
-      fetchData();
+    if (!window.confirm("حذف القسم؟ سيتم فك ربط موظفيه ومديريه أولًا.")) return;
+    try {
+      await detachDepartmentRelations(String(id));
+      const deleted = await supabase.from("departments").delete().eq("id", id);
+      if (deleted.error) throw deleted.error;
       await logAction("delete", "departments", id);
-      setSelectedDeptIds(prev => prev.filter(x => x !== id));
-      alert("تم الحذف ✅");
+      setSelectedDeptIds(prev => prev.filter(x => x !== String(id)));
+      await fetchData();
+      alert("تم حذف القسم ✅");
+    } catch (error: any) {
+      alert("تعذر حذف القسم: " + (error?.message || "تحقق من صلاحيات Supabase والعلاقات المرتبطة"));
     }
   };
 
   const deleteSelectedDepartments = async () => {
-    if (selectedDeptIds.length === 0) return;
-    if (!window.confirm(`حذف ${selectedDeptIds.length} أقسام؟`)) return;
-    const { error } = await supabase.from("departments").delete().in("id", selectedDeptIds);
-    if (error) return alert("تعذر حذف الأقسام: " + error.message);
-    await Promise.all(selectedDeptIds.map(id => logAction("delete", "departments", id)));
-    setSelectedDeptIds([]);
-    await fetchData();
-    alert("تم حذف الأقسام المحددة ✅");
+    const ids = Array.from(new Set(selectedDeptIds.map(String))).filter(Boolean);
+    if (ids.length === 0) return;
+    if (!window.confirm(`حذف ${ids.length} أقسام؟ سيتم فك ارتباط الموظفين والمديرين أولًا.`)) return;
+    try {
+      for (const id of ids) await detachDepartmentRelations(id);
+      const deleted = await supabase.from("departments").delete().in("id", ids);
+      if (deleted.error) throw deleted.error;
+      await Promise.all(ids.map(id => logAction("delete", "departments", id)));
+      setSelectedDeptIds([]);
+      await fetchData();
+      alert("تم حذف الأقسام المحددة ✅");
+    } catch (error: any) {
+      alert("تعذر حذف الأقسام: " + (error?.message || "تحقق من صلاحيات Supabase والعلاقات المرتبطة"));
+    }
   };
 
   // ========== HOLIDAY OPERATIONS ==========
@@ -3518,6 +3582,7 @@ useEffect(() => {
                       {selectedEmployeeIds.length > 0 && <>
                         <button onClick={() => setSelectedEmployeeIds([])} style={{ padding:"10px 14px", background:"#fff1f2", color:"#dc2626", border:"1px solid #fecdd3", borderRadius:"12px", fontSize:"13px", fontWeight:"800", cursor:"pointer" }}>إلغاء ({selectedEmployeeIds.length})</button>
                         <button onClick={exportSelectedEmployees} style={{ padding:"10px 14px", background:"#0f766e", color:"white", border:"none", borderRadius:"12px", fontSize:"13px", fontWeight:"800", cursor:"pointer" }}>تصدير المحدد</button>
+                        <button onClick={handleDeleteSelectedEmployees} style={{ padding:"10px 14px", background:"#dc2626", color:"white", border:"none", borderRadius:"12px", fontSize:"13px", fontWeight:"800", cursor:"pointer" }}>حذف المحدد ({selectedEmployeeIds.length})</button>
                       </>}
                       <button onClick={() => setShowImportModal(true)} style={{ display:"flex", alignItems:"center", gap:"6px", padding:"10px 16px", background:"#059669", color:"white", border:"none", borderRadius:"12px", fontSize:"13px", fontWeight:"700", cursor:"pointer" }}>
                         <Upload size={15} /> Excel
