@@ -1012,7 +1012,8 @@ useEffect(() => {
         const lastClosedReq = approved.filter(r => today >= r.__back).sort((a, b) => String(b.__back).localeCompare(String(a.__back)))[0];
         const targetStatus = activeReq ? "إجازة" : "عمل";
         const targetLeaveStart = activeReq?.__effectiveStart || futureReq?.__effectiveStart || null;
-        const targetReturnDate = activeReq?.__back || futureReq?.__back || lastClosedReq?.__back || emp.return_date || null;
+        // لا تستبدل تاريخ العودة الذي عدّله المستخدم يدويًا؛ استخدم تاريخ آخر طلب مغلق فقط عند خلو الحقل.
+        const targetReturnDate = emp.return_date || activeReq?.__back || futureReq?.__back || lastClosedReq?.__back || null;
         const payload: any = {};
 
         if ((emp.status === "إجازة" ? "إجازة" : "عمل") !== targetStatus) payload.status = targetStatus;
@@ -1867,22 +1868,43 @@ useEffect(() => {
   };
 
   const handleUpdateEmployee = async () => {
+    if (!editingEmp?.id) return;
     const oldData = employees.find(e => e.id === editingEmp.id);
-    const { error } = await supabase.from("employees").update({
-      name: editingEmp.name, code: editingEmp.code, position: editingEmp.position,
+    const payload = {
+      name: editingEmp.name,
+      code: editingEmp.code,
+      position: editingEmp.position,
       residence: editingEmp.residence || "",
       email: editingEmp.email || "",
-      balance: editingEmp.balance, monthly_balance: editingEmp.monthly_balance || 0,
-      department_id: editingEmp.department_id,
-      hire_date: editingEmp.hire_date,
-      return_date: editingEmp.return_date,
-    }).eq("id", editingEmp.id);
-    if (!error) {
-      setEditingEmp(null);
-      fetchData();
-      alert("تم التحديث ✅");
-      await logAction("update", "employees", editingEmp.id, oldData, editingEmp);
+      balance: Number(editingEmp.balance ?? 0),
+      monthly_balance: Number(editingEmp.monthly_balance ?? 0),
+      department_id: editingEmp.department_id || null,
+      hire_date: editingEmp.hire_date || null,
+      return_date: editingEmp.return_date || null,
+    };
+
+    const { data: savedEmployee, error } = await supabase
+      .from("employees")
+      .update(payload)
+      .eq("id", editingEmp.id)
+      .select("*")
+      .single();
+
+    if (error) {
+      alert("تعذر حفظ بيانات الموظف: " + error.message);
+      return;
     }
+    if (!savedEmployee) {
+      alert("لم يتم العثور على سجل الموظف بعد الحفظ؛ لم يتم اعتماد التعديل.");
+      return;
+    }
+
+    // حدّث القائمة فورًا بالقيمة التي أعادتها قاعدة البيانات، ثم أعد جلب البيانات للتحقق.
+    setEmployees(prev => prev.map(emp => emp.id === savedEmployee.id ? savedEmployee : emp));
+    setEditingEmp(null);
+    await logAction("update", "employees", editingEmp.id, oldData, savedEmployee);
+    await fetchData();
+    alert("تم حفظ التعديل بنجاح ✅");
   };
 
   // ========== VACATION OPERATIONS ==========
