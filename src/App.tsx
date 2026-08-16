@@ -591,6 +591,17 @@ const VacationManagementSystem = () => {
 
   // Modals & Forms
   const [loginData, setLoginData] = useState({ email: "", password: "" });
+  const [showSavedLoginAccounts, setShowSavedLoginAccounts] = useState(false);
+  const [manualEmailEntry, setManualEmailEntry] = useState(false);
+  const [savedLoginEmails, setSavedLoginEmails] = useState<string[]>(() => {
+    try {
+      const stored = localStorage.getItem("vms_loginEmails");
+      const parsed = stored ? JSON.parse(stored) : [];
+      return Array.isArray(parsed) ? parsed.filter((email): email is string => typeof email === "string" && email.includes("@")) : [];
+    } catch {
+      return [];
+    }
+  });
   const [empCodeInput, setEmpCodeInput] = useState("");
   const [empPinInput, setEmpPinInput] = useState("");
   const [loginTab, setLoginTab] = useState("employee"); // "employee" | "admin"
@@ -1206,9 +1217,21 @@ useEffect(() => {
   }), [employees, departments, requests]);
 
   // ========== LOGIN ==========
+  // نحفظ عناوين البريد فقط لتظهر كخيارات عند الطلب، ولا نحفظ كلمات المرور.
+  const rememberLoginEmail = (email: string) => {
+    const normalized = email.trim().toLowerCase();
+    if (!normalized || !normalized.includes("@")) return;
+    setSavedLoginEmails(prev => {
+      const next = [normalized, ...prev.filter(item => item !== normalized)].slice(0, 5);
+      localStorage.setItem("vms_loginEmails", JSON.stringify(next));
+      return next;
+    });
+  };
+
   const handleLogin = async () => {
     // 1️⃣ Owner
     if (loginData.email === ADMIN_EMAIL && loginData.password === process.env.REACT_APP_OWNER_PASSWORD) {
+      rememberLoginEmail(loginData.email);
       const ownerUser = { role: "owner", name: "محمد جمال" };
       setCurrentUser(ownerUser);
       setCurrentView("admin");
@@ -1226,6 +1249,7 @@ useEffect(() => {
         p_password_hash: hashedInput,
       });
       if (admin) {
+        rememberLoginEmail(loginData.email);
         const adminUser = {
           role: "admin",
           id: admin.id,
@@ -1266,6 +1290,7 @@ useEffect(() => {
         }
       }
       if (mgr) {
+        rememberLoginEmail(loginData.email);
         // Parse multiple department ids if stored
         let deptIds: string[] = [];
         if (mgr.department_ids) {
@@ -1329,6 +1354,107 @@ useEffect(() => {
     }
 
     alert("بيانات الدخول غير صحيحة ❌");
+  };
+
+  // ========== طباعة الهيكل الوظيفي لمدير القسم ==========
+  const printDepartmentOrgChart = async (managerName: string, departmentName: string, grouped: any[]) => {
+    const chart = document.createElement("div");
+    chart.dir = "rtl";
+    chart.style.cssText = [
+      "position:fixed", "left:-100000px", "top:0", "width:1200px", "padding:56px",
+      "background:#ffffff", "color:#0f172a", "font-family:Cairo, Tajawal, Arial, sans-serif",
+      "box-sizing:border-box", "direction:rtl"
+    ].join(";");
+
+    const addText = (parent: HTMLElement, text: string, style: string) => {
+      const el = document.createElement("div");
+      el.textContent = text;
+      el.style.cssText = style;
+      parent.appendChild(el);
+      return el;
+    };
+
+    const title = document.createElement("div");
+    title.style.cssText = "text-align:center;border-bottom:3px solid #4f46e5;padding-bottom:18px;margin-bottom:26px;";
+    addText(title, "الهيكل الوظيفي", "font-size:30px;font-weight:900;color:#1e1b4b;margin-bottom:6px;");
+    addText(title, departmentName || "هيكل القسم", "font-size:18px;font-weight:700;color:#475569;");
+    addText(title, `مدير القسم: ${managerName || "-"}`, "font-size:14px;color:#64748b;margin-top:6px;");
+    chart.appendChild(title);
+
+    const managerRow = document.createElement("div");
+    managerRow.style.cssText = "display:flex;flex-direction:column;align-items:center;margin-bottom:26px;";
+    const managerCard = document.createElement("div");
+    managerCard.style.cssText = "min-width:320px;padding:18px 28px;border-radius:18px;background:linear-gradient(135deg,#4338ca,#6366f1);color:#fff;text-align:center;box-shadow:0 10px 24px rgba(67,56,202,.24);position:relative;";
+    addText(managerCard, "👔", "font-size:28px;line-height:1;margin-bottom:6px;");
+    addText(managerCard, managerName || "مدير القسم", "font-size:20px;font-weight:900;");
+    addText(managerCard, "مدير القسم", "font-size:12px;opacity:.82;margin-top:4px;");
+    managerRow.appendChild(managerCard);
+    const connector = document.createElement("div");
+    connector.style.cssText = "width:3px;height:28px;background:#c7d2fe;";
+    managerRow.appendChild(connector);
+    chart.appendChild(managerRow);
+
+    const groupsRow = document.createElement("div");
+    groupsRow.style.cssText = "display:flex;flex-direction:column;gap:18px;";
+    grouped.forEach(group => {
+      const groupBox = document.createElement("div");
+      groupBox.style.cssText = "border:1px solid #e2e8f0;border-radius:16px;overflow:hidden;background:#fff;box-shadow:0 4px 12px rgba(15,23,42,.06);";
+      const groupHeader = document.createElement("div");
+      groupHeader.style.cssText = `display:flex;align-items:center;justify-content:space-between;padding:12px 18px;background:${group.bg || "#f8fafc"};border-bottom:1px solid #e2e8f0;`;
+      addText(groupHeader, `${group.icon || "•"}  ${group.label}`, `font-size:16px;font-weight:900;color:${group.color || "#334155"};`);
+      addText(groupHeader, `${group.emps.length} موظف`, `font-size:12px;font-weight:800;color:${group.color || "#334155"};`);
+      groupBox.appendChild(groupHeader);
+
+      const employeesGrid = document.createElement("div");
+      employeesGrid.style.cssText = "display:grid;grid-template-columns:repeat(3,1fr);gap:12px;padding:14px;";
+      group.emps.forEach((emp: any) => {
+        const card = document.createElement("div");
+        const isVac = emp.status === "إجازة";
+        card.style.cssText = `display:flex;align-items:center;gap:10px;padding:11px;border-radius:12px;background:${isVac ? "#fff1f2" : "#f8fafc"};border:1px solid ${isVac ? "#fecdd3" : "#e2e8f0"};min-height:66px;`;
+        const avatar = document.createElement("div");
+        avatar.textContent = String(emp.name || "-").charAt(0);
+        avatar.style.cssText = `width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex:0 0 34px;background:${group.color || "#4f46e5"}20;color:${group.color || "#4f46e5"};font-weight:900;font-size:14px;`;
+        card.appendChild(avatar);
+        const details = document.createElement("div");
+        details.style.cssText = "min-width:0;flex:1;";
+        addText(details, String(emp.name || "-"), "font-size:13px;font-weight:800;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;");
+        addText(details, String(emp.position || "-"), "font-size:10px;color:#64748b;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;");
+        const status = document.createElement("div");
+        status.textContent = isVac ? "إجازة" : "عمل";
+        status.style.cssText = `font-size:10px;font-weight:800;padding:3px 7px;border-radius:12px;white-space:nowrap;background:${isVac ? "#fee2e2" : "#dcfce7"};color:${isVac ? "#dc2626" : "#16a34a"};`;
+        card.append(details, status);
+        employeesGrid.appendChild(card);
+      });
+      groupBox.appendChild(employeesGrid);
+      groupsRow.appendChild(groupBox);
+    });
+    chart.appendChild(groupsRow);
+
+    const footer = document.createElement("div");
+    footer.style.cssText = "text-align:center;margin-top:24px;padding-top:12px;border-top:1px solid #e2e8f0;font-size:11px;color:#94a3b8;";
+    footer.textContent = `نظام إدارة الإجازات • تاريخ الطباعة: ${new Date().toLocaleDateString("ar-EG")}`;
+    chart.appendChild(footer);
+    document.body.appendChild(chart);
+
+    try {
+      const canvas = await html2canvas(chart, { scale: 2, backgroundColor: "#ffffff", useCORS: true, logging: false });
+      const imageUrl = canvas.toDataURL("image/png");
+      const printWindow = window.open("", "_blank", "width=1200,height=900");
+      if (!printWindow) {
+        const link = document.createElement("a");
+        link.href = imageUrl;
+        link.download = `الهيكل-الوظيفي-${departmentName || "القسم"}.png`;
+        link.click();
+        alert("تم تجهيز صورة الهيكل وتحميلها؛ اسمح بفتح النوافذ المنبثقة لاستخدام الطباعة مباشرةً.");
+        return;
+      }
+      printWindow.document.write(`<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>الهيكل الوظيفي - ${departmentName || "القسم"}</title><style>html,body{margin:0;background:#fff}body{padding:16px}img{display:block;width:100%;height:auto}@media print{body{padding:0}img{width:100%}}</style></head><body><img src="${imageUrl}" alt="الهيكل الوظيفي" /></body></html>`);
+      printWindow.document.close();
+      printWindow.focus();
+      setTimeout(() => printWindow.print(), 400);
+    } finally {
+      document.body.removeChild(chart);
+    }
   };
 
   // ========== تغيير PIN الموظف ==========
@@ -2636,13 +2762,13 @@ useEffect(() => {
         {/* شعار النظام + عنوان */}
         <div style={{ position:"relative", zIndex:10, display:"flex", flexDirection:"column", alignItems:"center", marginBottom:"28px" }}>
           <div style={{
-            width:"72px", height:"72px", borderRadius:"22px",
-            background:"linear-gradient(135deg, #6366f1, #8b5cf6)",
+            width:"220px", height:"118px", borderRadius:"24px",
+            background:"rgba(255,255,255,0.96)",
             display:"flex", alignItems:"center", justifyContent:"center",
-            marginBottom:"18px", boxShadow:"0 12px 30px rgba(99, 102, 241, 0.45)",
-            animation:"popIn 0.5s ease",
+            padding:"10px", marginBottom:"18px", boxShadow:"0 12px 30px rgba(0,0,0,0.22)",
+            animation:"popIn 0.5s ease", overflow:"hidden",
           }}>
-            <Building2 size={34} className="text-white" />
+            <img src="/logo.png" alt="إجازاتي - إدارة إجازات الموظفين" style={{ width:"100%", height:"100%", objectFit:"contain" }} />
           </div>
           <h1 style={{ color:"white", fontWeight:"900", fontSize:"26px", fontFamily:"Cairo, sans-serif", margin:0 }}>نظام شؤون الموظفين</h1>
           <p style={{ color:"rgba(255,255,255,0.45)", fontSize:"14px", marginTop:"8px", fontFamily:"Cairo, sans-serif" }}>اختر طريقة تسجيل الدخول المناسبة لك</p>
@@ -2739,13 +2865,54 @@ useEffect(() => {
                 </div>
                 <h2 style={{ color:"white", fontSize:"22px", fontWeight:"900", marginBottom:"6px", fontFamily:"Cairo, sans-serif" }}>لوحة الإدارة</h2>
                 <p style={{ color:"rgba(255, 255, 255, 0.4)", fontSize:"13.5px", marginBottom:"26px" }}>صلاحيات خاصة للمسؤولين فقط</p>
-                <input
-                  className="login-input"
-                  style={{ width:"100%", background:"rgba(255, 255, 255, 0.07)", border:"1px solid rgba(255, 255, 255, 0.12)", borderRadius:"14px", padding:"14px 18px", color:"white", fontSize:"15px", marginBottom:"14px", display:"block", boxSizing:"border-box", fontFamily:"Cairo, sans-serif" }}
-                  placeholder="البريد الإلكتروني"
-                  value={loginData.email}
-                  onChange={(e) => setLoginData({ ...loginData, email: e.target.value })}
-                />
+                <div style={{ position:"relative", marginBottom:"14px" }}>
+                  <input
+                    className="login-input"
+                    name="account-email"
+                    autoComplete="new-password"
+                    readOnly={!manualEmailEntry && savedLoginEmails.length > 0}
+                    onClick={() => { if (savedLoginEmails.length === 0) setManualEmailEntry(true); else setShowSavedLoginAccounts(true); }}
+                    onFocus={() => { if (savedLoginEmails.length > 0) setShowSavedLoginAccounts(true); }}
+                    onBlur={() => setTimeout(() => setShowSavedLoginAccounts(false), 180)}
+                    style={{ width:"100%", background:"rgba(255, 255, 255, 0.07)", border:"1px solid rgba(255, 255, 255, 0.12)", borderRadius:"14px", padding:"14px 18px", color:"white", fontSize:"15px", boxSizing:"border-box", fontFamily:"Cairo, sans-serif", cursor: manualEmailEntry || savedLoginEmails.length === 0 ? "text" : "pointer" }}
+                    placeholder={manualEmailEntry ? "اكتب البريد الإلكتروني" : (savedLoginEmails.length > 0 ? "اضغط لاختيار الحساب" : "اضغط لإدخال البريد")}
+                    value={loginData.email}
+                    onChange={(e) => setLoginData({ ...loginData, email: e.target.value })}
+                  />
+                  {showSavedLoginAccounts && !manualEmailEntry && savedLoginEmails.length > 0 && (
+                    <div style={{ position:"absolute", zIndex:50, top:"calc(100% + 6px)", left:0, right:0, background:"#1e293b", border:"1px solid rgba(255,255,255,0.16)", borderRadius:"12px", padding:"6px", boxShadow:"0 14px 30px rgba(0,0,0,0.35)" }}>
+                      <div style={{ color:"rgba(255,255,255,0.5)", fontSize:"10px", padding:"5px 8px 7px" }}>اختار الحساب لتعبئة البريد فقط</div>
+                      {savedLoginEmails.map(email => (
+                        <button
+                          key={email}
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => { setLoginData(prev => ({ ...prev, email })); setShowSavedLoginAccounts(false); }}
+                          style={{ width:"100%", textAlign:"right", background:"rgba(255,255,255,0.06)", color:"white", border:"1px solid rgba(255,255,255,0.08)", borderRadius:"9px", padding:"9px 10px", marginBottom:"4px", cursor:"pointer", fontFamily:"inherit", fontSize:"12px" }}
+                        >
+                          {email}
+                        </button>
+                      ))}
+                      <button
+                        type="button"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => { setManualEmailEntry(true); setLoginData(prev => ({ ...prev, email:"" })); setShowSavedLoginAccounts(false); }}
+                        style={{ width:"100%", textAlign:"right", background:"transparent", color:"#a5b4fc", border:"none", padding:"7px 8px 4px", cursor:"pointer", fontFamily:"inherit", fontSize:"11px", fontWeight:"700" }}
+                      >
+                        إدخال بريد مختلف يدويًا
+                      </button>
+                    </div>
+                  )}
+                  {manualEmailEntry && (
+                    <button
+                      type="button"
+                      onClick={() => { setManualEmailEntry(false); setLoginData(prev => ({ ...prev, email:"" })); setShowSavedLoginAccounts(false); }}
+                      style={{ position:"absolute", left:"10px", top:"50%", transform:"translateY(-50%)", background:"transparent", border:"none", color:"#a5b4fc", fontSize:"10px", cursor:"pointer", fontFamily:"inherit" }}
+                    >
+                      اختيار حساب محفوظ
+                    </button>
+                  )}
+                </div>
                 <input
                   type="password"
                   className="login-input"
@@ -2812,8 +2979,8 @@ useEffect(() => {
           {/* الشعار */}
           <div style={{ padding:"24px 16px 16px", borderBottom:"1px solid rgba(255, 255, 255, 0.07)", marginTop:"48px" }}>
             <div style={{ display:"flex", alignItems:"center", gap:"10px" }}>
-              <div style={{ background: isOwner ? "#4f46e5" : "#059669", borderRadius:"10px", padding:"8px", flexShrink:0 }}>
-                <CalendarDays size={18} className="text-white" />
+              <div style={{ width:"38px", height:"38px", background:"#ffffff", borderRadius:"10px", padding:"4px", flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center" }}>
+                <img src="/logo-mark.png" alt="إجازاتي" style={{ width:"100%", height:"100%", objectFit:"contain", borderRadius:"7px" }} />
               </div>
               <div>
                 <div style={{ color:"white", fontWeight:"900", fontSize:"13px", lineHeight:"1.2" }}>نظام الإجازات</div>
@@ -3097,8 +3264,18 @@ useEffect(() => {
 
                         {/* ===== هيكل القسم - قائمة منسدلة ===== */}
                         <div style={{ background:"white", borderRadius:"20px", border:"1px solid #e2e8f0", overflow:"hidden", boxShadow:"0 2px 8px rgba(0, 0, 0, 0.06)" }}>
-                          <div style={{ padding:"16px 20px", borderBottom:"1px solid #e2e8f0", fontWeight:"900", fontSize:"15px", display:"flex", alignItems:"center", gap:"8px" }}>
-                            <Briefcase size={17} style={{ color:"#7c3aed" }}/> هيكل القسم
+                          <div style={{ padding:"16px 20px", borderBottom:"1px solid #e2e8f0", fontWeight:"900", fontSize:"15px", display:"flex", alignItems:"center", justifyContent:"space-between", gap:"10px", flexWrap:"wrap" }}>
+                            <div style={{ display:"flex", alignItems:"center", gap:"8px" }}>
+                              <Briefcase size={17} style={{ color:"#7c3aed" }}/> هيكل القسم
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => printDepartmentOrgChart(currentUser.name, currentUser.dept_name, grouped)}
+                              style={{ display:"flex", alignItems:"center", gap:"6px", padding:"8px 12px", border:"1px solid #c4b5fd", borderRadius:"10px", background:"#f5f3ff", color:"#6d28d9", fontFamily:"inherit", fontSize:"11px", fontWeight:"800", cursor:"pointer" }}
+                              title="تحويل الهيكل الوظيفي إلى صورة وطباعته"
+                            >
+                              <Printer size={14} /> طباعة الهيكل كصورة
+                            </button>
                           </div>
                           <div style={{ padding:"12px", display:"flex", flexDirection:"column", gap:"8px" }}>
                             {grouped.map(group => {
