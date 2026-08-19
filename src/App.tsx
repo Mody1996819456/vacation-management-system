@@ -1189,7 +1189,9 @@ const VacationManagementSystem = () => {
 
         if ((emp.status === "إجازة" ? "إجازة" : "عمل") !== targetStatus) payload.status = targetStatus;
         if ((emp.leave_start_date || null) !== targetLeaveStart) payload.leave_start_date = targetLeaveStart;
-        if (targetReturnDate && (emp.return_date || null) !== targetReturnDate) payload.return_date = targetReturnDate;
+        // لا نستبدل تاريخ العودة الذي أدخله المدير يدويًا بعد حفظه.
+        // يتم ملء التاريخ تلقائيًا فقط إذا كان فارغًا؛ أما تواريخ الطلبات الجديدة فتُحفظ عند اعتماد الطلب نفسه.
+        if (!emp.return_date && targetReturnDate) payload.return_date = targetReturnDate;
 
         if (Object.keys(payload).length > 0) {
           updates.push({ id: emp.id, payload, index });
@@ -1940,14 +1942,16 @@ const VacationManagementSystem = () => {
       department_id: editingEmp.department_id,
       branch_id: editingEmp.branch_id || null,
       hire_date: editingEmp.hire_date,
-      return_date: editingEmp.return_date,
+      return_date: editingEmp.return_date ? String(editingEmp.return_date).slice(0, 10) : null,
     }).eq("id", editingEmp.id);
-    if (!error) {
-      setEditingEmp(null);
-      fetchData();
-      alert("تم التحديث ✅");
-      await logAction("update", "employees", editingEmp.id, oldData, editingEmp);
+    if (error) {
+      alert("تعذر تحديث بيانات الموظف: " + error.message);
+      return;
     }
+    setEditingEmp(null);
+    await fetchData();
+    alert("تم التحديث ✅");
+    await logAction("update", "employees", editingEmp.id, oldData, { ...editingEmp, return_date: editingEmp.return_date ? String(editingEmp.return_date).slice(0, 10) : null });
   };
 
   // ========== VACATION OPERATIONS ==========
