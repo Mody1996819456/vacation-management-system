@@ -2481,7 +2481,7 @@ const VacationManagementSystem = () => {
   };
 
   const deleteSelectedDepartments = async () => {
-    const ids = Array.from(new Set(selectedDeptIds.map(String))).filter(Boolean);
+    const ids: string[] = Array.from(new Set(selectedDeptIds.map(String))).filter(Boolean) as string[];
     if (ids.length === 0) return;
     if (!window.confirm(`حذف ${ids.length} أقسام؟ سيتم فك ارتباط الموظفين والمديرين أولًا.`)) return;
     try {
@@ -2772,11 +2772,12 @@ const VacationManagementSystem = () => {
     try {
       const snapshot = version.snapshot;
       const operations: Array<Promise<any>> = [];
-      if (Array.isArray(snapshot.departments) && snapshot.departments.length) operations.push(supabase.from("departments").upsert(snapshot.departments).then(result => result));
-      if (Array.isArray(snapshot.vacationTypes) && snapshot.vacationTypes.length) operations.push(supabase.from("vacation_types").upsert(snapshot.vacationTypes).then(result => result));
-      if (Array.isArray(snapshot.employees) && snapshot.employees.length) operations.push(supabase.from("employees").upsert(snapshot.employees).then(result => result));
-      if (Array.isArray(snapshot.requests) && snapshot.requests.length) operations.push(supabase.from("vacation_requests").upsert(snapshot.requests).then(result => result));
-      if (Array.isArray(snapshot.publicHolidays) && snapshot.publicHolidays.length) operations.push(supabase.from("public_holidays").upsert(snapshot.publicHolidays).then(result => result));
+      const queueRestore = (query: any) => { operations.push(Promise.resolve(query)); };
+      if (Array.isArray(snapshot.departments) && snapshot.departments.length) queueRestore(supabase.from("departments").upsert(snapshot.departments));
+      if (Array.isArray(snapshot.vacationTypes) && snapshot.vacationTypes.length) queueRestore(supabase.from("vacation_types").upsert(snapshot.vacationTypes));
+      if (Array.isArray(snapshot.employees) && snapshot.employees.length) queueRestore(supabase.from("employees").upsert(snapshot.employees));
+      if (Array.isArray(snapshot.requests) && snapshot.requests.length) queueRestore(supabase.from("vacation_requests").upsert(snapshot.requests));
+      if (Array.isArray(snapshot.publicHolidays) && snapshot.publicHolidays.length) queueRestore(supabase.from("public_holidays").upsert(snapshot.publicHolidays));
       const results = await Promise.all(operations);
       const failed = results.find(result => result?.error);
       if (failed?.error) throw failed.error;
