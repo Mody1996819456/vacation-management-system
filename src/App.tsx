@@ -1987,21 +1987,29 @@ const VacationManagementSystem = () => {
       // الطلب المقبول مستقبلاً لا يغيّر حالة الموظف قبل أول يوم فعلي.
       if (todayStr >= effectiveStart) empUpdatePayload.status = "إجازة";
       else if (emp.status !== "إجازة") empUpdatePayload.status = "عمل";
-      await supabase.from("employees").update(empUpdatePayload).eq("id", emp.id);
-      if (emp.email) {
-        const { back } = getCalculatedDates(currentRequest.start_date, days);
-        sendEmail(EMAILJS_TEMPLATES.approved, emp.email, {
-          employee_name: emp.name, start_date: formatDate(currentRequest.start_date),
-          days, back_date: formatDate(back),
-          admin_notes: adminNotes || "لا توجد ملاحظات", request_id: id,
-        });
+      const { error: empUpdateError } = await supabase.from("employees").update(empUpdatePayload).eq("id", emp.id);
+      if (empUpdateError) {
+        alert("تعذر تحديث رصيد وحالة الموظف قبل اعتماد الطلب: " + empUpdateError.message);
+        return;
       }
       const { error } = await supabase.from("vacation_requests").update({
         status: "approved", admin_notes: adminNotes || null,
         effective_start_date: effectiveStart,
         owner_approved_by: approvedBy, owner_approved_at: new Date().toISOString(),
       }).eq("id", id);
-      if (error) { alert("خطا: " + error.message); return; }
+      if (error) {
+        await supabase.from("employees").update({ balance: emp.balance, status: emp.status, leave_start_date: emp.leave_start_date || null, return_date: emp.return_date || null }).eq("id", emp.id);
+        alert("تعذر اعتماد الطلب وتمت إعادة بيانات الموظف كما كانت: " + error.message);
+        return;
+      }
+      if (emp.email) {
+        const { back } = getCalculatedDates(currentRequest.start_date, days);
+        await sendEmail(EMAILJS_TEMPLATES.approved, emp.email, {
+          employee_name: emp.name, start_date: formatDate(currentRequest.start_date),
+          days, back_date: formatDate(back),
+          admin_notes: adminNotes || "لا توجد ملاحظات", request_id: id,
+        });
+      }
       await sendExternalNotification("vacation_request_decision", { request_id:id, employee_name:emp.name, phone:emp.phone || null, email:emp.email || null, decision:"approved", days, start_date:effectiveStart });
       if (approvalSignature.trim()) {
         const { error: signatureError } = await supabase.from("vacation_signatures").upsert([{
@@ -2428,38 +2436,109 @@ const VacationManagementSystem = () => {
     if (!directVacForm.employee_id) return alert("اختر الموظف ❌");
     if (!directVacForm.start_date) return alert("حدد تاريخ البداية ❌");
     if (!directVacForm.vacation_type_id) return alert("اختر نوع الإجازة ❌");
-    setIsSubmitting(true);
-    const emp = employees.find(e => e.id === directVacForm.employee_id);
-    if (!emp) { setIsSubmitting(false); return; }
+
     const days = Number(directVacForm.days);
-    const effectiveStart = directVacForm.start_date;
-    const todayStr = new Date().toISOString().split("T")[0];
+    if (!Number.isFinite(days) || days < 0.5) return alert("عدد أيام الإجازة يجب أن يكون 0.5 يوم على الأقل ❌");
+
+    const emp = employees.find(e => String(e.id) === String(directVacForm.employee_id));
+    if (!emp) return alert("تعذر العثور على الموظف المحدد ❌");
+
+    const effectiveStart = String(directVacForm.start_date).slice(0, 10);
+    const todayStr = getLocalISODate();
     const { back } = getCalculatedDates(effectiveStart, days);
-    // إضافة الطلب مباشرة بحالة approved؛ حالة الموظف تؤجل إلى effectiveStart إذا كان تاريخًا مستقبليًا.
+    if (!back) return alert("تعذر حساب تاريخ العودة؛ راجع تاريخ البداية وعدد الأيام ❌");
+
+    // منع إنشاء إجازة مباشرة متداخلة للموظف نفسه.
+    const sameEmployeeOverlap = requests.filter(req => {
+      if (String(req.employee_id) !== String(emp.id) || req.actual_return_date) return false;
+      if (!["pending", "dept_approved", "approved"].includes(req.status)) return false;
+      const reqStart = req.effective_start_date || req.start_date;
+      const reqBack = getCalculatedDates(reqStart, Number(req.days || 0)).back;
+      return reqStart && reqBack && reqStart <= back && effectiveStart < reqBack;
+    });
+    if (sameEmployeeOverlap.length > 0) {
+      const existing = sameEmployeeOverlap[0];
+      if (!window.confirm(`لدى الموظف إجازة أخرى متداخلة تبدأ ${formatDate(existing.effective_start_date || existing.start_date)}. هل تريد المتابعة؟`)) return;
+    }
+
+    // تحذير الرصيد قبل الخصم؛ لا يتم الخصم بصمت إذا كان الرصيد غير كافٍ.
+    const currentBalance = Number(emp.balance || 0);
+    if (currentBalance < days) {
+      const proceed = window.confirm(`رصيد الموظف ${currentBalance} يوم، بينما الإجازة ${days} يوم. سيصبح الرصيد ${currentBalance - days} يوم. هل تريد المتابعة؟`);
+      if (!proceed) return;
+    }
+
+    const dept = departments.find(d => String(d.id) === String(emp.department_id));
+    const departmentOverlap = requests.filter(req => {
+      if (String(req.employee_id) === String(emp.id) || req.actual_return_date) return false;
+      if (!["pending", "dept_approved", "approved"].includes(req.status)) return false;
+      const otherEmp = employees.find(item => String(item.id) === String(req.employee_id));
+      if (!dept || String(otherEmp?.department_id) !== String(emp.department_id)) return false;
+      const reqStart = req.effective_start_date || req.start_date;
+      const reqBack = getCalculatedDates(reqStart, Number(req.days || 0)).back;
+      return reqStart && reqBack && reqStart <= back && effectiveStart < reqBack;
+    });
+    const maxSimultaneous = Number(dept?.max_simultaneous_leave || 0);
+    if (departmentOverlap.length > 0 && !window.confirm(`يوجد ${departmentOverlap.length} موظف في إجازة متداخلة داخل نفس القسم. هل تريد المتابعة؟`)) return;
+    if (maxSimultaneous > 0 && departmentOverlap.length + 1 > maxSimultaneous && !window.confirm(`هذا القرار سيتجاوز الحد المتزامن للقسم (${maxSimultaneous}). هل تريد المتابعة؟`)) return;
+
+    setIsSubmitting(true);
+    const approvedAt = new Date().toISOString();
     const { error: reqErr } = await supabase.from("vacation_requests").insert([{
       employee_id: emp.id,
       employee_name: emp.name,
       start_date: effectiveStart,
+      departure_date: effectiveStart,
+      departure_time: "actual",
       effective_start_date: effectiveStart,
       days,
       notes: directVacForm.notes || "إجازة مضافة مباشرة من الإدارة",
       vacation_type_id: directVacForm.vacation_type_id,
       status: "approved",
-      owner_approved_by: currentUser?.name,
-      owner_approved_at: new Date().toISOString(),
+      owner_approved_by: currentUser?.name || "الإدارة",
+      owner_approved_at: approvedAt,
     }]);
-    if (reqErr) { alert("❌ " + reqErr.message); setIsSubmitting(false); return; }
-    // خصم الرصيد، مع تأجيل الحالة حتى أول يوم فعلي.
-    const directPayload: any = { balance: Number(emp.balance) - days, leave_start_date: effectiveStart };
-    if (todayStr >= effectiveStart) directPayload.status = "إجازة";
-    await supabase.from("employees").update(directPayload).eq("id", emp.id);
-    await logAction("direct_vacation", "vacation_requests", null, null, { employee: emp.name, days, start_date: directVacForm.start_date });
+    if (reqErr) {
+      setIsSubmitting(false);
+      alert("تعذر حفظ الإجازة المباشرة: " + reqErr.message);
+      return;
+    }
+
+    // تاريخ العودة يُحفظ دائمًا، والحالة تكون إجازة فقط أثناء الفترة الفعلية.
+    const isCurrentlyOnLeave = todayStr >= effectiveStart && todayStr < back;
+    const directPayload: any = {
+      balance: currentBalance - days,
+      status: isCurrentlyOnLeave ? "إجازة" : "عمل",
+      leave_start_date: isCurrentlyOnLeave || todayStr < effectiveStart ? effectiveStart : null,
+      return_date: back,
+    };
+    const { error: empErr } = await supabase.from("employees").update(directPayload).eq("id", emp.id);
+    if (empErr) {
+      // لا نترك طلبًا مقبولًا بلا تحديث للموظف؛ نحاول حذف الطلب الذي أُنشئ في نفس العملية.
+      await supabase.from("vacation_requests").delete().eq("employee_id", emp.id).eq("start_date", effectiveStart).eq("status", "approved").eq("owner_approved_at", approvedAt);
+      setIsSubmitting(false);
+      alert("تعذر تحديث بيانات الموظف، وتم التراجع عن الإجازة المباشرة: " + empErr.message);
+      return;
+    }
+
+    const { error: balanceLogError } = await supabase.from("balance_updates").insert([{
+      employee_id: emp.id,
+      amount: -days,
+      update_date: todayStr,
+      description: `خصم إجازة مباشرة: ${days} يوم — الرصيد: ${currentBalance} → ${currentBalance - days}`,
+    }]);
+    if (balanceLogError) console.warn("تعذر تسجيل حركة خصم الإجازة المباشرة:", balanceLogError.message);
+    await logAction("direct_vacation", "vacation_requests", null, null, { employee_id: emp.id, employee: emp.name, days, start_date: effectiveStart, return_date: back, status: directPayload.status, balance_before: currentBalance, balance_after: currentBalance - days });
+    await sendExternalNotification("direct_vacation_created", { employee_name: emp.name, phone: emp.phone || null, email: emp.email || null, days, start_date: effectiveStart, return_date: back, status: directPayload.status });
+    if (emp.email && notificationPrefs.email_enabled) {
+      await sendEmail(EMAILJS_TEMPLATES.approved, emp.email, { employee_name: emp.name, decision: "approved", start_date: formatDate(effectiveStart), days, back_date: formatDate(back), admin_notes: directVacForm.notes || "إجازة مباشرة من الإدارة" });
+    }
     setShowDirectVacModal(false);
     setDirectVacForm({ employee_id: "", days: 1, start_date: "", notes: "", vacation_type_id: "" });
+    setEmpSearchDirect("");
     setIsSubmitting(false);
     await fetchData();
-    alert(`✅ تمت إضافة إجازة ${emp.name} بنجاح!
-تاريخ العودة: ${formatDate(back)}`);
+    alert(`✅ تمت إضافة إجازة ${emp.name} بنجاح!\nتاريخ العودة: ${formatDate(back)}`);
   };
 
   // ========== DEPARTMENT OPERATIONS ==========
