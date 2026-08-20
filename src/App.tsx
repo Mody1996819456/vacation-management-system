@@ -724,6 +724,7 @@ const VacationManagementSystem = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showDirectVacModal, setShowDirectVacModal] = useState(false);
   const [directVacForm, setDirectVacForm] = useState({ employee_id: "", days: 1, start_date: "", notes: "", vacation_type_id: "" });
+  const directVacationSubmittingRef = React.useRef(false);
   const [vacSearch2, setVacSearch2] = useState("");
   const [vacTypeFilter2, setVacTypeFilter2] = useState("all");
   const [vacDeptFilters2, setVacDeptFilters2] = useState<string[]>([]);
@@ -1554,41 +1555,50 @@ const VacationManagementSystem = () => {
         "الكود الوظيفي": "1001",
         "الاسم الكامل": "محمد أحمد علي",
         "المنصب": "محاسب",
+        "مكان السكن": "القاهرة",
+        "رقم الهاتف": "+201012345678",
         "البريد الإلكتروني": "mohamed@example.com",
         "الرصيد الحالي": 21,
         "الرصيد الشهري": 2,
         "تاريخ التعيين": "2020-01-01",
         "تاريخ العودة": "2025-01-15",
         "القسم": "المحاسبة",
+        "الفرع": "القاهرة الرئيسي",
       },
       {
         "الكود الوظيفي": "1002",
         "الاسم الكامل": "سارة محمود",
         "المنصب": "مهندسة",
+        "مكان السكن": "الجيزة",
+        "رقم الهاتف": "+201098765432",
         "البريد الإلكتروني": "sara@example.com",
         "الرصيد الحالي": 15,
         "الرصيد الشهري": 2,
         "تاريخ التعيين": "2021-06-01",
         "تاريخ العودة": "",
         "القسم": "الهندسة",
+        "الفرع": "",
       },
       {
         "الكود الوظيفي": "1003",
         "الاسم الكامل": "",
         "المنصب": "",
+        "مكان السكن": "",
+        "رقم الهاتف": "",
         "البريد الإلكتروني": "",
         "الرصيد الحالي": 10,
         "الرصيد الشهري": "",
         "تاريخ التعيين": "",
         "تاريخ العودة": "",
         "القسم": "",
+        "الفرع": "",
       },
     ];
     const ws = XLSX.utils.json_to_sheet(template);
     // تنسيق عرض الأعمدة
     ws["!cols"] = [
-      { wch: 14 }, { wch: 22 }, { wch: 16 }, { wch: 28 },
-      { wch: 12 }, { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 14 },
+      { wch: 14 }, { wch: 22 }, { wch: 16 }, { wch: 18 }, { wch: 20 }, { wch: 28 },
+      { wch: 12 }, { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 20 },
     ];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "نموذج الموظفين");
@@ -1662,7 +1672,9 @@ const VacationManagementSystem = () => {
       // تجهيز البيانات من الملف — فقط الحقول الموجودة فعلاً
       const fileRows = jsonData.map((row: any) => {
         const deptName = row["القسم"] || "";
-        const dept = departments.find(d => d.name === deptName);
+        const dept = departments.find(d => String(d.name).trim() === String(deptName).trim());
+        const branchName = row["الفرع"] || row["branch"] || row["branch_name"] || "";
+        const branch = branches.find(b => String(b.name).trim() === String(branchName).trim() || String(b.code || "").trim() === String(branchName).trim());
 
         const parsed: any = {};
 
@@ -1678,6 +1690,9 @@ const VacationManagementSystem = () => {
 
         const residence = row["مكان السكن"] || row["السكن"] || row["residence"] || row["address"];
         if (residence !== undefined && residence !== "") parsed.residence = String(residence).trim();
+
+        const phone = row["رقم الهاتف"] || row["الهاتف"] || row["phone"] || row["mobile"];
+        if (phone !== undefined && phone !== "") parsed.phone = String(phone).trim();
 
         const email = row["البريد الإلكتروني"] || row["email"] || row["البريد"];
         if (email !== undefined && email !== "") parsed.email = String(email).trim();
@@ -1696,6 +1711,8 @@ const VacationManagementSystem = () => {
 
         if (dept) parsed.department_id = dept.id;
         else if (deptName) parsed.department_id = null;
+        if (branch) parsed.branch_id = branch.id;
+        else if (branchName) parsed.branch_id = null;
 
         return parsed;
       });
@@ -1736,12 +1753,14 @@ const VacationManagementSystem = () => {
           if (row.name !== undefined)             updatePayload.name = row.name;
           if (row.position !== undefined)         updatePayload.position = row.position;
           if (row.residence !== undefined)        updatePayload.residence = row.residence;
+          if (row.phone !== undefined)            updatePayload.phone = row.phone;
           if (row.email !== undefined)            updatePayload.email = row.email;
           if (row.balance !== undefined)          updatePayload.balance = row.balance;
           if (row.monthly_balance !== undefined)  updatePayload.monthly_balance = row.monthly_balance;
           if (row.hire_date !== undefined)        updatePayload.hire_date = row.hire_date || null;
           if (row.return_date !== undefined)      updatePayload.return_date = row.return_date || null;
           if (row.department_id !== undefined)    updatePayload.department_id = row.department_id;
+          if (row.branch_id !== undefined)        updatePayload.branch_id = row.branch_id;
           toUpdate.push(updatePayload);
           updatedCount++;
         } else {
@@ -1755,12 +1774,14 @@ const VacationManagementSystem = () => {
             code: row.code,
             position: row.position || null,
             residence: row.residence || null,
+            phone: row.phone || null,
             email: row.email || null,
             balance: row.balance ?? 21,
             monthly_balance: row.monthly_balance ?? 0,
             hire_date: row.hire_date || null,
             return_date: row.return_date || null,
             department_id: row.department_id || null,
+            branch_id: row.branch_id || null,
           });
           addedCount++;
         }
@@ -1813,8 +1834,10 @@ const VacationManagementSystem = () => {
         "الكود الوظيفي": emp.code || "",
         "المنصب": emp.position || "",
         "مكان السكن": emp.residence || "",
+        "رقم الهاتف": emp.phone || "",
         "البريد الإلكتروني": emp.email || "",
         "القسم": dept?.name || "",
+        "الفرع": branches.find((b: any) => b.id === emp.branch_id)?.name || "",
         "الرصيد الحالي": emp.balance ?? 0,
         "الرصيد الشهري": emp.monthly_balance ?? 0,
         "تاريخ التعيين": emp.hire_date || null,
@@ -2059,6 +2082,41 @@ const VacationManagementSystem = () => {
     await logAction("delete", "vacation_requests", id, req);
     fetchData();
     alert("✅ تم حذف السجل.\nملاحظة: رصيد الموظف وحالته لم يتغيرا.");
+  };
+
+  const handleDeleteApprovedVacation = async (requestId: string, selectionId?: string) => {
+    if (!requirePermission("requests", "can_delete")) return;
+    const req = requests.find(r => String(r.id) === String(requestId));
+    if (!req) return alert("السجل غير موجود أو تم تحديث الصفحة");
+    const emp = employees.find(e => String(e.id) === String(req.employee_id));
+    if (!window.confirm(`حذف إجازة ${req.employee_name || emp?.name || "الموظف"}؟\nسيتم إعادة ${req.days} يوم إلى الرصيد إذا كان الطلب مقبولًا.`)) return;
+
+    const days = Number(req.days || 0);
+    const oldBalance = Number(emp?.balance || 0);
+    const shouldRestore = req.status === "approved" && days > 0 && !!emp;
+    if (shouldRestore) {
+      const { error: empError } = await supabase.from("employees").update({ balance: oldBalance + days }).eq("id", emp.id);
+      if (empError) return alert("تعذر إعادة الرصيد، لذلك لم يتم حذف السجل: " + empError.message);
+    }
+
+    const { error: deleteError } = await supabase.from("vacation_requests").delete().eq("id", requestId);
+    if (deleteError) {
+      if (shouldRestore) await supabase.from("employees").update({ balance: oldBalance }).eq("id", emp.id);
+      return alert("تعذر حذف السجل وتمت إعادة الرصيد كما كان: " + deleteError.message);
+    }
+
+    if (shouldRestore) {
+      await supabase.from("balance_updates").insert([{
+        employee_id: emp.id,
+        amount: days,
+        update_date: getLocalISODate(),
+        description: `إعادة رصيد بعد حذف إجازة مكررة: ${days} يوم`,
+      }]);
+    }
+    await logAction("delete_approved_vacation", "vacation_requests", requestId, req, { restored_days: shouldRestore ? days : 0 });
+    if (selectionId) setSelectedPrintIds(prev => { const next = new Set(prev); next.delete(selectionId); return next; });
+    await fetchData();
+    alert("تم حذف سجل الإجازة بنجاح" + (shouldRestore ? ` وإعادة ${days} يوم إلى الرصيد ✅` : " ✅"));
   };
 
   const handleUpdateVacation = async () => {
@@ -2463,6 +2521,13 @@ const VacationManagementSystem = () => {
 
     // تحذير الرصيد قبل الخصم؛ لا يتم الخصم بصمت إذا كان الرصيد غير كافٍ.
     const currentBalance = Number(emp.balance || 0);
+    const exactDuplicate = requests.find(req => String(req.employee_id) === String(emp.id)
+      && ["pending", "dept_approved", "approved"].includes(req.status)
+      && !req.actual_return_date
+      && String(req.effective_start_date || req.start_date).slice(0, 10) === effectiveStart
+      && Number(req.days || 0) === days
+      && String(req.vacation_type_id || "") === String(directVacForm.vacation_type_id || ""));
+    if (exactDuplicate) return alert("هذه الإجازة موجودة بالفعل لهذا الموظف بنفس التاريخ والمدة والنوع، ولن يتم تكرارها ❌");
     if (currentBalance < days) {
       const proceed = window.confirm(`رصيد الموظف ${currentBalance} يوم، بينما الإجازة ${days} يوم. سيصبح الرصيد ${currentBalance - days} يوم. هل تريد المتابعة؟`);
       if (!proceed) return;
@@ -2482,6 +2547,8 @@ const VacationManagementSystem = () => {
     if (departmentOverlap.length > 0 && !window.confirm(`يوجد ${departmentOverlap.length} موظف في إجازة متداخلة داخل نفس القسم. هل تريد المتابعة؟`)) return;
     if (maxSimultaneous > 0 && departmentOverlap.length + 1 > maxSimultaneous && !window.confirm(`هذا القرار سيتجاوز الحد المتزامن للقسم (${maxSimultaneous}). هل تريد المتابعة؟`)) return;
 
+    if (directVacationSubmittingRef.current) return alert("جاري حفظ الإجازة المباشرة، انتظر لحظة...");
+    directVacationSubmittingRef.current = true;
     setIsSubmitting(true);
     const approvedAt = new Date().toISOString();
     const { error: reqErr } = await supabase.from("vacation_requests").insert([{
@@ -2497,9 +2564,11 @@ const VacationManagementSystem = () => {
       status: "approved",
       owner_approved_by: currentUser?.name || "الإدارة",
       owner_approved_at: approvedAt,
+      direct_vacation_key: `${emp.id}|${effectiveStart}|${days}|${directVacForm.vacation_type_id}`,
     }]);
     if (reqErr) {
       setIsSubmitting(false);
+      directVacationSubmittingRef.current = false;
       alert("تعذر حفظ الإجازة المباشرة: " + reqErr.message);
       return;
     }
@@ -2517,6 +2586,7 @@ const VacationManagementSystem = () => {
       // لا نترك طلبًا مقبولًا بلا تحديث للموظف؛ نحاول حذف الطلب الذي أُنشئ في نفس العملية.
       await supabase.from("vacation_requests").delete().eq("employee_id", emp.id).eq("start_date", effectiveStart).eq("status", "approved").eq("owner_approved_at", approvedAt);
       setIsSubmitting(false);
+      directVacationSubmittingRef.current = false;
       alert("تعذر تحديث بيانات الموظف، وتم التراجع عن الإجازة المباشرة: " + empErr.message);
       return;
     }
@@ -2537,6 +2607,7 @@ const VacationManagementSystem = () => {
     setDirectVacForm({ employee_id: "", days: 1, start_date: "", notes: "", vacation_type_id: "" });
     setEmpSearchDirect("");
     setIsSubmitting(false);
+    directVacationSubmittingRef.current = false;
     await fetchData();
     alert(`✅ تمت إضافة إجازة ${emp.name} بنجاح!\nتاريخ العودة: ${formatDate(back)}`);
   };
@@ -5268,9 +5339,15 @@ const VacationManagementSystem = () => {
                                     <td style={{ border:"1px solid #94a3b8", padding:"10px 8px", color:"#1e293b", textAlign:"center" }}>
                                       <div style={{ display:"flex", gap:"6px", justifyContent:"center" }}>
                                         {lastReq && (
-                                          <button onClick={() => openReturnModal(lastReq)}
+                                          <button onClick={() => openReturnModal(lastReq) }
                                             style={{ padding:"6px 10px", background:"#dcfce7", color:"#16a34a", border:"none", borderRadius:"8px", fontWeight:"700", cursor:"pointer", fontSize:"12px", fontFamily:"inherit", whiteSpace:"nowrap" }}>
                                             ✅ عودة
+                                          </button>
+                                        )}
+                                        {lastReq && hasPermission("requests", "can_delete") && (
+                                          <button onClick={() => handleDeleteApprovedVacation(lastReq.id, row.selectionId)}
+                                            style={{ padding:"6px 10px", background:"#fff1f2", color:"#dc2626", border:"none", borderRadius:"8px", fontWeight:"700", cursor:"pointer", fontSize:"12px", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+                                            🗑️ حذف
                                           </button>
                                         )}
                                         {!lastReq && (
@@ -5846,12 +5923,15 @@ const VacationManagementSystem = () => {
                       ["الكود الوظيفي","مطلوب دائماً ⭐"],
                       ["الاسم الكامل","مطلوب للإضافة الجديدة"],
                       ["المنصب","اختياري"],
+                      ["مكان السكن","اختياري"],
+                      ["رقم الهاتف","اختياري - مع كود الدولة مثل +20"],
                       ["البريد الإلكتروني","اختياري"],
                       ["الرصيد الحالي","اختياري - رقم"],
                       ["الرصيد الشهري","اختياري - رقم"],
                       ["تاريخ التعيين","اختياري - YYYY-MM-DD"],
                       ["تاريخ العودة","اختياري - YYYY-MM-DD"],
                       ["القسم","اختياري - اسم القسم"],
+                      ["الفرع","اختياري - اسم الفرع أو كوده"],
                     ].map(([col, note]) => (
                       <div key={col} style={{ display:"flex", gap:"6px", alignItems:"center", padding:"3px 0", borderBottom:"1px solid #f1f5f9" }}>
                         <span style={{ fontWeight:"700", color:"#1e293b", minWidth:"130px" }}>{col}</span>
