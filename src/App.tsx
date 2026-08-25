@@ -4762,7 +4762,7 @@ const VacationManagementSystem = () => {
                   : employees;
                 const scopedEmployeeMap = new Map(scopedVacEmployees.map(emp => [String(emp.id), emp]));
                 const approvedVacationRows = requests
-                  .filter(r => r.status === "approved" && !r.actual_return_date && !isRestVacationRequest(r, vacationTypes) && scopedEmployeeMap.has(String(r.employee_id)))
+                  .filter(r => r.status === "approved" && !isRestVacationRequest(r, vacationTypes) && scopedEmployeeMap.has(String(r.employee_id)))
                   .map((r, requestIndex) => {
                     const emp = scopedEmployeeMap.get(String(r.employee_id));
                     const effectiveStart = r.effective_start_date || r.start_date || getActualStartDate(r.departure_date || r.start_date, r.departure_time || "actual");
@@ -4786,6 +4786,28 @@ const VacationManagementSystem = () => {
                   })
                   .filter(row => row.emp && row.lastReq?.__effectiveStart);
 
+                // «راحة» تظهر في السجل للطباعة والتصدير، لكنها ليست إجازة فعلية ولا تدخل في حالة الموظف أو تنبيهات العودة.
+                const restVacationRows = requests
+                  .filter(r => r.status === "approved" && isRestVacationRequest(r, vacationTypes) && scopedEmployeeMap.has(String(r.employee_id)))
+                  .map((r, requestIndex) => {
+                    const emp = scopedEmployeeMap.get(String(r.employee_id));
+                    const effectiveStart = r.effective_start_date || r.start_date || getActualStartDate(r.departure_date || r.start_date, r.departure_time || "actual");
+                    const calc = getCalculatedDates(effectiveStart, Number(r.days || 0));
+                    return {
+                      emp,
+                      lastReq: { ...r, __effectiveStart: effectiveStart, __end: calc.end, __back: calc.back },
+                      dept: departments.find(d => d.id === emp?.department_id),
+                      vacType: vacationTypes.find(vt => String(vt.id) === String(r.vacation_type_id)),
+                      back: calc.back,
+                      end: calc.end,
+                      daysLeft: null,
+                      daysElapsed: 0,
+                      selectionId: `rest:${String(r.id || `${r.employee_id}-${effectiveStart}-${r.days}-${requestIndex}`)}`,
+                      source: "راحة",
+                      isRestDay: true,
+                    };
+                  });
+
                 // الإجازة المباشرة أو اليدوية التي لا يوجد لها طلب مقبول محفوظ.
                 const approvedEmployeeIds = new Set(approvedVacationRows.map(row => String(row.emp.id)));
                 const manualVacationRows = scopedVacEmployees
@@ -4806,10 +4828,11 @@ const VacationManagementSystem = () => {
                       daysElapsed,
                       selectionId: `manual:${String(emp.id)}`,
                       source: "إجازة مباشرة",
+                      isRestDay: false,
                     };
                   });
 
-                const vacRows = [...approvedVacationRows, ...manualVacationRows];
+                const vacRows = [...approvedVacationRows, ...restVacationRows, ...manualVacationRows];
 
                 // فلترة بحث وقسم
                 const activeVacationSearch = normalizeSearchText(vacSearch2);
@@ -4818,7 +4841,7 @@ const VacationManagementSystem = () => {
                   const employeeCode = normalizeSearchText(row.emp?.code);
                   const matchSearch = !activeVacationSearch || employeeName.includes(activeVacationSearch) || employeeCode.includes(activeVacationSearch);
                   const matchDept = vacDeptFilters2.length === 0 || vacDeptFilters2.includes(String(row.emp?.department_id ?? ""));
-                  const matchType = !vacTypeFilter2 || vacTypeFilter2 === "all" || row.lastReq?.vacation_type_id === vacTypeFilter2;
+                  const matchType = !vacTypeFilter2 || vacTypeFilter2 === "all" || String(row.lastReq?.vacation_type_id || "") === String(vacTypeFilter2);
                   const rowStartDate = normalizeDateKey(row.lastReq?.__effectiveStart || row.lastReq?.effective_start_date || row.lastReq?.start_date || row.emp.leave_start_date || "");
                   const matchDateFrom = !activeVacDateFrom || (rowStartDate && rowStartDate >= activeVacDateFrom);
                   const matchDateTo = !activeVacDateTo || (rowStartDate && rowStartDate <= activeVacDateTo);
@@ -5263,7 +5286,7 @@ const VacationManagementSystem = () => {
                         {vacationTypes.map(vt => <option key={vt.id} value={vt.id}>{vt.name}</option>)}
                       </select>
                       <div style={{ background:"#eef2ff", color:"#4f46e5", borderRadius:"10px", padding:"10px 16px", fontWeight:"800", fontSize:"13px", whiteSpace:"nowrap" }}>
-                        {filtered.length} موظف في إجازة
+                        {filtered.length} سجل إجازة
                       </div>
                     </div>
                     {/* صف ثاني: فلتر تاريخ + ترتيب */}
@@ -5292,7 +5315,7 @@ const VacationManagementSystem = () => {
                       {filtered.length === 0 ? (
                         <div style={{ padding:"60px", textAlign:"center", color:"#94a3b8" }}>
                           <CheckCircle size={48} style={{ margin:"0 auto 12px", opacity:0.3, display:"block" }}/>
-                          <p style={{ fontWeight:"700", fontSize:"16px" }}>لا يوجد موظفون في إجازة الآن ✅</p>
+                          <p style={{ fontWeight:"700", fontSize:"16px" }}>لا توجد سجلات إجازات مقبولة مطابقة للفلاتر ✅</p>
                         </div>
                       ) : (
                         <div style={{ overflowX:"auto" }}>
@@ -5316,7 +5339,7 @@ const VacationManagementSystem = () => {
                             </thead>
                             <tbody>
                               {filtered.map(row => {
-                                const { emp, lastReq, dept, vacType, back, end, daysLeft, daysElapsed, source } = row;
+                                const { emp, lastReq, dept, vacType, back, end, daysLeft, daysElapsed, source, isRestDay } = row;
                                 return (
                                   <tr key={row.selectionId} style={{ borderBottom:"1px solid #f1f5f9" }}
                                     onMouseEnter={e => (e.currentTarget.style.background="#f8fafc")}
@@ -5369,13 +5392,13 @@ const VacationManagementSystem = () => {
                                     <td style={{ border:"1px solid #94a3b8", padding:"10px 8px", color:"#1e293b", textAlign:"center" }}>
                                       <span style={{
                                         padding:"3px 10px", borderRadius:"20px", fontSize:"11px", fontWeight:"700",
-                                        background: source === "طلب" ? "#eef2ff" : "#fef3c7",
-                                        color: source === "طلب" ? "#4f46e5" : "#d97706"
+                                        background: source === "طلب" ? "#eef2ff" : source === "راحة" ? "#e0f2fe" : "#fef3c7",
+                                        color: source === "طلب" ? "#4f46e5" : source === "راحة" ? "#0369a1" : "#d97706"
                                       }}>{source}</span>
                                     </td>
                                     <td style={{ border:"1px solid #94a3b8", padding:"10px 8px", color:"#1e293b", textAlign:"center" }}>
                                       <div style={{ display:"flex", gap:"6px", justifyContent:"center" }}>
-                                        {lastReq && (
+                                        {lastReq && !isRestDay && (
                                           <button onClick={() => openReturnModal(lastReq) }
                                             style={{ padding:"6px 10px", background:"#dcfce7", color:"#16a34a", border:"none", borderRadius:"8px", fontWeight:"700", cursor:"pointer", fontSize:"12px", fontFamily:"inherit", whiteSpace:"nowrap" }}>
                                             ✅ عودة
