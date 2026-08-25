@@ -201,11 +201,18 @@ const calculateWorkedDays = (returnDate: string, isOnVacation: boolean = false) 
   return Math.floor((today.getTime() - start.getTime()) / 86400000) + 1;
 };
 
+// نوع «راحة» يخصم الرصيد فقط ولا يغيّر حالة الموظف ولا يدخل ضمن الإجازات الفعلية.
+const isRestVacationType = (vacationType: any): boolean => String(vacationType?.name || vacationType || "").trim() === "راحة";
+const isRestVacationRequest = (request: any, vacationTypes: any[] = []): boolean => {
+  const type = vacationTypes.find(vt => String(vt.id) === String(request?.vacation_type_id));
+  return isRestVacationType(type) || isRestVacationType(request?.vacation_type_name);
+};
+
 // الطلب المقبول الجاري للموظف، مع احترام تاريخ البداية الفعلي وعدم احتساب الطلبات المستقبلية.
-const getCurrentApprovedVacationRequest = (employee: any, employeeRequests: any[] = [], today = getLocalISODate()) => {
+const getCurrentApprovedVacationRequest = (employee: any, employeeRequests: any[] = [], vacationTypes: any[] = [], today = getLocalISODate()) => {
   if (!employee) return null;
   return employeeRequests
-    .filter(r => r.employee_id === employee.id && r.status === "approved" && !r.actual_return_date)
+    .filter(r => r.employee_id === employee.id && r.status === "approved" && !r.actual_return_date && !isRestVacationRequest(r, vacationTypes))
     .map(r => {
       const effectiveStart = r.effective_start_date || r.start_date || getActualStartDate(r.departure_date || r.start_date, r.departure_time || "actual");
       const { back } = getCalculatedDates(effectiveStart, Number(r.days || 0));
@@ -217,10 +224,13 @@ const getCurrentApprovedVacationRequest = (employee: any, employeeRequests: any[
 
 // مدة الإجازة الممنوحة ثابتة من الطلب، وليست عدادًا يوميًا.
 // عمود أيام العمل هو المسؤول عن العد من بداية الفترة الحالية حتى اليوم.
-const calculateCurrentLeaveDays = (employee: any, employeeRequests: any[] = []) => {
+const calculateCurrentLeaveDays = (employee: any, employeeRequests: any[] = [], vacationTypes: any[] = []) => {
   if (!employee || employee.status !== "إجازة") return 0;
 
-  const openReq = getCurrentApprovedVacationRequest(employee, employeeRequests);
+  const openReq = getCurrentApprovedVacationRequest(employee, employeeRequests, vacationTypes);
+  const hasRestRequest = employeeRequests.some(r => r.employee_id === employee.id && r.status === "approved" && isRestVacationRequest(r, vacationTypes));
+  const hasNonRestRequest = employeeRequests.some(r => r.employee_id === employee.id && r.status === "approved" && !isRestVacationRequest(r, vacationTypes));
+  if (!openReq && hasRestRequest && !hasNonRestRequest) return 0;
   const plannedDays = Number(openReq?.days || 0);
   if (plannedDays > 0) return plannedDays;
 
@@ -236,10 +246,13 @@ const calculateCurrentLeaveDays = (employee: any, employeeRequests: any[] = []) 
 };
 
 // أيام الفترة الحالية: في العمل من تاريخ العودة، وفي الإجازة من تاريخ بدايتها الفعلية.
-const calculateCurrentPeriodDays = (employee: any, employeeRequests: any[] = []) => {
+const calculateCurrentPeriodDays = (employee: any, employeeRequests: any[] = [], vacationTypes: any[] = []) => {
   if (!employee) return 0;
-  const isOnVacation = employee.status === "إجازة";
-  const openReq = isOnVacation ? getCurrentApprovedVacationRequest(employee, employeeRequests) : null;
+  const hasRestRequest = employeeRequests.some(r => r.employee_id === employee.id && r.status === "approved" && isRestVacationRequest(r, vacationTypes));
+  const hasNonRestRequest = employeeRequests.some(r => r.employee_id === employee.id && r.status === "approved" && !isRestVacationRequest(r, vacationTypes));
+  const restOnlyStatus = employee.status === "إجازة" && hasRestRequest && !hasNonRestRequest;
+  const isOnVacation = employee.status === "إجازة" && !restOnlyStatus;
+  const openReq = isOnVacation ? getCurrentApprovedVacationRequest(employee, employeeRequests, vacationTypes) : null;
   const startDate = isOnVacation
     ? (employee.leave_start_date || openReq?.__effectiveStart || "")
     : (employee.return_date || "");
@@ -562,11 +575,11 @@ const MultiSelectDropdown = ({
 };
 
 
-const DailyFollowupPanel = ({ isOwner, employees, requests, departments, dueReturns, onTab }: any) => {
+const DailyFollowupPanel = ({ isOwner, employees, requests, departments, vacationTypes = [], dueReturns, onTab }: any) => {
   if (!isOwner) return null;
   const todayKey = getLocalISODate();
   const startsToday = requests
-    .filter((req: any) => req.status === "approved" && !req.actual_return_date)
+    .filter((req: any) => req.status === "approved" && !req.actual_return_date && !isRestVacationRequest(req, vacationTypes))
     .map((req: any) => {
       const start = req.effective_start_date || req.start_date || getActualStartDate(req.departure_date || req.start_date, req.departure_time || "actual");
       return { req, start, emp: employees.find((emp: any) => String(emp.id) === String(req.employee_id)) };
@@ -577,7 +590,7 @@ const DailyFollowupPanel = ({ isOwner, employees, requests, departments, dueRetu
     .sort((a: any, b: any) => Number(a.balance || 0) - Number(b.balance || 0))
     .slice(0, 6);
   const conflictMap = new Map<string, any[]>();
-  requests.filter((req: any) => req.status === "approved" && !req.actual_return_date).forEach((req: any) => {
+  requests.filter((req: any) => req.status === "approved" && !req.actual_return_date && !isRestVacationRequest(req, vacationTypes)).forEach((req: any) => {
     const emp = employees.find((item: any) => String(item.id) === String(req.employee_id));
     const start = normalizeDateKey(req.effective_start_date || req.start_date || getActualStartDate(req.departure_date || req.start_date, req.departure_time || "actual"));
     if (!emp?.department_id || !start) return;
@@ -986,14 +999,14 @@ const VacationManagementSystem = () => {
 
   // إشعارات الموظفين الذين انتهت إجازاتهم وحان موعد عودتهم.
   // الطلب المقبول والإجازة المباشرة يعالجان معًا، مع منع تكرار نفس الموظف/الطلب.
-  const getDueReturnNotifications = (employeeRows: any[] = employees, requestRows: any[] = requests): any[] => {
+  const getDueReturnNotifications = (employeeRows: any[] = employees, requestRows: any[] = requests, vacationTypeRows: any[] = vacationTypes): any[] => {
     const today = getLocalISODate();
     const employeeMap = new Map(employeeRows.map(emp => [String(emp.id), emp]));
     const due: any[] = [];
     const dueEmployeeIds = new Set<string>();
 
     requestRows
-      .filter(req => req.status === "approved" && !req.actual_return_date)
+      .filter(req => req.status === "approved" && !req.actual_return_date && !isRestVacationRequest(req, vacationTypeRows))
       .forEach((req, index) => {
         const emp = employeeMap.get(String(req.employee_id));
         const effectiveStart = req.effective_start_date || req.start_date || getActualStartDate(req.departure_date || req.start_date, req.departure_time || "actual");
@@ -1125,7 +1138,7 @@ const VacationManagementSystem = () => {
   // إشعار العودة المستحقة: يظهر في مركز الإشعارات، ويمكن إرساله للمتصفح مرة واحدة لكل طلب.
   useEffect(() => {
     if (currentView !== "admin") return;
-    const dueReturnNotifs = getDueReturnNotifications(employees, requests);
+    const dueReturnNotifs = getDueReturnNotifications(employees, requests, vacationTypes);
     dueReturnNotifs.forEach(notif => {
       if (returnDueNotifiedRef.current.has(notif.id)) return;
       returnDueNotifiedRef.current.add(notif.id);
@@ -1144,7 +1157,7 @@ const VacationManagementSystem = () => {
     const tomorrowStr = tomorrow.toISOString().split("T")[0];
 
     requests.forEach(req => {
-      if (req.status !== "approved") return;
+      if (req.status !== "approved" || isRestVacationRequest(req, vacationTypes)) return;
       const { back } = getCalculatedDates(req.start_date, req.days);
       if (back === tomorrowStr) {
         const emp = employees.find(e => e.id === req.employee_id);
@@ -1169,7 +1182,7 @@ const VacationManagementSystem = () => {
 
       employees.forEach((emp, index) => {
         const approved = requests
-          .filter(r => r.employee_id === emp.id && r.status === "approved" && !r.actual_return_date)
+          .filter(r => r.employee_id === emp.id && r.status === "approved" && !r.actual_return_date && !isRestVacationRequest(r, vacationTypes))
           .map(r => {
             const effectiveStart = r.effective_start_date || r.start_date || getActualStartDate(r.departure_date || r.start_date, r.departure_time || "actual");
             const { back } = getCalculatedDates(effectiveStart, Number(r.days || 0));
@@ -1208,7 +1221,7 @@ const VacationManagementSystem = () => {
     reconcileExistingEmployeeLeaveStatuses();
     const timer = window.setInterval(reconcileExistingEmployeeLeaveStatuses, 60_000);
     return () => { cancelled = true; window.clearInterval(timer); };
-  }, [employees, requests, currentView, currentUser]);
+  }, [employees, requests, vacationTypes, currentView, currentUser]);
 
   // ========== حالة الموظف تلقائياً ==========
   const getEmployeeStatus = (emp: any) => {
@@ -1828,7 +1841,7 @@ const VacationManagementSystem = () => {
     const exportData = isEmpData ? data.map(emp => {
       const dept = departments.find((d: any) => d.id === emp.department_id);
       const status = getEmployeeStatus(emp);
-      const workedDays = calculateCurrentPeriodDays(emp, requests);
+      const workedDays = calculateCurrentPeriodDays(emp, requests, vacationTypes);
       return {
         "الاسم الكامل": emp.name || "",
         "الكود الوظيفي": emp.code || "",
@@ -1858,7 +1871,7 @@ const VacationManagementSystem = () => {
       const totalVacDays = empRequests.reduce((sum, r) => sum + Number(r.days), 0);
       const dept = departments.find(d => d.id === emp.department_id);
       const status = getEmployeeStatus(emp);
-      const workedDays = calculateCurrentPeriodDays(emp, requests);
+      const workedDays = calculateCurrentPeriodDays(emp, requests, vacationTypes);
       return {
         "الاسم": emp.name, "الكود الوظيفي": emp.code, "المنصب": emp.position,
         "البريد الإلكتروني": emp.email || "-",
@@ -1867,7 +1880,7 @@ const VacationManagementSystem = () => {
         "تاريخ العودة": formatDate(emp.return_date),
         "الرصيد الحالي": emp.balance, "الرصيد الشهري": emp.monthly_balance,
         "إجمالي أيام الإجازة": totalVacDays,
-        "أيام الإجازة الحالية": calculateCurrentLeaveDays(emp, requests),
+        "أيام الإجازة الحالية": calculateCurrentLeaveDays(emp, requests, vacationTypes),
         "أيام العمل بعد العودة": workedDays,
         "حالة الموظف": status,
         "عدد الطلبات": empRequests.length,
@@ -2002,14 +2015,23 @@ const VacationManagementSystem = () => {
       const effectiveStart = currentRequest.effective_start_date || currentRequest.start_date || getActualStartDate(currentRequest.departure_date || currentRequest.start_date, currentRequest.departure_time || "actual");
       const { back: backDate } = getCalculatedDates(effectiveStart, days);
       const todayStr = getLocalISODate();
-      const empUpdatePayload: any = {
-        balance: Number(emp.balance) - Number(days),
-        return_date: backDate,
-        leave_start_date: effectiveStart,
-      };
+      const approvedVacationType = vacationTypes.find(vt => String(vt.id) === String(currentRequest.vacation_type_id));
+      const isRestDay = isRestVacationType(approvedVacationType);
+      const empUpdatePayload: any = isRestDay
+        ? {
+            balance: Number(emp.balance) - Number(days),
+            status: emp.status || "عمل",
+            leave_start_date: emp.leave_start_date || null,
+            return_date: emp.return_date || null,
+          }
+        : {
+            balance: Number(emp.balance) - Number(days),
+            return_date: backDate,
+            leave_start_date: effectiveStart,
+          };
       // الطلب المقبول مستقبلاً لا يغيّر حالة الموظف قبل أول يوم فعلي.
-      if (todayStr >= effectiveStart) empUpdatePayload.status = "إجازة";
-      else if (emp.status !== "إجازة") empUpdatePayload.status = "عمل";
+      if (!isRestDay && todayStr >= effectiveStart) empUpdatePayload.status = "إجازة";
+      else if (!isRestDay && emp.status !== "إجازة") empUpdatePayload.status = "عمل";
       const { error: empUpdateError } = await supabase.from("employees").update(empUpdatePayload).eq("id", emp.id);
       if (empUpdateError) {
         alert("تعذر تحديث رصيد وحالة الموظف قبل اعتماد الطلب: " + empUpdateError.message);
@@ -2033,7 +2055,7 @@ const VacationManagementSystem = () => {
           admin_notes: adminNotes || "لا توجد ملاحظات", request_id: id,
         });
       }
-      await sendExternalNotification("vacation_request_decision", { request_id:id, employee_name:emp.name, phone:emp.phone || null, email:emp.email || null, decision:"approved", days, start_date:effectiveStart });
+      await sendExternalNotification("vacation_request_decision", { request_id:id, employee_name:emp.name, phone:emp.phone || null, email:emp.email || null, decision:"approved", days, start_date:effectiveStart, vacation_type:approvedVacationType?.name || "" , is_rest_day:isRestDay });
       if (approvalSignature.trim()) {
         const { error: signatureError } = await supabase.from("vacation_signatures").upsert([{
           request_id: id,
@@ -2045,7 +2067,7 @@ const VacationManagementSystem = () => {
         }], { onConflict:"request_id,signer_type,signer_name" });
         if (signatureError) console.warn("تعذر حفظ التوقيع الإلكتروني:", signatureError.message);
       }
-      sendLocalNotification("تمت الموافقة على اجازة", emp.name + " - " + days + " يوم");
+      sendLocalNotification(isRestDay ? "تمت الموافقة على راحة" : "تمت الموافقة على اجازة", emp.name + " - " + days + " يوم");
       setShowApprovalModal(false); setCurrentRequest(null); setAdminNotes(""); setApprovalSignature("");
       fetchData();
       await logAction("approved", "vacation_requests", id, oldData, { status: "approved", approved_by: approvedBy });
@@ -2448,13 +2470,22 @@ const VacationManagementSystem = () => {
       }
       const effectiveStart = statusChangeForm.start_date || new Date().toISOString().split("T")[0];
       const todayStr = new Date().toISOString().split("T")[0];
-      const manualPayload: any = {
-        leave_start_date: effectiveStart,
-        return_date: statusChangeForm.start_date && days > 0 ? getCalculatedDates(effectiveStart, days).back : null,
-        ...(days > 0 ? { balance: Number(emp.balance) - days } : {}),
-      };
-      // لا تصبح إجازة في قاعدة البيانات قبل أول يوم فعلي.
-      if (todayStr >= effectiveStart) manualPayload.status = "إجازة";
+      const selectedVacationType = vacationTypes.find(vt => String(vt.id) === String(statusChangeForm.vacation_type_id));
+      const isRestDay = isRestVacationType(selectedVacationType);
+      const manualPayload: any = isRestDay
+        ? {
+            ...(days > 0 ? { balance: Number(emp.balance) - days } : {}),
+            status: emp.status || "عمل",
+            leave_start_date: emp.leave_start_date || null,
+            return_date: emp.return_date || null,
+          }
+        : {
+            leave_start_date: effectiveStart,
+            return_date: statusChangeForm.start_date && days > 0 ? getCalculatedDates(effectiveStart, days).back : null,
+            ...(days > 0 ? { balance: Number(emp.balance) - days } : {}),
+          };
+      // الإجازة العادية تصبح إجازة عند بدايتها؛ «راحة» لا تغيّر الحالة أبدًا.
+      if (!isRestDay && todayStr >= effectiveStart) manualPayload.status = "إجازة";
       await supabase.from("employees").update(manualPayload).eq("id", emp.id);
       // إضافة سجل إجازة لو كانت فيه بيانات
       if (statusChangeForm.start_date && statusChangeForm.vacation_type_id) {
@@ -2471,8 +2502,8 @@ const VacationManagementSystem = () => {
           owner_approved_at: new Date().toISOString(),
         }]);
       }
-      await logAction("manual_status", "employees", emp.id, { status: emp.status }, { status: "إجازة" });
-      alert(`✅ تم تغيير حالة ${emp.name} إلى إجازة`);
+      await logAction("manual_status", "employees", emp.id, { status: emp.status }, { status: isRestDay ? (emp.status || "عمل") : "إجازة", rest_day: isRestDay, deducted_days: isRestDay ? days : 0 });
+      alert(isRestDay ? `✅ تم تسجيل راحة ${emp.name} وخصم ${days} يوم من الرصيد، والحالة تظل عمل` : `✅ تم تغيير حالة ${emp.name} إلى إجازة`);
     } else {
       // تغيير إلى عمل
       await supabase.from("employees").update({
@@ -2505,9 +2536,11 @@ const VacationManagementSystem = () => {
     const todayStr = getLocalISODate();
     const { back } = getCalculatedDates(effectiveStart, days);
     if (!back) return alert("تعذر حساب تاريخ العودة؛ راجع تاريخ البداية وعدد الأيام ❌");
+    const selectedVacationType = vacationTypes.find(vt => String(vt.id) === String(directVacForm.vacation_type_id));
+    const isRestDay = isRestVacationType(selectedVacationType);
 
     // منع إنشاء إجازة مباشرة متداخلة للموظف نفسه.
-    const sameEmployeeOverlap = requests.filter(req => {
+    const sameEmployeeOverlap = isRestDay ? [] : requests.filter(req => {
       if (String(req.employee_id) !== String(emp.id) || req.actual_return_date) return false;
       if (!["pending", "dept_approved", "approved"].includes(req.status)) return false;
       const reqStart = req.effective_start_date || req.start_date;
@@ -2534,7 +2567,7 @@ const VacationManagementSystem = () => {
     }
 
     const dept = departments.find(d => String(d.id) === String(emp.department_id));
-    const departmentOverlap = requests.filter(req => {
+    const departmentOverlap = isRestDay ? [] : requests.filter(req => {
       if (String(req.employee_id) === String(emp.id) || req.actual_return_date) return false;
       if (!["pending", "dept_approved", "approved"].includes(req.status)) return false;
       const otherEmp = employees.find(item => String(item.id) === String(req.employee_id));
@@ -2573,14 +2606,21 @@ const VacationManagementSystem = () => {
       return;
     }
 
-    // تاريخ العودة يُحفظ دائمًا، والحالة تكون إجازة فقط أثناء الفترة الفعلية.
-    const isCurrentlyOnLeave = todayStr >= effectiveStart && todayStr < back;
-    const directPayload: any = {
-      balance: currentBalance - days,
-      status: isCurrentlyOnLeave ? "إجازة" : "عمل",
-      leave_start_date: isCurrentlyOnLeave || todayStr < effectiveStart ? effectiveStart : null,
-      return_date: back,
-    };
+    // «راحة» تخصم الرصيد فقط؛ لا تغيّر حالة الموظف ولا تاريخ العودة ولا عداد أيام العمل.
+    const isCurrentlyOnLeave = !isRestDay && todayStr >= effectiveStart && todayStr < back;
+    const directPayload: any = isRestDay
+      ? {
+          balance: currentBalance - days,
+          status: emp.status || "عمل",
+          leave_start_date: emp.leave_start_date || null,
+          return_date: emp.return_date || null,
+        }
+      : {
+          balance: currentBalance - days,
+          status: isCurrentlyOnLeave ? "إجازة" : "عمل",
+          leave_start_date: isCurrentlyOnLeave || todayStr < effectiveStart ? effectiveStart : null,
+          return_date: back,
+        };
     const { error: empErr } = await supabase.from("employees").update(directPayload).eq("id", emp.id);
     if (empErr) {
       // لا نترك طلبًا مقبولًا بلا تحديث للموظف؛ نحاول حذف الطلب الذي أُنشئ في نفس العملية.
@@ -2609,7 +2649,9 @@ const VacationManagementSystem = () => {
     setIsSubmitting(false);
     directVacationSubmittingRef.current = false;
     await fetchData();
-    alert(`✅ تمت إضافة إجازة ${emp.name} بنجاح!\nتاريخ العودة: ${formatDate(back)}`);
+    alert(isRestDay
+      ? `✅ تم تسجيل راحة ${emp.name} بنجاح!\nتم خصم ${days} يوم من الرصيد، وحالة الموظف تظل عمل.`
+      : `✅ تمت إضافة إجازة ${emp.name} بنجاح!\nتاريخ العودة: ${formatDate(back)}`);
   };
 
   // ========== DEPARTMENT OPERATIONS ==========
@@ -2828,12 +2870,12 @@ const VacationManagementSystem = () => {
         if (empSortField === "balance")      { va = Number(a.balance ?? 0);      vb = Number(b.balance ?? 0); }
         else if (empSortField === "monthly") { va = Number(a.monthly_balance ?? 0); vb = Number(b.monthly_balance ?? 0); }
         else if (empSortField === "workedDays") {
-          va = calculateCurrentPeriodDays(a, requests);
-          vb = calculateCurrentPeriodDays(b, requests);
+          va = calculateCurrentPeriodDays(a, requests, vacationTypes);
+          vb = calculateCurrentPeriodDays(b, requests, vacationTypes);
         }
         else if (empSortField === "leaveDays") {
-          va = calculateCurrentLeaveDays(a, requests);
-          vb = calculateCurrentLeaveDays(b, requests);
+          va = calculateCurrentLeaveDays(a, requests, vacationTypes);
+          vb = calculateCurrentLeaveDays(b, requests, vacationTypes);
         }
         else if (empSortField === "name")     { va = (a.name||"").toLowerCase();   vb = (b.name||"").toLowerCase(); }
         else if (empSortField === "code")     { va = (a.code||"");                 vb = (b.code||""); }
@@ -3419,7 +3461,7 @@ const VacationManagementSystem = () => {
                   <span style={{ marginRight:"auto", background:"#ef4444", color:"white", fontSize:"10px", padding:"1px 6px", borderRadius:"10px", fontWeight:"900" }}>{notifications.length}</span>
                 )}
                 {item.id === "notifications_center" && (() => {
-                  const dueReturnsCount = getDueReturnNotifications(employees, requests).length;
+                  const dueReturnsCount = getDueReturnNotifications(employees, requests, vacationTypes).length;
                   const approvedOrRejectedCount = requests.filter(r => (r.status === "approved" || r.status === "rejected") && r.admin_notes).length;
                   const totalNotificationCount = dueReturnsCount + approvedOrRejectedCount;
                   return totalNotificationCount > 0 ? (
@@ -3550,14 +3592,9 @@ const VacationManagementSystem = () => {
                     );
                   })()}
                   {/* ===== لوحة المتابعة اليومية الاحترافية ===== */}
-                  <DailyFollowupPanel
-                    isOwner={isOwner}
-                    employees={employees}
-                    requests={requests}
-                    departments={departments}
-                    dueReturns={getDueReturnNotifications(employees, requests)}
-                    onTab={setActiveTab}
-                  />
+                                      <DailyFollowupPanel
+                    isOwner={isOwner} employees={employees} requests={requests} departments={departments} vacationTypes={vacationTypes}
+                    dueReturns={getDueReturnNotifications(employees, requests, vacationTypes)} onTab={setActiveTab} />
                   {/* ===== داشبورد مدير القسم المخصص ===== */}
                   {isDeptMgr && (() => {
                     const today = new Date().toISOString().split("T")[0];
@@ -3784,7 +3821,7 @@ const VacationManagementSystem = () => {
                             </div>
                             {(() => {
                               const ranked = [...deptEmps]
-                                .map(emp => ({ ...emp, workedDays: calculateCurrentPeriodDays(emp, requests) }))
+                                .map(emp => ({ ...emp, workedDays: calculateCurrentPeriodDays(emp, requests, vacationTypes) }))
                                 .filter(emp => emp.workedDays > 0)
                                 .sort((a,b) => b.workedDays - a.workedDays)
                                 .slice(0,5);
@@ -4056,7 +4093,7 @@ const VacationManagementSystem = () => {
                       <div style={{ display:"flex", flexDirection:"column", gap:"14px" }}>
                         {(() => {
                           const topWorked = [...employees]
-                            .map(emp => ({ ...emp, workedDays: calculateCurrentPeriodDays(emp, requests) }))
+                            .map(emp => ({ ...emp, workedDays: calculateCurrentPeriodDays(emp, requests, vacationTypes) }))
                             .filter(emp => emp.workedDays > 0)
                             .sort((a: any, b: any) => b.workedDays - a.workedDays)
                             .slice(0, 7);
@@ -4205,8 +4242,8 @@ const VacationManagementSystem = () => {
                         <tbody>
                           {filteredEmployees.map((emp, idx) => {
                             const empStatus = getEmployeeStatus(emp);
-                            const workedDays = calculateCurrentPeriodDays(emp, requests);
-                            const leaveDays = calculateCurrentLeaveDays(emp, requests);
+                            const workedDays = calculateCurrentPeriodDays(emp, requests, vacationTypes);
+                            const leaveDays = calculateCurrentLeaveDays(emp, requests, vacationTypes);
                             const dept = departments.find(d => d.id === emp.department_id);
                             const isOnLeave = empStatus === "إجازة";
                             return (
@@ -4725,7 +4762,7 @@ const VacationManagementSystem = () => {
                   : employees;
                 const scopedEmployeeMap = new Map(scopedVacEmployees.map(emp => [String(emp.id), emp]));
                 const approvedVacationRows = requests
-                  .filter(r => r.status === "approved" && !r.actual_return_date && scopedEmployeeMap.has(String(r.employee_id)))
+                  .filter(r => r.status === "approved" && !r.actual_return_date && !isRestVacationRequest(r, vacationTypes) && scopedEmployeeMap.has(String(r.employee_id)))
                   .map((r, requestIndex) => {
                     const emp = scopedEmployeeMap.get(String(r.employee_id));
                     const effectiveStart = r.effective_start_date || r.start_date || getActualStartDate(r.departure_date || r.start_date, r.departure_time || "actual");
@@ -5442,6 +5479,11 @@ const VacationManagementSystem = () => {
                           <option value="">اختر النوع...</option>
                           {vacationTypes.map(vt => <option key={vt.id} value={vt.id}>{vt.name}</option>)}
                         </select>
+                        {isRestVacationType(vacationTypes.find(vt => String(vt.id) === String(directVacForm.vacation_type_id))) && (
+                          <div style={{ marginTop:"6px", color:"#0369a1", background:"#e0f2fe", borderRadius:"10px", padding:"8px 10px", fontSize:"11px", fontWeight:"800" }}>
+                            ℹ️ «راحة»: يخصم الرصيد فقط، ولا يغيّر حالة الموظف ولا يوقف عداد أيام العمل.
+                          </div>
+                        )}
                       </div>
                       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"12px" }}>
                         <div>
@@ -5539,7 +5581,7 @@ const VacationManagementSystem = () => {
 
               {/* ===== NOTIFICATIONS CENTER ===== */}
               {activeTab === "notifications_center" && isOwner && (() => {
-                const dueReturnNotifs = getDueReturnNotifications(employees, requests);
+                const dueReturnNotifs = getDueReturnNotifications(employees, requests, vacationTypes);
                 const decisionNotifs = requests.filter(r => r.status === "approved" || r.status === "rejected");
                 const allNotifs = [...dueReturnNotifs, ...decisionNotifs];
                 const filtered = allNotifs
@@ -6379,8 +6421,8 @@ const VacationManagementSystem = () => {
         {showEmpInfoModal && empInfoTarget && (() => {
           const e = empInfoTarget;
           const eStatus = getEmployeeStatus(e);
-          const workedDays = calculateCurrentPeriodDays(e, requests);
-          const leaveDays = calculateCurrentLeaveDays(e, requests);
+          const workedDays = calculateCurrentPeriodDays(e, requests, vacationTypes);
+          const leaveDays = calculateCurrentLeaveDays(e, requests, vacationTypes);
           const dept = departments.find(d => d.id === e.department_id);
           const totalApproved = requests.filter(r => r.employee_id === e.id && r.status === "approved").reduce((s,r)=>s+Number(r.days),0);
           const pendingCount = requests.filter(r => r.employee_id === e.id && (r.status==="pending"||r.status==="dept_approved")).length;
@@ -6886,7 +6928,7 @@ const VacationManagementSystem = () => {
                   <TrendingUp size={20} className="text-white" />
                 </div>
                 <p style={{ fontSize: "11.5px", color: "#94a3b8", marginBottom: "6px", fontWeight: "700" }}>أيام العمل</p>
-                <p style={{ fontSize: "26px", fontWeight: "900", color: "#9333ea" }}>{calculateCurrentPeriodDays(currentUser, requests)}</p>
+                <p style={{ fontSize: "26px", fontWeight: "900", color: "#9333ea" }}>{calculateCurrentPeriodDays(currentUser, requests, vacationTypes)}</p>
                 <p style={{ fontSize: "10px", color: "#94a3b8", marginTop: "2px", fontWeight: "600" }}>منذ العودة</p>
               </div>
             )}
@@ -6929,6 +6971,11 @@ const VacationManagementSystem = () => {
                   <option value="">اختر النوع</option>
                   {vacationTypes.map(vt => <option key={vt.id} value={vt.id}>{vt.name}</option>)}
                 </select>
+                {isRestVacationType(vacationTypes.find(vt => String(vt.id) === String(newRequest.vacation_type_id))) && (
+                  <div style={{ marginTop:"6px", color:"#0369a1", background:"#e0f2fe", borderRadius:"10px", padding:"8px 10px", fontSize:"11px", fontWeight:"800" }}>
+                    ℹ️ «راحة»: يخصم الرصيد فقط، ولا يغيّر حالة الموظف ولا يوقف عداد أيام العمل.
+                  </div>
+                )}
               </div>
               <div>
                 <label style={{ fontSize: "13px", fontWeight: "700", color: "#667eea", marginBottom: "8px", display: "block" }}>تاريخ النزول</label>
