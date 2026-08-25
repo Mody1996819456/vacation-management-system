@@ -4782,6 +4782,7 @@ const VacationManagementSystem = () => {
                       daysElapsed,
                       selectionId: `request:${String(r.id || `${r.employee_id}-${effectiveStart}-${r.days}-${requestIndex}`)}`,
                       source: "طلب مقبول",
+                      isRestDay: false,
                     };
                   })
                   .filter(row => row.emp && row.lastReq?.__effectiveStart);
