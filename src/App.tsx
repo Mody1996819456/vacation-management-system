@@ -3443,7 +3443,7 @@ const VacationManagementSystem = () => {
   // ==================== ADMIN VIEW ====================
   if (currentView === "admin") {
     return (
-      <div className="min-h-screen bg-slate-50 flex" dir="rtl">
+      <div className="min-h-screen flex" dir="rtl" style={{ backgroundImage:activeSeasonalLoginEvent?.background_url ? `linear-gradient(rgba(248,250,252,0.94),rgba(248,250,252,0.97)), url(${activeSeasonalLoginEvent.background_url})` : "linear-gradient(135deg,#f8fafc,#eef2ff)", backgroundSize:"cover", backgroundAttachment:"fixed" }}>
 
         {/* Overlay للموبايل */}
         {sidebarOpen && (
@@ -3621,6 +3621,7 @@ const VacationManagementSystem = () => {
           boxSizing:"border-box",
         }}>
           <div style={{ display:"flex", justifyContent:"flex-end", alignItems:"center", gap:"7px", color:"#64748b", fontSize:"11px", marginBottom:"8px" }}><RefreshCw size={13} /> آخر تحديث: {lastUpdatedAt ? lastUpdatedAt.toLocaleTimeString("ar-EG", { hour:"2-digit", minute:"2-digit" }) : "جاري التحميل"}</div>
+          {activeSeasonalLoginEvent && <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"10px", marginBottom:"14px", padding:"10px 14px", borderRadius:"14px", color:activeSeasonalLoginEvent.accent || "#4f46e5", backgroundImage:`linear-gradient(90deg, rgba(255,255,255,0.88), rgba(255,255,255,0.68)), url(${activeSeasonalLoginEvent.background_url})`, backgroundPosition:"center", backgroundSize:"cover", border:`1px solid ${activeSeasonalLoginEvent.accent || "#4f46e5"}55`, boxShadow:"0 6px 18px rgba(15,23,42,0.06)", fontSize:"12px", fontWeight:"900" }}><span>✦ أجواء {activeSeasonalLoginEvent.name}</span><span style={{ fontSize:"10px", color:"#64748b", fontWeight:"700" }}>خلفية موسمية مفعلة</span></div>}
           {loading && <div className="flex items-center justify-center h-screen"><Loader2 className="animate-spin text-indigo-600" size={48} /></div>}
 
           {!loading && (
