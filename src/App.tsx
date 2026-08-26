@@ -12,7 +12,7 @@ import {
   FileDown, BarChart3, Building2, TrendingUp,
   AlertCircle, RefreshCw, PieChart, BarChart2,
   History, Mail, Briefcase, Smartphone, Wifi, WifiOff,
-  Award, Target, Flame, Eye, KeyRound, Printer, Share2,
+  Award, Target, Flame, Eye, KeyRound, Printer, Share2, Sparkles,
 } from "lucide-react";
 
 // ==================== SUPABASE CONFIG ====================
@@ -199,6 +199,29 @@ const calculateWorkedDays = (returnDate: string, isOnVacation: boolean = false) 
   today.setHours(0, 0, 0, 0);
   if (start > today) return 0;
   return Math.floor((today.getTime() - start.getTime()) / 86400000) + 1;
+};
+
+// خلفيات تسجيل الدخول الموسمية: القيم الافتراضية قابلة للتعديل من صفحة المالك.
+const DEFAULT_SEASONAL_LOGIN_EVENTS = [
+  { id:"ramadan-2026", name:"رمضان", event_key:"ramadan", start_date:"2026-02-18", end_date:"2026-03-19", background_url:"/seasonal-login-ramadan.jpg", accent:"#fbbf24", enabled:true, priority:10 },
+  { id:"eid-fitr-2026", name:"عيد الفطر", event_key:"eid_fitr", start_date:"2026-03-20", end_date:"2026-03-22", background_url:"/seasonal-login-eid-fitr.jpg", accent:"#fbbf24", enabled:true, priority:20 },
+  { id:"eid-adha-2026", name:"عيد الأضحى", event_key:"eid_adha", start_date:"2026-05-27", end_date:"2026-05-30", background_url:"/seasonal-login-eid-adha.jpg", accent:"#2dd4bf", enabled:true, priority:20 },
+  { id:"mawlid-2026", name:"المولد النبوي الشريف", event_key:"mawlid", start_date:"2026-08-25", end_date:"2026-08-27", background_url:"/seasonal-login-mawlid.jpg", accent:"#34d399", enabled:true, priority:20 },
+  { id:"jan25", name:"ذكرى ثورة 25 يناير", event_key:"jan25", start_date:"2026-01-23", end_date:"2026-01-27", background_url:"/seasonal-login-jan25.jpg", accent:"#ef4444", enabled:true, priority:5, annual:true },
+];
+const getSeasonalLoginEvent = (events: any[] = DEFAULT_SEASONAL_LOGIN_EVENTS, date = new Date()) => {
+  const dateKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  return events
+    .filter((event: any) => event?.enabled !== false)
+    .map((event: any) => {
+      if (!event.annual) return event.start_date <= dateKey && dateKey <= event.end_date ? event : null;
+      const year = date.getFullYear();
+      const start = `${year}-${String(event.start_date).slice(5, 10)}`;
+      const end = `${year}-${String(event.end_date).slice(5, 10)}`;
+      return start <= dateKey && dateKey <= end ? { ...event, start_date:start, end_date:end } : null;
+    })
+    .filter(Boolean)
+    .sort((a: any, b: any) => Number(b.priority || 0) - Number(a.priority || 0))[0] || null;
 };
 
 // نوع «راحة» يخصم الرصيد فقط ولا يغيّر حالة الموظف ولا يدخل ضمن الإجازات الفعلية.
@@ -783,6 +806,13 @@ const VacationManagementSystem = () => {
   const [weatherData, setWeatherData] = useState<any>(null);
   const [weatherLoading, setWeatherLoading] = useState(false);
   const [weatherError, setWeatherError] = useState("");
+  const [seasonalLoginEvents, setSeasonalLoginEvents] = useState<any[]>(() => {
+    try {
+      const saved = localStorage.getItem("vms_seasonal_login_events");
+      return saved ? JSON.parse(saved) : DEFAULT_SEASONAL_LOGIN_EVENTS;
+    } catch { return DEFAULT_SEASONAL_LOGIN_EVENTS; }
+  });
+  const [seasonalEventDraft, setSeasonalEventDraft] = useState<any>(null);
   // ===== States للاشعارات =====
   const [notifSearch, setNotifSearch] = useState("");
   const [notifDateFrom, setNotifDateFrom] = useState(""); // فلتر تاريخ القرار من
@@ -822,6 +852,23 @@ const VacationManagementSystem = () => {
       window.removeEventListener("scroll", handler, true);
     };
   }, [empSortDropdown, reqSortDropdown, histSortDropdown, activeVacSortDropdown]);
+
+  // تحميل إعدادات خلفيات تسجيل الدخول العامة؛ عند عدم وجود الجدول أو فشل الاتصال نستخدم الافتراضيات.
+  useEffect(() => {
+    let cancelled = false;
+    supabase.from("seasonal_login_events").select("*").order("priority", { ascending:false }).then(({ data, error }: any) => {
+      if (cancelled) return;
+      if (!error && Array.isArray(data) && data.length > 0) {
+        const remoteById = new Map(data.map((event: any) => [String(event.id), event]));
+        const mergedDefaults = DEFAULT_SEASONAL_LOGIN_EVENTS.map((event: any) => ({ ...event, ...(remoteById.get(String(event.id)) || {}) }));
+        const extraEvents = data.filter((event: any) => !DEFAULT_SEASONAL_LOGIN_EVENTS.some((defaultEvent: any) => String(defaultEvent.id) === String(event.id)));
+        const mergedEvents = [...mergedDefaults, ...extraEvents];
+        setSeasonalLoginEvents(mergedEvents);
+        try { localStorage.setItem("vms_seasonal_login_events", JSON.stringify(mergedEvents)); } catch {}
+      }
+    }).catch(() => undefined);
+    return () => { cancelled = true; };
+  }, []);
 
   // تحديث الساعة كل ثانية
   useEffect(() => {
@@ -3181,12 +3228,37 @@ const VacationManagementSystem = () => {
     setBackupLoading(false);
   };
 
+  const activeSeasonalLoginEvent = getSeasonalLoginEvent(seasonalLoginEvents, currentTime);
+  const persistSeasonalLoginEvents = async (nextEvents: any[]) => {
+    setSeasonalLoginEvents(nextEvents);
+    try { localStorage.setItem("vms_seasonal_login_events", JSON.stringify(nextEvents)); } catch {}
+    const { error } = await supabase.from("seasonal_login_events").upsert(nextEvents.map((event: any) => ({
+      id: event.id, name: event.name, event_key: event.event_key, start_date: event.start_date, end_date: event.end_date,
+      background_url: event.background_url, accent: event.accent || "#6366f1", enabled: event.enabled !== false,
+      priority: Number(event.priority || 0), annual: event.annual === true,
+    })), { onConflict:"id" });
+    if (error && !/relation.*does not exist|seasonal_login_events/i.test(error.message || "")) alert("تعذر حفظ إعداد المناسبة: " + error.message);
+    else await logAction("update", "seasonal_login_events", "settings", null, nextEvents);
+  };
+  const updateSeasonalLoginEvent = async (eventId: string, patch: any) => {
+    await persistSeasonalLoginEvents(seasonalLoginEvents.map(event => String(event.id) === String(eventId) ? { ...event, ...patch } : event));
+  };
+  const persistSeasonalEventField = async (eventId: string, patch: any) => {
+    const nextEvents = seasonalLoginEvents.map(event => String(event.id) === String(eventId) ? { ...event, ...patch } : event);
+    await persistSeasonalLoginEvents(nextEvents);
+  };
+  const resetSeasonalLoginEvents = async () => {
+    if (window.confirm("هل تريد إعادة جميع خلفيات المناسبات إلى الإعدادات الافتراضية؟")) await persistSeasonalLoginEvents(DEFAULT_SEASONAL_LOGIN_EVENTS);
+  };
+
   // ==================== LOGIN VIEW ====================
   if (currentView === "login") {
     return (
       <div dir="rtl" style={{
         minHeight: "100vh",
-        background: currentView === "login" ? "linear-gradient(135deg, #0f0c29, #302b63, #24243e)" : "#f0f2f5",
+        background: currentView === "login" ? (activeSeasonalLoginEvent?.background_url
+          ? `linear-gradient(135deg, rgba(8,15,42,0.68), rgba(15,23,42,0.78)), url(${activeSeasonalLoginEvent.background_url}) center / cover no-repeat`
+          : "linear-gradient(135deg, #0f0c29, #302b63, #24243e)") : "#f0f2f5",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
@@ -3196,6 +3268,8 @@ const VacationManagementSystem = () => {
         overflow: "hidden",
         fontFamily: "Cairo, sans-serif",
       }}>
+        {activeSeasonalLoginEvent && <div style={{ position:"absolute", top:"18px", right:"22px", zIndex:10, padding:"8px 14px", borderRadius:"999px", background:"rgba(15,23,42,0.52)", border:`1px solid ${activeSeasonalLoginEvent.accent || "#fbbf24"}`, color:"white", fontSize:"12px", fontWeight:"800", backdropFilter:"blur(10px)" }}>✦ أجواء {activeSeasonalLoginEvent.name}</div>}
+
         {/* خلفية دوائر متحركة */}
         <style>{`
           @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap');
@@ -3435,6 +3509,7 @@ const VacationManagementSystem = () => {
               { id: "active_vacations", label: "الإجازات الفعلية", icon: CheckCircle, ownerOnly: false, managerAllowed: true  },
               { id: "notifications_center", label: "الاشعارات",   icon: Bell,            ownerOnly: false, managerAllowed: false },
               { id: "notification_settings", label: "إعدادات التنبيهات", icon: Briefcase, ownerOnly: true, managerAllowed: false },
+              { id: "seasonal_login_settings", label: "خلفيات المناسبات", icon: Sparkles, ownerOnly: true, managerAllowed: false },
             ] as {id:string,label:string,icon:any,ownerOnly:boolean,managerAllowed:boolean}[])
               .filter(item => {
                 if (isOwner) return true; // المالك والادمن يرى كل شيء
@@ -5594,6 +5669,36 @@ const VacationManagementSystem = () => {
               )}
 
               {/* ===== NOTIFICATION SETTINGS ===== */}
+              {activeTab === "seasonal_login_settings" && isOwner && (
+                <div style={{ maxWidth:"920px", width:"100%", marginTop:"16px" }}>
+                  <div style={{ background:"white", border:"1px solid #e2e8f0", borderRadius:"20px", padding:"20px", boxShadow:"0 8px 24px rgba(15,23,42,0.06)" }}>
+                    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"12px", marginBottom:"8px" }}>
+                      <div><h3 style={{ margin:0, fontSize:"18px", fontWeight:"900", color:"#1e293b" }}>خلفيات المناسبات الموسمية</h3><p style={{ margin:"5px 0 0", color:"#64748b", fontSize:"12px" }}>تتغير خلفية تسجيل الدخول تلقائيًا حسب التاريخ. يمكنك تعطيل أي مناسبة أو تعديل بياناتها.</p></div>
+                      <div style={{ display:"flex", alignItems:"center", gap:"10px" }}><button onClick={resetSeasonalLoginEvents} style={{ border:"1px solid #c4b5fd", color:"#6d28d9", background:"#faf5ff", borderRadius:"10px", padding:"9px 12px", fontFamily:"inherit", fontWeight:"800", cursor:"pointer" }}>إعادة الافتراضي</button><Sparkles size={25} color="#7c3aed" /></div>
+                    </div>
+                    <div style={{ marginTop:"16px", marginBottom:"14px", padding:"12px 14px", borderRadius:"14px", background:activeSeasonalLoginEvent ? "#ecfdf5" : "#f8fafc", border:`1px solid ${activeSeasonalLoginEvent ? "#a7f3d0" : "#e2e8f0"}`, color:activeSeasonalLoginEvent ? "#047857" : "#64748b", fontSize:"13px", fontWeight:"800" }}>المناسبة النشطة اليوم: {activeSeasonalLoginEvent ? activeSeasonalLoginEvent.name : "لا توجد مناسبة مفعلة الآن — ستظهر الخلفية الافتراضية للنظام"}</div>
+                    <div style={{ display:"grid", gap:"12px" }}>
+                      {seasonalLoginEvents.map((event: any) => <div key={event.id} style={{ border:"1px solid #e2e8f0", borderRadius:"16px", padding:"14px", background:event.enabled === false ? "#f8fafc" : "#ffffff" }}>
+                        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"10px", marginBottom:"10px" }}>
+                          <div style={{ display:"flex", alignItems:"center", gap:"10px" }}><div style={{ width:"42px", height:"28px", borderRadius:"8px", background:`${event.background_url ? `url(${event.background_url}) center/cover` : "linear-gradient(135deg,#312e81,#7c3aed)"}`, border:"1px solid #cbd5e1" }} /><strong style={{ color:"#1e293b" }}>{event.name}</strong></div>
+                          <label style={{ display:"flex", alignItems:"center", gap:"6px", fontSize:"12px", fontWeight:"800", color:event.enabled === false ? "#94a3b8" : "#059669" }}><input type="checkbox" checked={event.enabled !== false} onChange={e => updateSeasonalLoginEvent(event.id, { enabled:e.target.checked })} /> مفعلة</label>
+                        </div>
+                        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))", gap:"8px" }}>
+                          <input value={event.name || ""} onChange={e => setSeasonalLoginEvents(items => items.map(item => item.id === event.id ? { ...item, name:e.target.value } : item))} onBlur={e => persistSeasonalEventField(event.id, { name:e.currentTarget.value })} placeholder="اسم المناسبة" style={{ padding:"9px", border:"1px solid #e2e8f0", borderRadius:"9px", fontFamily:"inherit" }} />
+                          <input type="date" value={event.start_date || ""} onChange={e => setSeasonalLoginEvents(items => items.map(item => item.id === event.id ? { ...item, start_date:e.target.value } : item))} onBlur={e => persistSeasonalEventField(event.id, { start_date:e.currentTarget.value })} style={{ padding:"9px", border:"1px solid #e2e8f0", borderRadius:"9px" }} />
+                          <input type="date" value={event.end_date || ""} onChange={e => setSeasonalLoginEvents(items => items.map(item => item.id === event.id ? { ...item, end_date:e.target.value } : item))} onBlur={e => persistSeasonalEventField(event.id, { end_date:e.currentTarget.value })} style={{ padding:"9px", border:"1px solid #e2e8f0", borderRadius:"9px" }} />
+                          <input value={event.background_url || ""} onChange={e => setSeasonalLoginEvents(items => items.map(item => item.id === event.id ? { ...item, background_url:e.target.value } : item))} onBlur={e => persistSeasonalEventField(event.id, { background_url:e.currentTarget.value })} placeholder="/seasonal-login-event.jpg" dir="ltr" style={{ padding:"9px", border:"1px solid #e2e8f0", borderRadius:"9px", fontFamily:"inherit" }} />
+                          <input type="color" value={event.accent || "#6366f1"} onChange={e => setSeasonalLoginEvents(items => items.map(item => item.id === event.id ? { ...item, accent:e.target.value } : item))} onBlur={e => persistSeasonalEventField(event.id, { accent:e.currentTarget.value })} title="لون المناسبة" style={{ width:"100%", minHeight:"38px", padding:"3px", border:"1px solid #e2e8f0", borderRadius:"9px", background:"white" }} />
+                          <input type="number" value={Number(event.priority || 0)} onChange={e => setSeasonalLoginEvents(items => items.map(item => item.id === event.id ? { ...item, priority:Number(e.target.value) } : item))} onBlur={e => persistSeasonalEventField(event.id, { priority:Number(e.currentTarget.value || 0) })} min="0" style={{ padding:"9px", border:"1px solid #e2e8f0", borderRadius:"9px" }} />
+                        </div>
+                        <div style={{ display:"flex", flexWrap:"wrap", alignItems:"center", gap:"12px", marginTop:"8px", color:"#64748b", fontSize:"11px" }}><label style={{ display:"flex", alignItems:"center", gap:"5px", fontWeight:"800" }}><input type="checkbox" checked={event.annual === true} onChange={e => updateSeasonalLoginEvent(event.id, { annual:e.target.checked })} /> تتكرر سنويًا</label><span>من: {event.start_date || "—"}</span><span>إلى: {event.end_date || "—"}</span><span>{event.annual ? "يعتمد الشهر واليوم من التاريخ" : "موسمية محددة للسنة"}</span></div>
+                      </div>)}
+                    </div>
+                    <div style={{ marginTop:"14px", padding:"10px 12px", borderRadius:"12px", background:"#f5f3ff", color:"#6d28d9", fontSize:"12px", fontWeight:"700" }}>ضع ملفات الصور داخل مجلد <code dir="ltr">public</code> في مشروعك بالأسماء نفسها، أو استخدم رابط صورة عام. لا تحتاج هذه الميزة إلى SQL إذا استخدمت الإعدادات الافتراضية؛ وعند تشغيل ترحيل SQL تُحفظ التعديلات مركزيًا.</div>
+                  </div>
+                </div>
+              )}
+
               {activeTab === "notification_settings" && isOwner && (
                 <div style={{ maxWidth:"760px", width:"100%" }}>
                   <div style={{ marginBottom:"18px" }}><h2 style={{ margin:0, fontSize:"22px", fontWeight:"900" }}>إعدادات التنبيهات</h2><p style={{ margin:"5px 0 0", color:"#64748b", fontSize:"13px" }}>تحكم في أنواع التنبيهات التي تظهر لك داخل النظام والمتصفح.</p></div>
