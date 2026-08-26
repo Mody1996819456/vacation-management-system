@@ -656,8 +656,11 @@ const VacationManagementSystem = () => {
   const [publicHolidays, setPublicHolidays] = useState<any[]>([]);
   const [auditLog, setAuditLog] = useState<any[]>([]);
   const [attendanceRows, setAttendanceRows] = useState<any[]>([]);
+  const [workTimeCategories, setWorkTimeCategories] = useState<any[]>([]);
+  const [workTimeCategoryForm, setWorkTimeCategoryForm] = useState({ id:"", name:"", hours:"", description:"" });
   const [attendanceForm, setAttendanceForm] = useState({ employee_id:"", attendance_date:getLocalISODate(), status:"present", check_in:"", check_out:"", notes:"" });
   const [attendanceSaving, setAttendanceSaving] = useState(false);
+  const [attendanceAutoSyncing, setAttendanceAutoSyncing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -747,7 +750,7 @@ const VacationManagementSystem = () => {
   // Form Data - أضفنا return_date و email وحذفنا hire_date من الحساب
   const [newEmp, setNewEmp] = useState({
     name: "", code: "", position: "", residence: "", phone: "", balance: 21, monthly_balance: 0,
-    department_id: "", branch_id: "", hire_date: "", return_date: "", email: "",
+    department_id: "", branch_id: "", work_time_category_id: "", hire_date: "", return_date: "", email: "",
   });
 
   const [newRequest, setNewRequest] = useState({
@@ -812,6 +815,11 @@ const VacationManagementSystem = () => {
       return saved ? JSON.parse(saved) : DEFAULT_SEASONAL_LOGIN_EVENTS;
     } catch { return DEFAULT_SEASONAL_LOGIN_EVENTS; }
   });
+  const [seasonalLoginImages, setSeasonalLoginImages] = useState<any[]>([]);
+  const [seasonalImageIndex, setSeasonalImageIndex] = useState(0);
+  const [seasonalImageUploading, setSeasonalImageUploading] = useState(false);
+  const [showSeasonalEventForm, setShowSeasonalEventForm] = useState(false);
+  const [seasonalEventForm, setSeasonalEventForm] = useState({ name:"", start_date:"", end_date:"", annual:false, priority:10, accent:"#6366f1" });
   const [seasonalEventDraft, setSeasonalEventDraft] = useState<any>(null);
   // ===== States للاشعارات =====
   const [notifSearch, setNotifSearch] = useState("");
@@ -1124,7 +1132,7 @@ const VacationManagementSystem = () => {
     try {
       const [
         { data: emps }, { data: reqs }, { data: types },
-        { data: depts }, { data: branchRows }, { data: holidays }, { data: logs }, { data: attendanceData }, { data: integrationData }
+        { data: depts }, { data: branchRows }, { data: holidays }, { data: logs }, { data: attendanceData }, { data: integrationData }, { data: seasonalImageData }, { data: categoryData }
       ] = await Promise.all([
         supabase.from("employees").select("*").order("name"),
         supabase.from("vacation_requests").select("*").order("created_at", { ascending: false }),
@@ -1135,6 +1143,8 @@ const VacationManagementSystem = () => {
         supabase.from("audit_log").select("*").order("created_at", { ascending: false }).limit(100),
         supabase.from("attendance_records").select("*, employees(name, code)").order("attendance_date", { ascending:false }).limit(500),
         supabase.from("notification_integrations").select("*").order("created_at", { ascending:false }),
+        supabase.from("seasonal_login_event_images").select("*").order("sort_order", { ascending:true }),
+        supabase.from("work_time_categories").select("*").order("name"),
       ]);
 
       if (emps) setEmployees(emps);
@@ -1146,6 +1156,8 @@ const VacationManagementSystem = () => {
       if (logs) setAuditLog(logs);
       if (attendanceData) setAttendanceRows(attendanceData);
       if (integrationData) setNotificationIntegrations(integrationData);
+      if (Array.isArray(seasonalImageData)) setSeasonalLoginImages(seasonalImageData);
+      if (Array.isArray(categoryData)) setWorkTimeCategories(categoryData);
       setLastUpdatedAt(new Date());
 
       if (currentUser && currentView === "employee") {
@@ -1482,6 +1494,12 @@ const VacationManagementSystem = () => {
   }), [employees, departments, requests]);
 
   // ========== LOGIN ==========
+  const clearLoginFields = (nextTab: string = "employee") => {
+    setLoginData({ email: "", password: "" });
+    setEmpCodeInput("");
+    setEmpPinInput("");
+    setLoginTab(nextTab);
+  };
   const handleLogin = async () => {
     // 1️⃣ Owner
     if (loginData.email === ADMIN_EMAIL && loginData.password === process.env.REACT_APP_OWNER_PASSWORD) {
@@ -1982,6 +2000,7 @@ const VacationManagementSystem = () => {
       monthly_balance: newEmp.monthly_balance || 0,
       department_id: newEmp.department_id || null,
       branch_id: newEmp.branch_id || null,
+      work_time_category_id: newEmp.work_time_category_id || null,
       hire_date: newEmp.hire_date || null,
       return_date: newEmp.return_date || null,
     };
@@ -2054,6 +2073,7 @@ const VacationManagementSystem = () => {
       balance: editingEmp.balance, monthly_balance: editingEmp.monthly_balance || 0,
       department_id: editingEmp.department_id,
       branch_id: editingEmp.branch_id || null,
+      work_time_category_id: editingEmp.work_time_category_id || null,
       hire_date: editingEmp.hire_date,
       return_date: editingEmp.return_date ? String(editingEmp.return_date).slice(0, 10) : null,
     }).eq("id", editingEmp.id);
@@ -2216,6 +2236,53 @@ const VacationManagementSystem = () => {
     if (selectionId) setSelectedPrintIds(prev => { const next = new Set(prev); next.delete(selectionId); return next; });
     await fetchData();
     alert("تم حذف سجل الإجازة بنجاح" + (shouldRestore ? ` وإعادة ${days} يوم إلى الرصيد ✅` : " ✅"));
+  };
+
+  const deleteVacationRequestsBatch = async (ids: string[], clearActiveSelection = false) => {
+    if (!requirePermission("requests", "can_delete")) return;
+    const uniqueIds = Array.from(new Set(ids.map(String))).filter(Boolean);
+    const selected = requests.filter(request => uniqueIds.includes(String(request.id)));
+    if (selected.length === 0) return alert("لا توجد سجلات محددة قابلة للحذف");
+    const approved = selected.filter(request => request.status === "approved");
+    const restoreByEmployee = new Map<string, number>();
+    approved.forEach(request => {
+      const key = String(request.employee_id);
+      restoreByEmployee.set(key, (restoreByEmployee.get(key) || 0) + Number(request.days || 0));
+    });
+    const restoreSummary = Array.from(restoreByEmployee.values()).reduce((sum, days) => sum + days, 0);
+    if (!window.confirm(`سيتم حذف ${selected.length} سجل${restoreSummary > 0 ? ` وإعادة ${restoreSummary} يومًا إلى أرصدة الطلبات المقبولة` : ""}. هل تريد المتابعة؟`)) return;
+    const balanceBefore = new Map<string, number>();
+    try {
+      for (const [employeeId, days] of restoreByEmployee) {
+        const emp = employees.find(item => String(item.id) === employeeId);
+        if (!emp) continue;
+        const before = Number(emp.balance || 0);
+        balanceBefore.set(employeeId, before);
+        const result = await supabase.from("employees").update({ balance: before + days }).eq("id", emp.id);
+        if (result.error) throw result.error;
+      }
+      const deleted = await supabase.from("vacation_requests").delete().in("id", uniqueIds);
+      if (deleted.error) throw deleted.error;
+      if (restoreByEmployee.size > 0) {
+        const updates = Array.from(restoreByEmployee.entries()).map(([employee_id, amount]) => ({ employee_id, amount, update_date:getLocalISODate(), description:`إعادة رصيد بعد حذف جماعي: ${amount} يوم` }));
+        await supabase.from("balance_updates").insert(updates);
+      }
+      if (clearActiveSelection) setSelectedPrintIds(new Set());
+      setSelectedRequestIds([]);
+      await fetchData();
+      alert("تم حذف السجلات المحددة بنجاح ✅");
+    } catch (error: any) {
+      for (const [employeeId, before] of balanceBefore) await supabase.from("employees").update({ balance: before }).eq("id", employeeId);
+      alert("تعذر إتمام الحذف الجماعي وتمت إعادة الأرصدة كما كانت: " + (error?.message || "خطأ غير معروف"));
+    }
+  };
+  const handleDeleteSelectedRequests = async () => {
+    await deleteVacationRequestsBatch(selectedRequestIds, false);
+  };
+  const handleDeleteSelectedActiveVacations = async () => {
+    const requestIds = Array.from(selectedPrintIds).filter(id => id.startsWith("request:") || id.startsWith("rest:")).map(id => id.replace(/^[^:]+:/, ""));
+    if (requestIds.length === 0) return alert("حدد إجازات مرتبطة بطلبات أولًا؛ الإجازة المباشرة تُغلق من زر العودة");
+    await deleteVacationRequestsBatch(requestIds, true);
   };
 
   const handleUpdateVacation = async () => {
@@ -3071,6 +3138,9 @@ const VacationManagementSystem = () => {
     departments,
     publicHolidays,
     attendanceRecords: attendanceRows,
+    seasonalLoginEvents,
+    seasonalLoginImages,
+    workTimeCategories,
     balanceUpdates: [],
     createdAt: new Date().toISOString(),
   });
@@ -3090,7 +3160,7 @@ const VacationManagementSystem = () => {
       created_by: currentUser.id,
       label: `نسخة يدوية — ${new Date().toLocaleString("ar-EG")}`,
       snapshot,
-      tables_included: ["employees", "vacation_requests", "vacation_types", "departments", "public_holidays", "attendance_records"],
+      tables_included: ["employees", "vacation_requests", "vacation_types", "departments", "public_holidays", "attendance_records", "seasonal_login_events", "seasonal_login_event_images", "work_time_categories"],
     }]);
     setBackupLoading(false);
     if (error) return alert("تعذر حفظ النسخة داخل Supabase: " + error.message);
@@ -3112,6 +3182,9 @@ const VacationManagementSystem = () => {
       if (Array.isArray(snapshot.requests) && snapshot.requests.length) queueRestore(supabase.from("vacation_requests").upsert(snapshot.requests));
       if (Array.isArray(snapshot.publicHolidays) && snapshot.publicHolidays.length) queueRestore(supabase.from("public_holidays").upsert(snapshot.publicHolidays));
       if (Array.isArray(snapshot.attendanceRecords) && snapshot.attendanceRecords.length) queueRestore(supabase.from("attendance_records").upsert(snapshot.attendanceRecords));
+      if (Array.isArray(snapshot.seasonalLoginEvents) && snapshot.seasonalLoginEvents.length) queueRestore(supabase.from("seasonal_login_events").upsert(snapshot.seasonalLoginEvents));
+      if (Array.isArray(snapshot.seasonalLoginImages) && snapshot.seasonalLoginImages.length) queueRestore(supabase.from("seasonal_login_event_images").upsert(snapshot.seasonalLoginImages));
+      if (Array.isArray(snapshot.workTimeCategories) && snapshot.workTimeCategories.length) queueRestore(supabase.from("work_time_categories").upsert(snapshot.workTimeCategories));
       const results = await Promise.all(operations);
       const failed = results.find(result => result?.error);
       if (failed?.error) throw failed.error;
@@ -3122,6 +3195,65 @@ const VacationManagementSystem = () => {
     }
     setBackupLoading(false);
   };
+
+  // ==================== الحضور التلقائي ====================
+  const AUTO_ATTENDANCE_NOTE = "تسجيل تلقائي حسب حالة الموظف";
+  const isHolidayForAttendance = (dateKey: string) => publicHolidays.some(holiday => {
+    const holidayDate = normalizeDateKey(holiday.date);
+    return holidayDate === dateKey || (holiday.is_recurring && holidayDate?.slice(5) === dateKey.slice(5));
+  });
+  const getAutomaticAttendanceStatus = (employee: any, dateKey: string) => {
+    const employeeRequests = requests.filter(request => String(request.employee_id) === String(employee.id) && request.status === "approved");
+    const isRestDay = employeeRequests.some(request => {
+      const start = normalizeDateKey(request.effective_start_date || request.start_date || getActualStartDate(request.departure_date || request.start_date, request.departure_time || "actual"));
+      if (!start) return false;
+      const back = normalizeDateKey(getCalculatedDates(start, Number(request.days || 0)).back);
+      return isRestVacationRequest(request, vacationTypes) && Boolean(back) && dateKey >= start && dateKey < back;
+    });
+    if (isRestDay || isHolidayForAttendance(dateKey)) return { status:"rest", notes: isRestDay ? "راحة معتمدة" : "عطلة رسمية" };
+    const isActualLeave = employeeRequests.some(request => {
+      if (isRestVacationRequest(request, vacationTypes) || request.actual_return_date) return false;
+      const start = normalizeDateKey(request.effective_start_date || request.start_date || getActualStartDate(request.departure_date || request.start_date, request.departure_time || "actual"));
+      if (!start) return false;
+      const back = normalizeDateKey(getCalculatedDates(start, Number(request.days || 0)).back);
+      return Boolean(back) && dateKey >= start && dateKey < back;
+    });
+    return isActualLeave || employee.status === "إجازة" ? { status:"leave", notes:"إجازة فعلية حسب حالة الموظف" } : { status:"present", notes:AUTO_ATTENDANCE_NOTE };
+  };
+  const syncAutomaticAttendance = async () => {
+    if (!currentUser || !["owner", "admin", "dept_manager"].includes(currentUser.role) || employees.length === 0) return;
+    setAttendanceAutoSyncing(true);
+    const today = getLocalISODate();
+    try {
+      const { data: existingRows, error: existingError } = await supabase.from("attendance_records").select("*").eq("attendance_date", today);
+      if (existingError) throw existingError;
+      const existingByEmployee = new Map((existingRows || []).map(row => [String(row.employee_id), row]));
+      const allowedEmployees = currentUser.role === "dept_manager" ? employees.filter(employee => myDeptIds.includes(String(employee.department_id))) : employees;
+      const payloads = allowedEmployees.flatMap(employee => {
+        const existing = existingByEmployee.get(String(employee.id));
+        // السجل اليدوي له أولوية ولا يتم استبداله بالتسجيل الآلي.
+        if (existing && existing.notes !== AUTO_ATTENDANCE_NOTE && existing.notes !== "راحة معتمدة" && existing.notes !== "عطلة رسمية" && existing.notes !== "إجازة فعلية حسب حالة الموظف") return [];
+        const automatic = getAutomaticAttendanceStatus(employee, today);
+        return [{ employee_id:employee.id, attendance_date:today, status:automatic.status, check_in:null, check_out:null, notes:automatic.notes, created_by:currentUser.id || null, updated_at:new Date().toISOString() }];
+      });
+      if (payloads.length > 0) {
+        const { error } = await supabase.from("attendance_records").upsert(payloads, { onConflict:"employee_id,attendance_date" });
+        if (error) throw error;
+        await fetchData();
+      }
+    } catch (error: any) {
+      // لا نعطل النظام إذا لم تُشغّل ترحيلة الحضور أو تعذر الاتصال مؤقتًا.
+      console.warn("Automatic attendance sync skipped:", error?.message || error);
+    } finally {
+      setAttendanceAutoSyncing(false);
+    }
+  };
+  useEffect(() => {
+    if (currentView !== "admin" || !currentUser) return;
+    void syncAutomaticAttendance();
+    const timer = window.setInterval(() => { void syncAutomaticAttendance(); }, 5 * 60 * 1000);
+    return () => window.clearInterval(timer);
+  }, [currentView, currentUser?.id, currentUser?.role, employees.length, requests.length, vacationTypes.length, publicHolidays.length]);
 
   // ==================== GOOGLE SHEETS BACKUP ====================
   const saveAttendance = async () => {
@@ -3135,6 +3267,24 @@ const VacationManagementSystem = () => {
     setAttendanceForm({ employee_id:"", attendance_date:getLocalISODate(), status:"present", check_in:"", check_out:"", notes:"" });
     fetchData();
   };
+  const saveWorkTimeCategory = async () => {
+    if (!workTimeCategoryForm.name.trim() || workTimeCategoryForm.hours === "") return alert("اكتب اسم الفئة وعدد الساعات");
+    const payload = { name:workTimeCategoryForm.name.trim(), hours:Number(workTimeCategoryForm.hours), description:workTimeCategoryForm.description.trim() || null, updated_at:new Date().toISOString() };
+    if (payload.hours < 0 || payload.hours > 24) return alert("عدد الساعات يجب أن يكون بين 0 و24");
+    const result = workTimeCategoryForm.id
+      ? await supabase.from("work_time_categories").update(payload).eq("id", workTimeCategoryForm.id)
+      : await supabase.from("work_time_categories").insert([payload]);
+    if (result.error) return alert("تعذر حفظ فئة ساعات العمل: " + result.error.message);
+    setWorkTimeCategoryForm({ id:"", name:"", hours:"", description:"" });
+    await fetchData();
+  };
+  const deleteWorkTimeCategory = async (category: any) => {
+    if (!window.confirm(`حذف فئة «${category.name}»؟ لن تُحذف بيانات الموظفين، وسيتم فقط فك ربط الفئة بهم.`)) return;
+    const { error } = await supabase.from("work_time_categories").delete().eq("id", category.id);
+    if (error) return alert("تعذر حذف الفئة: " + error.message);
+    await fetchData();
+  };
+
   const deleteAttendance = async (row:any) => {
     if (!requirePermission("attendance", "can_delete")) return;
     if (!window.confirm("حذف سجل الحضور؟")) return;
@@ -3280,14 +3430,92 @@ const VacationManagementSystem = () => {
   const resetSeasonalLoginEvents = async () => {
     if (window.confirm("هل تريد إعادة جميع خلفيات المناسبات إلى الإعدادات الافتراضية؟")) await persistSeasonalLoginEvents(DEFAULT_SEASONAL_LOGIN_EVENTS);
   };
+  const addSeasonalLoginEvent = async () => {
+    const name = seasonalEventForm.name.trim();
+    if (!name || !seasonalEventForm.start_date || !seasonalEventForm.end_date) return alert("اكتب اسم المناسبة وتاريخ البداية والنهاية");
+    if (seasonalEventForm.end_date < seasonalEventForm.start_date) return alert("تاريخ النهاية يجب أن يكون بعد تاريخ البداية");
+    const stamp = Date.now();
+    const event = {
+      id: `custom-${stamp}`,
+      name,
+      event_key: `custom_${stamp}`,
+      start_date: seasonalEventForm.start_date,
+      end_date: seasonalEventForm.end_date,
+      background_url: "",
+      accent: seasonalEventForm.accent || "#6366f1",
+      enabled: true,
+      priority: Number(seasonalEventForm.priority || 0),
+      annual: seasonalEventForm.annual === true,
+    };
+    await persistSeasonalLoginEvents([...seasonalLoginEvents, event]);
+    setSeasonalEventForm({ name:"", start_date:"", end_date:"", annual:false, priority:10, accent:"#6366f1" });
+    setShowSeasonalEventForm(false);
+    alert("تمت إضافة المناسبة. يمكنك الآن رفع صورة أو أكثر لها ✅");
+  };
+  const uploadSeasonalLoginImage = async (event: any, file: File | null) => {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) return alert("اختر ملف صورة فقط");
+    setSeasonalImageUploading(true);
+    try {
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-").slice(-80);
+      const path = `${String(event.id)}/${Date.now()}-${safeName}`;
+      const uploadResult = await supabase.storage.from("seasonal-login").upload(path, file, { upsert:true, contentType:file.type });
+      if (uploadResult.error) throw uploadResult.error;
+      const publicResult = supabase.storage.from("seasonal-login").getPublicUrl(path);
+      const image = {
+        id: (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : `img-${Date.now()}`,
+        event_id: String(event.id),
+        image_url: publicResult.data.publicUrl,
+        display_seconds: 10,
+        sort_order: Date.now() + Math.floor(Math.random() * 1000),
+        enabled: true,
+      };
+      const { data, error } = await supabase.from("seasonal_login_event_images").insert([image]).select().single();
+      if (error) throw error;
+      setSeasonalLoginImages(previous => [...previous, data || image]);
+      alert("تم رفع الصورة وإضافتها للمناسبة ✅");
+    } catch (error: any) {
+      alert("تعذر رفع الصورة. تأكد من تشغيل SQL الخاص بالصور وإنشاء Storage: " + (error?.message || "خطأ غير معروف"));
+    } finally {
+      setSeasonalImageUploading(false);
+    }
+  };
+  const updateSeasonalLoginImage = async (imageId: string, patch: any) => {
+    setSeasonalLoginImages(previous => previous.map(image => String(image.id) === String(imageId) ? { ...image, ...patch } : image));
+    const { error } = await supabase.from("seasonal_login_event_images").update(patch).eq("id", imageId);
+    if (error) alert("تعذر حفظ مدة عرض الصورة: " + error.message);
+  };
+  const deleteSeasonalLoginImage = async (image: any) => {
+    if (!window.confirm("حذف هذه الصورة من المناسبة؟")) return;
+    const { error } = await supabase.from("seasonal_login_event_images").delete().eq("id", image.id);
+    if (error) return alert("تعذر حذف الصورة: " + error.message);
+    setSeasonalLoginImages(previous => previous.filter(item => String(item.id) !== String(image.id)));
+  };
+
+  const activeSeasonalEventImages = activeSeasonalLoginEvent
+    ? seasonalLoginImages.filter(image => String(image.event_id) === String(activeSeasonalLoginEvent.id) && image.enabled !== false).sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0))
+    : [];
+  const activeSeasonalImage = activeSeasonalEventImages.length > 0
+    ? activeSeasonalEventImages[seasonalImageIndex % activeSeasonalEventImages.length]
+    : null;
+  const activeSeasonalBackgroundUrl = activeSeasonalImage?.image_url || activeSeasonalLoginEvent?.background_url || "";
+  useEffect(() => {
+    setSeasonalImageIndex(0);
+  }, [activeSeasonalLoginEvent?.id]);
+  useEffect(() => {
+    if (activeSeasonalEventImages.length <= 1) return;
+    const seconds = Math.max(3, Number(activeSeasonalImage?.display_seconds || 10));
+    const timer = window.setTimeout(() => setSeasonalImageIndex(index => (index + 1) % activeSeasonalEventImages.length), seconds * 1000);
+    return () => window.clearTimeout(timer);
+  }, [activeSeasonalLoginEvent?.id, activeSeasonalEventImages.length, activeSeasonalImage?.id, activeSeasonalImage?.display_seconds]);
 
   // ==================== LOGIN VIEW ====================
   if (currentView === "login") {
     return (
       <div dir="rtl" style={{
         minHeight: "100vh",
-        background: currentView === "login" ? (activeSeasonalLoginEvent?.background_url
-          ? `linear-gradient(135deg, rgba(8,15,42,0.68), rgba(15,23,42,0.78)), url(${activeSeasonalLoginEvent.background_url}) center / cover no-repeat`
+        background: currentView === "login" ? (activeSeasonalBackgroundUrl
+          ? `linear-gradient(135deg, rgba(8,15,42,0.68), rgba(15,23,42,0.78)), url(${activeSeasonalBackgroundUrl}) center / cover no-repeat`
           : "linear-gradient(135deg, #0f0c29, #302b63, #24243e)") : "#f0f2f5",
         display: "flex",
         flexDirection: "column",
@@ -3368,7 +3596,7 @@ const VacationManagementSystem = () => {
               zIndex:1,
             }} />
             <button
-              onClick={() => setLoginTab("employee")}
+              onClick={() => clearLoginFields("employee")}
               style={{
                 position:"relative", zIndex:2, border:"none", background:"transparent",
                 padding:"12px 8px", borderRadius:"12px", cursor:"pointer",
@@ -3381,7 +3609,7 @@ const VacationManagementSystem = () => {
               <Users size={17} /> الموظف
             </button>
             <button
-              onClick={() => setLoginTab("admin")}
+              onClick={() => clearLoginFields("admin")}
               style={{
                 position:"relative", zIndex:2, border:"none", background:"transparent",
                 padding:"12px 8px", borderRadius:"12px", cursor:"pointer",
@@ -3409,6 +3637,8 @@ const VacationManagementSystem = () => {
                     className="login-input"
                     style={{ width:"100%", background:"rgba(255, 255, 255, 0.07)", border:"1px solid rgba(255, 255, 255, 0.12)", borderRadius:"14px", padding:"14px 18px", color:"white", fontSize:"15px", boxSizing:"border-box", fontFamily:"Cairo, sans-serif" }}
                     placeholder="الكود الوظيفي"
+                    autoComplete="off"
+                    name="employee_code"
                     value={empCodeInput}
                     onChange={(e) => setEmpCodeInput(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && handleLogin()}
@@ -3421,6 +3651,8 @@ const VacationManagementSystem = () => {
                   maxLength={4}
                   style={{ width:"100%", background:"rgba(255, 255, 255, 0.07)", border:"1px solid rgba(255, 255, 255, 0.12)", borderRadius:"14px", padding:"14px 18px", color:"white", fontSize:"15px", marginBottom:"20px", boxSizing:"border-box", fontFamily:"Cairo, sans-serif" }}
                   placeholder="PIN (4 أرقام)"
+                  autoComplete="new-password"
+                  name="employee_pin"
                   value={empPinInput}
                   onChange={(e) => setEmpPinInput(e.target.value.replace(/\D/g, "").slice(0,4))}
                   onKeyDown={(e) => e.key === "Enter" && handleLogin()}
@@ -3440,6 +3672,8 @@ const VacationManagementSystem = () => {
                   className="login-input"
                   style={{ width:"100%", background:"rgba(255, 255, 255, 0.07)", border:"1px solid rgba(255, 255, 255, 0.12)", borderRadius:"14px", padding:"14px 18px", color:"white", fontSize:"15px", marginBottom:"14px", display:"block", boxSizing:"border-box", fontFamily:"Cairo, sans-serif" }}
                   placeholder="البريد الإلكتروني"
+                  autoComplete="off"
+                  name="admin_email"
                   value={loginData.email}
                   onChange={(e) => setLoginData({ ...loginData, email: e.target.value })}
                 />
@@ -3448,6 +3682,8 @@ const VacationManagementSystem = () => {
                   className="login-input"
                   style={{ width:"100%", background:"rgba(255, 255, 255, 0.07)", border:"1px solid rgba(255, 255, 255, 0.12)", borderRadius:"14px", padding:"14px 18px", color:"white", fontSize:"15px", marginBottom:"20px", display:"block", boxSizing:"border-box", fontFamily:"Cairo, sans-serif" }}
                   placeholder="كلمة المرور"
+                  autoComplete="new-password"
+                  name="admin_password"
                   value={loginData.password}
                   onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
                   onKeyDown={(e) => e.key === "Enter" && handleLogin()}
@@ -3471,7 +3707,7 @@ const VacationManagementSystem = () => {
   // ==================== ADMIN VIEW ====================
   if (currentView === "admin") {
     return (
-          <div className="min-h-screen flex" dir="rtl" style={{ backgroundImage:activeSeasonalLoginEvent?.background_url ? `linear-gradient(rgba(248,250,252,0.76),rgba(248,250,252,0.84)), url(${activeSeasonalLoginEvent.background_url})` : "linear-gradient(135deg,#f8fafc,#eef2ff)", backgroundSize:"cover", backgroundAttachment:"fixed" }}>
+          <div className="min-h-screen flex" dir="rtl" style={{ backgroundImage:activeSeasonalBackgroundUrl ? `linear-gradient(rgba(248,250,252,0.76),rgba(248,250,252,0.84)), url(${activeSeasonalBackgroundUrl})` : "linear-gradient(135deg,#f8fafc,#eef2ff)", backgroundSize:"cover", backgroundAttachment:"fixed" }}>
 
         {/* Overlay للموبايل */}
         {sidebarOpen && (
@@ -3588,7 +3824,7 @@ const VacationManagementSystem = () => {
             }}>
               <Smartphone size={17}/><span>تثبيت التطبيق 📱</span>
             </button>
-            <button onClick={() => { localStorage.removeItem("vms_currentUser"); localStorage.removeItem("vms_currentView"); setCurrentView("login"); setCurrentUser(null); setLoginData({ email: "", password: "" }); setEmpCodeInput(""); setEmpPinInput(""); setLoginTab("employee"); }} style={{
+            <button onClick={() => { localStorage.removeItem("vms_currentUser"); localStorage.removeItem("vms_currentView"); setCurrentView("login"); setCurrentUser(null); clearLoginFields("employee"); }} style={{
               width:"100%", display:"flex", alignItems:"center", gap:"10px",
               padding:"10px 12px", borderRadius:"10px", border:"1px solid rgba(239,68,68,0.2)",
               background:"rgba(239,68,68,0.05)", color:"#f87171", cursor:"pointer",
@@ -4481,7 +4717,7 @@ const VacationManagementSystem = () => {
                     <div style={{ display:"flex", alignItems:"center", gap:"6px", marginRight:"auto", flexWrap:"wrap" }}>
                       {filteredRequests.length > 0 && <>
                         <button onClick={() => selectAllRequests(filteredRequests)} style={{ padding:"8px 11px", background:"#eef2ff", color:"#4338ca", border:"1px solid #c7d2fe", borderRadius:"9px", fontSize:"11px", fontWeight:"800", cursor:"pointer" }}>✓ تحديد الطلبات</button>
-                        {selectedRequestIds.length > 0 && <button onClick={() => setSelectedRequestIds([])} style={{ padding:"8px 11px", background:"#fff1f2", color:"#dc2626", border:"1px solid #fecdd3", borderRadius:"9px", fontSize:"11px", fontWeight:"800", cursor:"pointer" }}>إلغاء ({selectedRequestIds.length})</button>}
+                        {selectedRequestIds.length > 0 && <><button onClick={() => setSelectedRequestIds([])} style={{ padding:"8px 11px", background:"#fff1f2", color:"#dc2626", border:"1px solid #fecdd3", borderRadius:"9px", fontSize:"11px", fontWeight:"800", cursor:"pointer" }}>إلغاء ({selectedRequestIds.length})</button><button onClick={handleDeleteSelectedRequests} style={{ padding:"8px 11px", background:"#dc2626", color:"white", border:"none", borderRadius:"9px", fontSize:"11px", fontWeight:"800", cursor:"pointer" }}>حذف المحدد ({selectedRequestIds.length})</button></>}
                         <button onClick={openSelectedRequestsPrint} disabled={selectedRequestIds.length === 0} style={{ padding:"8px 11px", background:selectedRequestIds.length ? "#2563eb" : "#e2e8f0", color:selectedRequestIds.length ? "white" : "#94a3b8", border:"none", borderRadius:"9px", fontSize:"11px", fontWeight:"800", cursor:selectedRequestIds.length ? "pointer" : "not-allowed" }}>طباعة المحدد</button>
                       </>}
                       <span style={{ fontSize:"12px", color:"#64748b" }}>{filteredRequests.length} طلب</span>
@@ -4761,9 +4997,10 @@ const VacationManagementSystem = () => {
               {/* ===== ATTENDANCE ===== */}
               {activeTab === "attendance" && isOwner && (
                 <div style={{ width:"100%", boxSizing:"border-box" }}>
-                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:"12px", marginBottom:"18px" }}><div><h2 style={{ margin:0, fontSize:"22px", fontWeight:"900" }}>الحضور والانصراف</h2><p style={{ margin:"5px 0 0", color:"#64748b", fontSize:"13px" }}>سجل يومي للحضور والانصراف قابل للمراجعة والتصدير لاحقًا.</p></div><div style={{ background:"#eef2ff", color:"#4338ca", borderRadius:"12px", padding:"10px 14px", fontWeight:"900" }}>{attendanceRows.length} سجل</div></div>
-                  <div style={{ background:"white", border:"1px solid #e2e8f0", borderRadius:"20px", padding:"18px", marginBottom:"16px", display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))", gap:"10px" }}><select value={attendanceForm.employee_id} onChange={e => setAttendanceForm({...attendanceForm, employee_id:e.target.value})} style={{ padding:"11px", border:"1px solid #e2e8f0", borderRadius:"10px", fontFamily:"inherit" }}><option value="">اختر الموظف</option>{employees.map((e:any) => <option key={e.id} value={e.id}>{e.name} — {e.code}</option>)}</select><input type="date" value={attendanceForm.attendance_date} onChange={e => setAttendanceForm({...attendanceForm, attendance_date:e.target.value})} style={{ padding:"11px", border:"1px solid #e2e8f0", borderRadius:"10px" }}/><select value={attendanceForm.status} onChange={e => setAttendanceForm({...attendanceForm, status:e.target.value})} style={{ padding:"11px", border:"1px solid #e2e8f0", borderRadius:"10px", fontFamily:"inherit" }}><option value="present">حاضر</option><option value="absent">غائب</option><option value="late">متأخر</option><option value="remote">عن بُعد</option><option value="leave">إجازة</option></select><input type="time" value={attendanceForm.check_in} onChange={e => setAttendanceForm({...attendanceForm, check_in:e.target.value})} style={{ padding:"11px", border:"1px solid #e2e8f0", borderRadius:"10px" }}/><input type="time" value={attendanceForm.check_out} onChange={e => setAttendanceForm({...attendanceForm, check_out:e.target.value})} style={{ padding:"11px", border:"1px solid #e2e8f0", borderRadius:"10px" }}/><input placeholder="ملاحظات" value={attendanceForm.notes} onChange={e => setAttendanceForm({...attendanceForm, notes:e.target.value})} style={{ padding:"11px", border:"1px solid #e2e8f0", borderRadius:"10px", fontFamily:"inherit" }}/><button onClick={saveAttendance} disabled={attendanceSaving} style={{ border:"none", background:"#4f46e5", color:"white", borderRadius:"10px", padding:"11px", fontWeight:"900", cursor:"pointer", fontFamily:"inherit" }}>{attendanceSaving ? "جاري الحفظ..." : "حفظ السجل"}</button></div>
-                  <div style={{ background:"white", border:"1px solid #e2e8f0", borderRadius:"20px", overflow:"auto" }}><table style={{ width:"100%", borderCollapse:"collapse", minWidth:"760px" }}><thead><tr style={{ background:"#f8fafc" }}>{["التاريخ","الموظف","الحالة","الدخول","الخروج","الملاحظات","إجراء"].map(h => <th key={h} style={{ padding:"12px", textAlign:"right", fontSize:"12px", color:"#64748b", borderBottom:"1px solid #e2e8f0" }}>{h}</th>)}</tr></thead><tbody>{attendanceRows.map((row:any) => <tr key={row.id} style={{ borderBottom:"1px solid #f1f5f9" }}><td style={{ padding:"12px", fontSize:"12px" }}>{formatDate(row.attendance_date)}</td><td style={{ padding:"12px", fontWeight:"800" }}>{row.employees?.name || employees.find((e:any) => e.id === row.employee_id)?.name || "-"}</td><td style={{ padding:"12px" }}><span style={{ background:row.status === "present" ? "#dcfce7" : row.status === "absent" ? "#fee2e2" : "#fef3c7", color:row.status === "present" ? "#15803d" : row.status === "absent" ? "#b91c1c" : "#92400e", borderRadius:"8px", padding:"4px 8px", fontSize:"11px", fontWeight:"800" }}>{({present:"حاضر", absent:"غائب", late:"متأخر", remote:"عن بُعد", leave:"إجازة"} as any)[row.status] || row.status}</span></td><td style={{ padding:"12px" }}>{row.check_in || "-"}</td><td style={{ padding:"12px" }}>{row.check_out || "-"}</td><td style={{ padding:"12px", color:"#64748b" }}>{row.notes || "-"}</td><td style={{ padding:"12px" }}><button onClick={() => deleteAttendance(row)} style={{ border:"none", background:"#fff1f2", color:"#dc2626", borderRadius:"8px", padding:"6px", cursor:"pointer" }}><Trash2 size={14}/></button></td></tr>)}</tbody></table>{attendanceRows.length === 0 && <div style={{ padding:"45px", textAlign:"center", color:"#94a3b8" }}>لا توجد سجلات حضور حتى الآن.</div>}</div>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:"12px", marginBottom:"18px" }}><div><h2 style={{ margin:0, fontSize:"22px", fontWeight:"900" }}>الحضور والانصراف</h2><p style={{ margin:"5px 0 0", color:"#64748b", fontSize:"13px" }}>يُنشئ النظام سجلًا تلقائيًا للموظف الذي حالته «عمل»، ويضع «إجازة» أو «راحة/عطلة» حسب البيانات المعتمدة. السجل اليدوي يظل له الأولوية.</p></div><div style={{ display:"flex", gap:"8px", alignItems:"center" }}><div style={{ background:"#eef2ff", color:"#4338ca", borderRadius:"12px", padding:"10px 14px", fontWeight:"900" }}>{attendanceRows.length} سجل</div>{attendanceAutoSyncing && <span style={{ color:"#059669", fontSize:"11px", fontWeight:"800" }}>جاري المزامنة التلقائية...</span>}</div></div>
+                  <div style={{ background:"white", border:"1px solid #e2e8f0", borderRadius:"20px", padding:"18px", marginBottom:"16px" }}><h3 style={{ margin:"0 0 12px", fontSize:"16px", fontWeight:"900", color:"#172554" }}>فئات ساعات العمل</h3><p style={{ margin:"0 0 12px", color:"#64748b", fontSize:"12px" }}>أدخل عدد الساعات اليومية لكل فئة فقط. وقت الدخول والخروج اختياري وليس مطلوبًا.</p><div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))", gap:"9px", marginBottom:"12px" }}><input placeholder="اسم الفئة مثل: دوام كامل" value={workTimeCategoryForm.name} onChange={e => setWorkTimeCategoryForm({...workTimeCategoryForm, name:e.target.value})} style={{ padding:"10px", border:"1px solid #cbd5e1", borderRadius:"9px", fontFamily:"inherit" }} /><input type="number" min="0" max="24" step="0.5" placeholder="عدد الساعات" value={workTimeCategoryForm.hours} onChange={e => setWorkTimeCategoryForm({...workTimeCategoryForm, hours:e.target.value})} style={{ padding:"10px", border:"1px solid #cbd5e1", borderRadius:"9px" }} /><input placeholder="وصف اختياري" value={workTimeCategoryForm.description} onChange={e => setWorkTimeCategoryForm({...workTimeCategoryForm, description:e.target.value})} style={{ padding:"10px", border:"1px solid #cbd5e1", borderRadius:"9px", fontFamily:"inherit" }} /><button onClick={saveWorkTimeCategory} style={{ border:"none", background:"#4f46e5", color:"white", borderRadius:"9px", padding:"10px", fontWeight:"900", cursor:"pointer", fontFamily:"inherit" }}>{workTimeCategoryForm.id ? "تحديث الفئة" : "إضافة الفئة"}</button></div><div style={{ display:"grid", gap:"8px" }}>{workTimeCategories.map(category => <div key={category.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:"10px", flexWrap:"wrap", border:"1px solid #eef2f7", borderRadius:"10px", padding:"9px 11px" }}><div><strong>{category.name}</strong><span style={{ color:"#4f46e5", fontWeight:"900", marginRight:"10px" }}>{category.hours} ساعة يوميًا</span>{category.description && <small style={{ color:"#64748b", marginRight:"10px" }}>{category.description}</small>}</div><div style={{ display:"flex", gap:"6px" }}><button onClick={() => setWorkTimeCategoryForm({ id:category.id, name:category.name, hours:String(category.hours), description:category.description || "" })} style={{ border:"1px solid #c7d2fe", background:"#eef2ff", color:"#4338ca", borderRadius:"7px", padding:"5px 8px", cursor:"pointer", fontFamily:"inherit" }}>تعديل</button><button onClick={() => deleteWorkTimeCategory(category)} style={{ border:"none", background:"#fff1f2", color:"#dc2626", borderRadius:"7px", padding:"5px 8px", cursor:"pointer", fontFamily:"inherit" }}>حذف</button></div></div>)}</div></div>
+                  <div style={{ background:"white", border:"1px solid #e2e8f0", borderRadius:"20px", padding:"18px", marginBottom:"16px", display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))", gap:"10px" }}><select value={attendanceForm.employee_id} onChange={e => setAttendanceForm({...attendanceForm, employee_id:e.target.value})} style={{ padding:"11px", border:"1px solid #e2e8f0", borderRadius:"10px", fontFamily:"inherit" }}><option value="">اختر الموظف</option>{employees.map((e:any) => <option key={e.id} value={e.id}>{e.name} — {e.code}</option>)}</select><input type="date" value={attendanceForm.attendance_date} onChange={e => setAttendanceForm({...attendanceForm, attendance_date:e.target.value})} style={{ padding:"11px", border:"1px solid #e2e8f0", borderRadius:"10px" }}/><select value={attendanceForm.status} onChange={e => setAttendanceForm({...attendanceForm, status:e.target.value})} style={{ padding:"11px", border:"1px solid #e2e8f0", borderRadius:"10px", fontFamily:"inherit" }}><option value="present">حاضر</option><option value="absent">غائب</option><option value="late">متأخر</option><option value="remote">عن بُعد</option><option value="leave">إجازة</option><option value="rest">راحة / عطلة</option></select><input type="time" value={attendanceForm.check_in} onChange={e => setAttendanceForm({...attendanceForm, check_in:e.target.value})} style={{ padding:"11px", border:"1px solid #e2e8f0", borderRadius:"10px" }}/><input type="time" value={attendanceForm.check_out} onChange={e => setAttendanceForm({...attendanceForm, check_out:e.target.value})} style={{ padding:"11px", border:"1px solid #e2e8f0", borderRadius:"10px" }}/><input placeholder="ملاحظات" value={attendanceForm.notes} onChange={e => setAttendanceForm({...attendanceForm, notes:e.target.value})} style={{ padding:"11px", border:"1px solid #e2e8f0", borderRadius:"10px", fontFamily:"inherit" }}/><button onClick={saveAttendance} disabled={attendanceSaving} style={{ border:"none", background:"#4f46e5", color:"white", borderRadius:"10px", padding:"11px", fontWeight:"900", cursor:"pointer", fontFamily:"inherit" }}>{attendanceSaving ? "جاري الحفظ..." : "حفظ السجل"}</button></div>
+                  <div style={{ background:"white", border:"1px solid #e2e8f0", borderRadius:"20px", overflow:"auto" }}><table style={{ width:"100%", borderCollapse:"collapse", minWidth:"760px" }}><thead><tr style={{ background:"#f8fafc" }}>{["التاريخ","الموظف","الحالة","الدخول","الخروج","الملاحظات","إجراء"].map(h => <th key={h} style={{ padding:"12px", textAlign:"right", fontSize:"12px", color:"#64748b", borderBottom:"1px solid #e2e8f0" }}>{h}</th>)}</tr></thead><tbody>{attendanceRows.map((row:any) => <tr key={row.id} style={{ borderBottom:"1px solid #f1f5f9" }}><td style={{ padding:"12px", fontSize:"12px" }}>{formatDate(row.attendance_date)}</td><td style={{ padding:"12px", fontWeight:"800" }}>{row.employees?.name || employees.find((e:any) => e.id === row.employee_id)?.name || "-"}</td><td style={{ padding:"12px" }}><span style={{ background:row.status === "present" ? "#dcfce7" : row.status === "absent" ? "#fee2e2" : row.status === "rest" ? "#e0f2fe" : "#fef3c7", color:row.status === "present" ? "#15803d" : row.status === "absent" ? "#b91c1c" : row.status === "rest" ? "#0369a1" : "#92400e", borderRadius:"8px", padding:"4px 8px", fontSize:"11px", fontWeight:"800" }}>{({present:"حاضر", absent:"غائب", late:"متأخر", remote:"عن بُعد", leave:"إجازة", rest:"راحة / عطلة"} as any)[row.status] || row.status}</span></td><td style={{ padding:"12px" }}>{row.check_in || "-"}</td><td style={{ padding:"12px" }}>{row.check_out || "-"}</td><td style={{ padding:"12px", color:"#64748b" }}>{row.notes || "-"}</td><td style={{ padding:"12px" }}><button onClick={() => deleteAttendance(row)} style={{ border:"none", background:"#fff1f2", color:"#dc2626", borderRadius:"8px", padding:"6px", cursor:"pointer" }}><Trash2 size={14}/></button></td></tr>)}</tbody></table>{attendanceRows.length === 0 && <div style={{ padding:"45px", textAlign:"center", color:"#94a3b8" }}>لا توجد سجلات حضور حتى الآن.</div>}</div>
                 </div>
               )}
 
@@ -5322,10 +5559,11 @@ const VacationManagementSystem = () => {
                         {/* أزرار الاختيار */}
                         {filtered.length > 0 && (
                           <div style={{ display:"flex", gap:"8px" }}>
-                            <button onClick={() => setSelectedPrintIds(new Set(filtered.map(f => f.selectionId)))}
+                            <button onClick={() => { const allSelected = filtered.every(f => selectedPrintIds.has(f.selectionId)); setSelectedPrintIds(allSelected ? new Set() : new Set(filtered.map(f => f.selectionId))); }}
                               style={{ display:"flex", alignItems:"center", gap:"6px", padding:"10px 14px", background:"#f0f4ff", color:"#4f46e5", border:"1px solid #4f46e5", borderRadius:"12px", fontWeight:"700", cursor:"pointer", fontSize:"12px", fontFamily:"inherit" }}>
-                              ✓ اختر الكل ({filtered.length})
+                              ✓ {filtered.every(f => selectedPrintIds.has(f.selectionId)) ? "إلغاء تحديد الكل" : "اختر الكل"} ({filtered.length})
                             </button>
+                            {selectedPrintIds.size > 0 && <button onClick={handleDeleteSelectedActiveVacations} style={{ display:"flex", alignItems:"center", gap:"6px", padding:"10px 14px", background:"#dc2626", color:"white", border:"none", borderRadius:"12px", fontWeight:"800", cursor:"pointer", fontSize:"12px", fontFamily:"inherit" }}>حذف المحدد ({selectedPrintIds.size})</button>}
                             <button onClick={() => setSelectedPrintIds(new Set())}
                               style={{ display:"flex", alignItems:"center", gap:"6px", padding:"10px 14px", background:"#fff5f5", color:"#dc2626", border:"1px solid #dc2626", borderRadius:"12px", fontWeight:"700", cursor:"pointer", fontSize:"12px", fontFamily:"inherit" }}>
                               ✕ إلغاء الاختيار
@@ -5698,39 +5936,44 @@ const VacationManagementSystem = () => {
                 <AdminsTab supabase={supabase} logAction={logAction} currentUser={currentUser} />
               )}
 
-              {/* ===== NOTIFICATION SETTINGS ===== */}
+              {/* ===== SEASONAL LOGIN SETTINGS ===== */}
               {activeTab === "seasonal_login_settings" && isOwner && (
-                <div style={{ maxWidth:"920px", width:"100%", marginTop:"16px" }}>
-                  <div style={{ background:"white", border:"1px solid #e2e8f0", borderRadius:"20px", padding:"20px", boxShadow:"0 8px 24px rgba(15,23,42,0.06)" }}>
-                    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"12px", marginBottom:"8px" }}>
-                      <div><h3 style={{ margin:0, fontSize:"18px", fontWeight:"900", color:"#1e293b" }}>خلفيات المناسبات الموسمية</h3><p style={{ margin:"5px 0 0", color:"#64748b", fontSize:"12px" }}>تتغير خلفية تسجيل الدخول تلقائيًا حسب التاريخ. يمكنك تعطيل أي مناسبة أو تعديل بياناتها.</p></div>
-                      <div style={{ display:"flex", alignItems:"center", gap:"10px" }}><button onClick={resetSeasonalLoginEvents} style={{ border:"1px solid #c4b5fd", color:"#6d28d9", background:"#faf5ff", borderRadius:"10px", padding:"9px 12px", fontFamily:"inherit", fontWeight:"800", cursor:"pointer" }}>إعادة الافتراضي</button><Sparkles size={25} color="#7c3aed" /></div>
+                <div style={{ maxWidth:"1120px", width:"100%", margin:"16px auto 0" }}>
+                  <div style={{ background:"white", border:"1px solid #dbe4f0", borderRadius:"22px", padding:"22px", boxShadow:"0 8px 24px rgba(15,23,42,0.06)" }}>
+                    <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:"14px", flexWrap:"wrap", marginBottom:"14px" }}>
+                      <div><h3 style={{ margin:0, fontSize:"20px", fontWeight:"900", color:"#172554" }}>خلفيات المناسبات الموسمية</h3><p style={{ margin:"6px 0 0", color:"#64748b", fontSize:"13px" }}>أضف المناسبة والصور مباشرة من هنا. لا تحتاج إلى وضع الصور داخل ملفات المشروع.</p></div>
+                      <div style={{ display:"flex", gap:"8px", flexWrap:"wrap" }}><button onClick={() => setShowSeasonalEventForm(value => !value)} style={{ border:"none", color:"white", background:"linear-gradient(135deg,#4f46e5,#7c3aed)", borderRadius:"11px", padding:"10px 14px", fontFamily:"inherit", fontWeight:"900", cursor:"pointer" }}>+ إضافة مناسبة</button><button onClick={resetSeasonalLoginEvents} style={{ border:"1px solid #c4b5fd", color:"#6d28d9", background:"#faf5ff", borderRadius:"10px", padding:"10px 12px", fontFamily:"inherit", fontWeight:"800", cursor:"pointer" }}>إعادة الافتراضي</button><Sparkles size={26} color="#7c3aed" /></div>
                     </div>
-                    <div style={{ marginTop:"16px", marginBottom:"14px", padding:"12px 14px", borderRadius:"14px", background:activeSeasonalLoginEvent ? "#ecfdf5" : "#f8fafc", border:`1px solid ${activeSeasonalLoginEvent ? "#a7f3d0" : "#e2e8f0"}`, color:activeSeasonalLoginEvent ? "#047857" : "#64748b", fontSize:"13px", fontWeight:"800" }}>المناسبة النشطة اليوم: {activeSeasonalLoginEvent ? activeSeasonalLoginEvent.name : "لا توجد مناسبة مفعلة الآن — ستظهر الخلفية الافتراضية للنظام"}</div>
-                    <div style={{ display:"grid", gap:"12px" }}>
-                      {seasonalLoginEvents.map((event: any) => <div key={event.id} style={{ border:"1px solid #e2e8f0", borderRadius:"16px", padding:"14px", background:event.enabled === false ? "#f8fafc" : "#ffffff" }}>
-                        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"10px", marginBottom:"10px" }}>
-                          <div style={{ display:"flex", alignItems:"center", gap:"10px" }}><div style={{ width:"42px", height:"28px", borderRadius:"8px", background:`${event.background_url ? `url(${event.background_url}) center/cover` : "linear-gradient(135deg,#312e81,#7c3aed)"}`, border:"1px solid #cbd5e1" }} /><strong style={{ color:"#1e293b" }}>{event.name}</strong></div>
-                          <label style={{ display:"flex", alignItems:"center", gap:"6px", fontSize:"12px", fontWeight:"800", color:event.enabled === false ? "#94a3b8" : "#059669" }}><input type="checkbox" checked={event.enabled !== false} onChange={e => updateSeasonalLoginEvent(event.id, { enabled:e.target.checked })} /> مفعلة</label>
-                        </div>
-                        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))", gap:"8px" }}>
-                          <input value={event.name || ""} onChange={e => setSeasonalLoginEvents(items => items.map(item => item.id === event.id ? { ...item, name:e.target.value } : item))} onBlur={e => persistSeasonalEventField(event.id, { name:e.currentTarget.value })} placeholder="اسم المناسبة" style={{ padding:"9px", border:"1px solid #e2e8f0", borderRadius:"9px", fontFamily:"inherit" }} />
-                          <input type="date" value={event.start_date || ""} onChange={e => setSeasonalLoginEvents(items => items.map(item => item.id === event.id ? { ...item, start_date:e.target.value } : item))} onBlur={e => persistSeasonalEventField(event.id, { start_date:e.currentTarget.value })} style={{ padding:"9px", border:"1px solid #e2e8f0", borderRadius:"9px" }} />
-                          <input type="date" value={event.end_date || ""} onChange={e => setSeasonalLoginEvents(items => items.map(item => item.id === event.id ? { ...item, end_date:e.target.value } : item))} onBlur={e => persistSeasonalEventField(event.id, { end_date:e.currentTarget.value })} style={{ padding:"9px", border:"1px solid #e2e8f0", borderRadius:"9px" }} />
-                          <input value={event.background_url || ""} onChange={e => setSeasonalLoginEvents(items => items.map(item => item.id === event.id ? { ...item, background_url:e.target.value } : item))} onBlur={e => persistSeasonalEventField(event.id, { background_url:e.currentTarget.value })} placeholder="/seasonal-login-event.jpg" dir="ltr" style={{ padding:"9px", border:"1px solid #e2e8f0", borderRadius:"9px", fontFamily:"inherit" }} />
-                          <input type="color" value={event.accent || "#6366f1"} onChange={e => setSeasonalLoginEvents(items => items.map(item => item.id === event.id ? { ...item, accent:e.target.value } : item))} onBlur={e => persistSeasonalEventField(event.id, { accent:e.currentTarget.value })} title="لون المناسبة" style={{ width:"100%", minHeight:"38px", padding:"3px", border:"1px solid #e2e8f0", borderRadius:"9px", background:"white" }} />
-                          <input type="number" value={Number(event.priority || 0)} onChange={e => setSeasonalLoginEvents(items => items.map(item => item.id === event.id ? { ...item, priority:Number(e.target.value) } : item))} onBlur={e => persistSeasonalEventField(event.id, { priority:Number(e.currentTarget.value || 0) })} min="0" style={{ padding:"9px", border:"1px solid #e2e8f0", borderRadius:"9px" }} />
-                        </div>
-                        <div style={{ display:"flex", flexWrap:"wrap", alignItems:"center", gap:"12px", marginTop:"8px", color:"#64748b", fontSize:"11px" }}><label style={{ display:"flex", alignItems:"center", gap:"5px", fontWeight:"800" }}><input type="checkbox" checked={event.annual === true} onChange={e => updateSeasonalLoginEvent(event.id, { annual:e.target.checked })} /> تتكرر سنويًا</label><span>من: {event.start_date || "—"}</span><span>إلى: {event.end_date || "—"}</span><span>{event.annual ? "يعتمد الشهر واليوم من التاريخ" : "موسمية محددة للسنة"}</span></div>
-                      </div>)}
+                    <div style={{ marginBottom:"14px", padding:"12px 14px", borderRadius:"14px", background:activeSeasonalLoginEvent ? "#ecfdf5" : "#f8fafc", border:`1px solid ${activeSeasonalLoginEvent ? "#a7f3d0" : "#e2e8f0"}`, color:activeSeasonalLoginEvent ? "#047857" : "#64748b", fontSize:"13px", fontWeight:"800" }}>المناسبة النشطة اليوم: {activeSeasonalLoginEvent ? activeSeasonalLoginEvent.name : "لا توجد مناسبة مفعلة الآن — ستظهر الخلفية الافتراضية للنظام"}</div>
+                    {showSeasonalEventForm && <div style={{ border:"1px solid #c7d2fe", background:"#f8faff", borderRadius:"16px", padding:"16px", marginBottom:"14px" }}>
+                      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))", gap:"9px" }}>
+                        <input value={seasonalEventForm.name} onChange={e => setSeasonalEventForm({...seasonalEventForm, name:e.target.value})} placeholder="اسم المناسبة" style={{ padding:"10px", border:"1px solid #cbd5e1", borderRadius:"9px", fontFamily:"inherit" }} />
+                        <input type="date" value={seasonalEventForm.start_date} onChange={e => setSeasonalEventForm({...seasonalEventForm, start_date:e.target.value})} style={{ padding:"10px", border:"1px solid #cbd5e1", borderRadius:"9px" }} />
+                        <input type="date" value={seasonalEventForm.end_date} onChange={e => setSeasonalEventForm({...seasonalEventForm, end_date:e.target.value})} style={{ padding:"10px", border:"1px solid #cbd5e1", borderRadius:"9px" }} />
+                        <input type="number" min="0" value={seasonalEventForm.priority} onChange={e => setSeasonalEventForm({...seasonalEventForm, priority:Number(e.target.value)})} placeholder="الأولوية" style={{ padding:"10px", border:"1px solid #cbd5e1", borderRadius:"9px" }} />
+                        <input type="color" value={seasonalEventForm.accent} onChange={e => setSeasonalEventForm({...seasonalEventForm, accent:e.target.value})} style={{ width:"100%", minHeight:"40px", padding:"3px", border:"1px solid #cbd5e1", borderRadius:"9px" }} />
+                        <label style={{ display:"flex", alignItems:"center", gap:"7px", padding:"8px", fontWeight:"800", color:"#475569", fontSize:"12px" }}><input type="checkbox" checked={seasonalEventForm.annual} onChange={e => setSeasonalEventForm({...seasonalEventForm, annual:e.target.checked})} /> تتكرر سنويًا</label>
+                      </div>
+                      <div style={{ display:"flex", justifyContent:"flex-end", gap:"8px", marginTop:"10px" }}><button onClick={() => setShowSeasonalEventForm(false)} style={{ padding:"9px 14px", border:"1px solid #cbd5e1", background:"white", borderRadius:"9px", cursor:"pointer", fontFamily:"inherit" }}>إلغاء</button><button onClick={addSeasonalLoginEvent} style={{ padding:"9px 16px", border:"none", background:"#059669", color:"white", borderRadius:"9px", cursor:"pointer", fontWeight:"900", fontFamily:"inherit" }}>حفظ المناسبة</button></div>
+                    </div>}
+                    <div style={{ display:"grid", gap:"14px" }}>
+                      {seasonalLoginEvents.map((event: any) => {
+                        const eventImages = seasonalLoginImages.filter(image => String(image.event_id) === String(event.id)).sort((a,b) => Number(a.sort_order || 0) - Number(b.sort_order || 0));
+                        return <div key={event.id} style={{ border:"1px solid #dbe4f0", borderRadius:"16px", padding:"16px", background:event.enabled === false ? "#f8fafc" : "#fff" }}>
+                          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"10px", flexWrap:"wrap", marginBottom:"12px" }}><div style={{ display:"flex", alignItems:"center", gap:"10px" }}><div style={{ width:"58px", height:"38px", borderRadius:"9px", background:eventImages[0]?.image_url ? `url(${eventImages[0].image_url}) center/cover` : event.background_url ? `url(${event.background_url}) center/cover` : "linear-gradient(135deg,#312e81,#7c3aed)", border:"1px solid #cbd5e1" }} /><strong style={{ color:"#1e293b", fontSize:"15px" }}>{event.name}</strong><span style={{ fontSize:"11px", color:"#64748b" }}>{eventImages.length} صورة</span></div><label style={{ display:"flex", alignItems:"center", gap:"6px", fontSize:"12px", fontWeight:"900", color:event.enabled === false ? "#94a3b8" : "#059669" }}><input type="checkbox" checked={event.enabled !== false} onChange={e => updateSeasonalLoginEvent(event.id, { enabled:e.target.checked })} /> مفعلة</label></div>
+                          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))", gap:"8px" }}><input value={event.name || ""} onChange={e => setSeasonalLoginEvents(items => items.map(item => item.id === event.id ? { ...item, name:e.target.value } : item))} onBlur={e => persistSeasonalEventField(event.id, { name:e.currentTarget.value })} placeholder="اسم المناسبة" style={{ padding:"9px", border:"1px solid #e2e8f0", borderRadius:"9px", fontFamily:"inherit" }} /><input type="date" value={event.start_date || ""} onChange={e => setSeasonalLoginEvents(items => items.map(item => item.id === event.id ? { ...item, start_date:e.target.value } : item))} onBlur={e => persistSeasonalEventField(event.id, { start_date:e.currentTarget.value })} style={{ padding:"9px", border:"1px solid #e2e8f0", borderRadius:"9px" }} /><input type="date" value={event.end_date || ""} onChange={e => setSeasonalLoginEvents(items => items.map(item => item.id === event.id ? { ...item, end_date:e.target.value } : item))} onBlur={e => persistSeasonalEventField(event.id, { end_date:e.currentTarget.value })} style={{ padding:"9px", border:"1px solid #e2e8f0", borderRadius:"9px" }} /><input type="number" value={Number(event.priority || 0)} min="0" onChange={e => setSeasonalLoginEvents(items => items.map(item => item.id === event.id ? { ...item, priority:Number(e.target.value) } : item))} onBlur={e => persistSeasonalEventField(event.id, { priority:Number(e.currentTarget.value || 0) })} placeholder="الأولوية" style={{ padding:"9px", border:"1px solid #e2e8f0", borderRadius:"9px" }} /></div>
+                          <div style={{ display:"flex", alignItems:"center", gap:"12px", flexWrap:"wrap", color:"#64748b", fontSize:"11px", marginTop:"9px" }}><label style={{ display:"flex", alignItems:"center", gap:"5px", fontWeight:"800" }}><input type="checkbox" checked={event.annual === true} onChange={e => updateSeasonalLoginEvent(event.id, { annual:e.target.checked })} /> تتكرر سنويًا</label><span>الفترة: {event.start_date || "—"} إلى {event.end_date || "—"}</span><label style={{ display:"flex", alignItems:"center", gap:"6px", color:"#4f46e5", fontWeight:"900", cursor:"pointer" }}><input type="file" accept="image/*" multiple style={{ display:"none" }} onChange={async e => { const files = Array.from(e.target.files || []) as File[]; for (const file of files) await uploadSeasonalLoginImage(event, file); e.currentTarget.value=""; }} /><span style={{ border:"1px solid #a5b4fc", background:"#eef2ff", padding:"7px 10px", borderRadius:"9px" }}>{seasonalImageUploading ? "جاري الرفع..." : "+ رفع صور من الجهاز"}</span></label></div>
+                          {eventImages.length > 0 && <div style={{ display:"grid", gap:"8px", marginTop:"12px" }}>{eventImages.map((image: any, index: number) => <div key={image.id} style={{ display:"grid", gridTemplateColumns:"72px 1fr auto", alignItems:"center", gap:"10px", padding:"8px", border:"1px solid #eef2f7", borderRadius:"10px", background:"#fbfdff" }}><img src={image.image_url} alt={event.name} style={{ width:"72px", height:"42px", objectFit:"cover", borderRadius:"7px", border:"1px solid #e2e8f0" }} /><div style={{ display:"flex", alignItems:"center", gap:"8px", flexWrap:"wrap" }}><span style={{ fontSize:"11px", color:"#64748b" }}>الصورة {index + 1}</span><label style={{ fontSize:"11px", color:"#475569", fontWeight:"800" }}>مدة العرض بالثواني <input type="number" min="3" max="3600" value={Number(image.display_seconds || 10)} onChange={e => updateSeasonalLoginImage(image.id, { display_seconds:Math.max(3, Number(e.target.value || 10)) })} style={{ width:"75px", padding:"5px", marginRight:"5px", border:"1px solid #cbd5e1", borderRadius:"7px" }} /></label><label style={{ fontSize:"11px", color:"#059669", fontWeight:"800" }}><input type="checkbox" checked={image.enabled !== false} onChange={e => updateSeasonalLoginImage(image.id, { enabled:e.target.checked })} /> تظهر</label></div><button onClick={() => deleteSeasonalLoginImage(image)} style={{ border:"none", color:"#dc2626", background:"#fff1f2", borderRadius:"8px", padding:"7px", cursor:"pointer" }} title="حذف الصورة"><Trash2 size={15} /></button></div>)}</div>}
+                        </div>;
+                      })}
                     </div>
-                    <div style={{ marginTop:"14px", padding:"10px 12px", borderRadius:"12px", background:"#f5f3ff", color:"#6d28d9", fontSize:"12px", fontWeight:"700" }}>ضع ملفات الصور داخل مجلد <code dir="ltr">public</code> في مشروعك بالأسماء نفسها، أو استخدم رابط صورة عام. لا تحتاج هذه الميزة إلى SQL إذا استخدمت الإعدادات الافتراضية؛ وعند تشغيل ترحيل SQL تُحفظ التعديلات مركزيًا.</div>
+                    <div style={{ marginTop:"14px", padding:"11px 13px", borderRadius:"12px", background:"#f5f3ff", color:"#5b21b6", fontSize:"12px", fontWeight:"700" }}>يمكن رفع أكثر من صورة للمناسبة من نفس الزر، ولكل صورة مدة عرض مستقلة. سيتم تدوير الصور تلقائيًا في صفحة الدخول والخلفية الداخلية. يتطلب الرفع تشغيل ترحيل SQL الخاص بجدولي الصور وStorage.</div>
                   </div>
                 </div>
               )}
 
               {activeTab === "notification_settings" && isOwner && (
-                <div style={{ maxWidth:"760px", width:"100%" }}>
+                <div style={{ maxWidth:"920px", width:"100%", margin:"16px auto 0" }}>
                   <div style={{ marginBottom:"18px" }}><h2 style={{ margin:0, fontSize:"22px", fontWeight:"900" }}>إعدادات التنبيهات</h2><p style={{ margin:"5px 0 0", color:"#64748b", fontSize:"13px" }}>تحكم في أنواع التنبيهات التي تظهر لك داخل النظام والمتصفح.</p></div>
                   <div style={{ background:"white", border:"1px solid #e2e8f0", borderRadius:"20px", padding:"20px", display:"grid", gap:"10px" }}>{[{key:"return_due",label:"عودة الموظفين المستحقة",desc:"تنبيه عند حلول موعد عودة الموظف أو تأخره."},{key:"leave_start",label:"بدء الإجازات اليوم",desc:"إظهار الموظفين الذين تبدأ إجازاتهم في تاريخ اليوم."},{key:"low_balance",label:"الأرصدة المنخفضة",desc:"تنبيه عند انخفاض رصيد الإجازة عن الحد المعتاد."},{key:"conflict",label:"تعارضات الإجازات",desc:"إظهار تعارضات الإجازات داخل القسم للمراجعة."},{key:"request_decision",label:"قرارات الطلبات",desc:"تنبيه عند اعتماد أو رفض طلبات الإجازة."},{key:"browser_push",label:"إشعارات المتصفح",desc:"السماح بتنبيهات المتصفح عند فتح النظام."},{key:"email_enabled",label:"إشعارات البريد الإلكتروني",desc:"تفعيل إرسال التنبيهات البريدية عند توفر البريد والقالب."}].map(pref => <label key={pref.key} style={{ display:"flex", alignItems:"center", gap:"12px", padding:"13px", border:"1px solid #eef2f7", borderRadius:"14px", cursor:"pointer" }}><input type="checkbox" checked={(notificationPrefs as any)[pref.key]} onChange={e => setNotificationPrefs({...notificationPrefs, [pref.key]:e.target.checked})} style={{ width:"18px", height:"18px", accentColor:"#4f46e5" }}/><span><strong style={{ display:"block", fontSize:"14px" }}>{pref.label}</strong><small style={{ color:"#64748b" }}>{pref.desc}</small></span></label>)}<button onClick={saveNotificationPreferences} disabled={notificationPrefsSaving} style={{ marginTop:"8px", border:"none", borderRadius:"12px", padding:"13px", background:"#4f46e5", color:"white", fontWeight:"900", cursor:"pointer", fontFamily:"inherit" }}>{notificationPrefsSaving ? "جاري الحفظ..." : "حفظ إعدادات التنبيهات"}</button></div>
                 </div>
@@ -5988,7 +6231,7 @@ const VacationManagementSystem = () => {
                     <div style={{ display:"flex", alignItems:"center", gap:"6px", marginRight:"auto", flexWrap:"wrap" }}>
                       {filteredRequests.length > 0 && <>
                         <button onClick={() => selectAllRequests(filteredRequests)} style={{ padding:"8px 11px", background:"#eef2ff", color:"#4338ca", border:"1px solid #c7d2fe", borderRadius:"9px", fontSize:"11px", fontWeight:"800", cursor:"pointer" }}>✓ تحديد الطلبات</button>
-                        {selectedRequestIds.length > 0 && <button onClick={() => setSelectedRequestIds([])} style={{ padding:"8px 11px", background:"#fff1f2", color:"#dc2626", border:"1px solid #fecdd3", borderRadius:"9px", fontSize:"11px", fontWeight:"800", cursor:"pointer" }}>إلغاء ({selectedRequestIds.length})</button>}
+                        {selectedRequestIds.length > 0 && <><button onClick={() => setSelectedRequestIds([])} style={{ padding:"8px 11px", background:"#fff1f2", color:"#dc2626", border:"1px solid #fecdd3", borderRadius:"9px", fontSize:"11px", fontWeight:"800", cursor:"pointer" }}>إلغاء ({selectedRequestIds.length})</button><button onClick={handleDeleteSelectedRequests} style={{ padding:"8px 11px", background:"#dc2626", color:"white", border:"none", borderRadius:"9px", fontSize:"11px", fontWeight:"800", cursor:"pointer" }}>حذف المحدد ({selectedRequestIds.length})</button></>}
                         <button onClick={openSelectedRequestsPrint} disabled={selectedRequestIds.length === 0} style={{ padding:"8px 11px", background:selectedRequestIds.length ? "#2563eb" : "#e2e8f0", color:selectedRequestIds.length ? "white" : "#94a3b8", border:"none", borderRadius:"9px", fontSize:"11px", fontWeight:"800", cursor:selectedRequestIds.length ? "pointer" : "not-allowed" }}>طباعة المحدد</button>
                       </>}
                       <span style={{ fontSize:"12px", color:"#64748b" }}>{filteredRequests.length} طلب</span>
@@ -6270,6 +6513,7 @@ const VacationManagementSystem = () => {
                     {departments.map(dept => <option key={dept.id} value={dept.id}>{dept.name}</option>)}
                   </select>
                 )}
+                {workTimeCategories.length > 0 && <select className="w-full p-4 border rounded-2xl outline-none" value={newEmp.work_time_category_id} onChange={(e) => setNewEmp({...newEmp, work_time_category_id:e.target.value})}><option value="">فئة ساعات العمل (اختياري)</option>{workTimeCategories.map(category => <option key={category.id} value={category.id}>{category.name} — {category.hours} ساعة</option>)}</select>}
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="text-xs text-slate-500 font-bold mb-1 block">تاريخ التعيين (بيان فقط)</label>
@@ -6314,6 +6558,7 @@ const VacationManagementSystem = () => {
                     {departments.map(dept => <option key={dept.id} value={dept.id}>{dept.name}</option>)}
                   </select>
                 )}
+                {workTimeCategories.length > 0 && <select className="w-full p-4 border rounded-2xl" value={editingEmp.work_time_category_id || ''} onChange={(e) => setEditingEmp({...editingEmp, work_time_category_id:e.target.value})}><option value="">فئة ساعات العمل (اختياري)</option>{workTimeCategories.map(category => <option key={category.id} value={category.id}>{category.name} — {category.hours} ساعة</option>)}</select>}
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="text-xs text-slate-500 font-bold mb-1 block">تاريخ التعيين (بيان فقط)</label>
