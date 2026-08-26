@@ -2253,7 +2253,10 @@ const VacationManagementSystem = () => {
     if (!window.confirm(`سيتم حذف ${selected.length} سجل${restoreSummary > 0 ? ` وإعادة ${restoreSummary} يومًا إلى أرصدة الطلبات المقبولة` : ""}. هل تريد المتابعة؟`)) return;
     const balanceBefore = new Map<string, number>();
     try {
-      for (const [employeeId, days] of restoreByEmployee) {
+      const balanceEntries = Array.from(restoreByEmployee.entries());
+      for (let index = 0; index < balanceEntries.length; index += 1) {
+        const employeeId = balanceEntries[index][0];
+        const days = balanceEntries[index][1];
         const emp = employees.find(item => String(item.id) === employeeId);
         if (!emp) continue;
         const before = Number(emp.balance || 0);
@@ -2272,7 +2275,12 @@ const VacationManagementSystem = () => {
       await fetchData();
       alert("تم حذف السجلات المحددة بنجاح ✅");
     } catch (error: any) {
-      for (const [employeeId, before] of balanceBefore) await supabase.from("employees").update({ balance: before }).eq("id", employeeId);
+      const balanceEntries = Array.from(balanceBefore.entries());
+      for (let index = 0; index < balanceEntries.length; index += 1) {
+        const employeeId = balanceEntries[index][0];
+        const before = balanceEntries[index][1];
+        await supabase.from("employees").update({ balance: before }).eq("id", employeeId);
+      }
       alert("تعذر إتمام الحذف الجماعي وتمت إعادة الأرصدة كما كانت: " + (error?.message || "خطأ غير معروف"));
     }
   };
