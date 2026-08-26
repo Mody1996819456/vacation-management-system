@@ -1226,8 +1226,10 @@ const VacationManagementSystem = () => {
     const reconcileExistingEmployeeLeaveStatuses = async () => {
       if (cancelled || employees.length === 0 || !currentUser || !["admin", "owner", "dept_manager"].includes(currentUser.role)) return;
       const today = getLocalISODate();
+      const currentMonthStart = `${today.slice(0, 7)}-01`;
       const nextEmployees = [...employees];
-      const updates: Array<{ id: string; payload: any; index: number }> = [];
+      const employeeUpdates: Array<{ id: string; payload: any; index: number }> = [];
+      const requestClosures: Array<{ id: string; payload: any }> = [];
 
       employees.forEach((emp, index) => {
         const approved = requests
@@ -1235,16 +1237,37 @@ const VacationManagementSystem = () => {
           .map(r => {
             const effectiveStart = r.effective_start_date || r.start_date || getActualStartDate(r.departure_date || r.start_date, r.departure_time || "actual");
             const { back } = getCalculatedDates(effectiveStart, Number(r.days || 0));
-            return { ...r, __effectiveStart: effectiveStart, __back: back };
+            return { ...r, __effectiveStart: effectiveStart, __back: normalizeDateKey(back) };
           })
-          .filter(r => r.__effectiveStart)
+          .filter(r => r.__effectiveStart && r.__back)
           .sort((a, b) => String(a.__effectiveStart).localeCompare(String(b.__effectiveStart)));
 
-        // لا نغيّر الموظف الذي لا يملك طلب إجازة؛ قد تكون إجازته يدوية.
-        if (approved.length === 0) return;
-        const activeReq = approved.filter(r => today >= r.__effectiveStart && today < r.__back).sort((a, b) => String(b.__effectiveStart).localeCompare(String(a.__effectiveStart)))[0];
-        const futureReq = approved.filter(r => today < r.__effectiveStart).sort((a, b) => String(a.__effectiveStart).localeCompare(String(b.__effectiveStart)))[0];
-        const lastClosedReq = approved.filter(r => today >= r.__back).sort((a, b) => String(b.__back).localeCompare(String(a.__back)))[0];
+        // الطلبات التي انتهت قبل بداية الشهر الحالي تُغلق في المعاملة فقط.
+        // نستخدم تاريخ العودة المخطط كعلامة إغلاق دون خصم رصيد أو تعديل أي إجازة أخرى.
+        const oldRequests = approved.filter(r => String(r.__back) < currentMonthStart);
+        oldRequests.forEach(r => requestClosures.push({
+          id: String(r.id),
+          payload: { actual_return_date: r.__back, lateness_days: Number(r.lateness_days || 0) },
+        }));
+        const oldRequestIds = new Set(oldRequests.map(r => String(r.id)));
+        const openApproved = approved.filter(r => !oldRequestIds.has(String(r.id)));
+
+        // لا نغيّر الموظف الذي لديه إجازة مباشرة مفتوحة أو إجازة مستقبلية.
+        // إذا كان الطلب الوحيد قديمًا، نغلق حالة الموظف فقط دون تعديل الرصيد.
+        const manualReturnDate = normalizeDateKey(emp.return_date);
+        const manualVacationStillOpen = Boolean(manualReturnDate && manualReturnDate >= today);
+        if (openApproved.length === 0) {
+          if (emp.status === "إجازة" && !manualVacationStillOpen && (oldRequests.length > 0 || (manualReturnDate && manualReturnDate < currentMonthStart))) {
+            const payload = { status: "عمل", leave_start_date: null };
+            employeeUpdates.push({ id: String(emp.id), payload, index });
+            nextEmployees[index] = { ...emp, ...payload };
+          }
+          return;
+        }
+
+        const activeReq = openApproved.filter(r => today >= r.__effectiveStart && today < r.__back).sort((a, b) => String(b.__effectiveStart).localeCompare(String(a.__effectiveStart)))[0];
+        const futureReq = openApproved.filter(r => today < r.__effectiveStart).sort((a, b) => String(a.__effectiveStart).localeCompare(String(b.__effectiveStart)))[0];
+        const lastClosedReq = openApproved.filter(r => today >= r.__back).sort((a, b) => String(b.__back).localeCompare(String(a.__back)))[0];
         const targetStatus = activeReq ? "إجازة" : "عمل";
         const targetLeaveStart = activeReq?.__effectiveStart || futureReq?.__effectiveStart || null;
         const targetReturnDate = activeReq?.__back || futureReq?.__back || lastClosedReq?.__back || emp.return_date || null;
@@ -1253,22 +1276,27 @@ const VacationManagementSystem = () => {
         if ((emp.status === "إجازة" ? "إجازة" : "عمل") !== targetStatus) payload.status = targetStatus;
         if ((emp.leave_start_date || null) !== targetLeaveStart) payload.leave_start_date = targetLeaveStart;
         // لا نستبدل تاريخ العودة الذي أدخله المدير يدويًا بعد حفظه.
-        // يتم ملء التاريخ تلقائيًا فقط إذا كان فارغًا؛ أما تواريخ الطلبات الجديدة فتُحفظ عند اعتماد الطلب نفسه.
         if (!emp.return_date && targetReturnDate) payload.return_date = targetReturnDate;
 
         if (Object.keys(payload).length > 0) {
-          updates.push({ id: emp.id, payload, index });
+          employeeUpdates.push({ id: String(emp.id), payload, index });
           nextEmployees[index] = { ...emp, ...payload };
         }
       });
 
-      if (updates.length === 0 || cancelled) return;
-      const results = await Promise.all(updates.map(update => supabase.from("employees").update(update.payload).eq("id", update.id)));
-      if (!cancelled && results.every(result => !result.error)) setEmployees(nextEmployees);
+      if (cancelled || (employeeUpdates.length === 0 && requestClosures.length === 0)) return;
+      const employeeResults = await Promise.all(employeeUpdates.map(update => supabase.from("employees").update(update.payload).eq("id", update.id)));
+      const requestResults = await Promise.all(requestClosures.map(update => supabase.from("vacation_requests").update(update.payload).eq("id", update.id)));
+      if (cancelled) return;
+      if (employeeResults.every(result => !result.error) && employeeUpdates.length > 0) setEmployees(nextEmployees);
+      if (requestResults.every(result => !result.error) && requestClosures.length > 0) {
+        const closedById = new Map(requestClosures.map(item => [item.id, item.payload]));
+        setRequests(previous => previous.map(request => closedById.has(String(request.id)) ? { ...request, ...closedById.get(String(request.id)) } : request));
+      }
     };
 
-    reconcileExistingEmployeeLeaveStatuses();
-    const timer = window.setInterval(reconcileExistingEmployeeLeaveStatuses, 60_000);
+    void reconcileExistingEmployeeLeaveStatuses();
+    const timer = window.setInterval(() => { void reconcileExistingEmployeeLeaveStatuses(); }, 60_000);
     return () => { cancelled = true; window.clearInterval(timer); };
   }, [employees, requests, vacationTypes, currentView, currentUser]);
 
@@ -3443,7 +3471,7 @@ const VacationManagementSystem = () => {
   // ==================== ADMIN VIEW ====================
   if (currentView === "admin") {
     return (
-      <div className="min-h-screen flex" dir="rtl" style={{ backgroundImage:activeSeasonalLoginEvent?.background_url ? `linear-gradient(rgba(248,250,252,0.94),rgba(248,250,252,0.97)), url(${activeSeasonalLoginEvent.background_url})` : "linear-gradient(135deg,#f8fafc,#eef2ff)", backgroundSize:"cover", backgroundAttachment:"fixed" }}>
+          <div className="min-h-screen flex" dir="rtl" style={{ backgroundImage:activeSeasonalLoginEvent?.background_url ? `linear-gradient(rgba(248,250,252,0.76),rgba(248,250,252,0.84)), url(${activeSeasonalLoginEvent.background_url})` : "linear-gradient(135deg,#f8fafc,#eef2ff)", backgroundSize:"cover", backgroundAttachment:"fixed" }}>
 
         {/* Overlay للموبايل */}
         {sidebarOpen && (
@@ -3560,7 +3588,7 @@ const VacationManagementSystem = () => {
             }}>
               <Smartphone size={17}/><span>تثبيت التطبيق 📱</span>
             </button>
-            <button onClick={() => { localStorage.removeItem("vms_currentUser"); localStorage.removeItem("vms_currentView"); setCurrentView("login"); setCurrentUser(null); setLoginData({ email: "", password: "" }); setEmpCodeInput(""); }} style={{
+            <button onClick={() => { localStorage.removeItem("vms_currentUser"); localStorage.removeItem("vms_currentView"); setCurrentView("login"); setCurrentUser(null); setLoginData({ email: "", password: "" }); setEmpCodeInput(""); setEmpPinInput(""); setLoginTab("employee"); }} style={{
               width:"100%", display:"flex", alignItems:"center", gap:"10px",
               padding:"10px 12px", borderRadius:"10px", border:"1px solid rgba(239,68,68,0.2)",
               background:"rgba(239,68,68,0.05)", color:"#f87171", cursor:"pointer",
@@ -3621,7 +3649,6 @@ const VacationManagementSystem = () => {
           boxSizing:"border-box",
         }}>
           <div style={{ display:"flex", justifyContent:"flex-end", alignItems:"center", gap:"7px", color:"#64748b", fontSize:"11px", marginBottom:"8px" }}><RefreshCw size={13} /> آخر تحديث: {lastUpdatedAt ? lastUpdatedAt.toLocaleTimeString("ar-EG", { hour:"2-digit", minute:"2-digit" }) : "جاري التحميل"}</div>
-          {activeSeasonalLoginEvent && <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:"10px", marginBottom:"14px", padding:"10px 14px", borderRadius:"14px", color:activeSeasonalLoginEvent.accent || "#4f46e5", backgroundImage:`linear-gradient(90deg, rgba(255,255,255,0.88), rgba(255,255,255,0.68)), url(${activeSeasonalLoginEvent.background_url})`, backgroundPosition:"center", backgroundSize:"cover", border:`1px solid ${activeSeasonalLoginEvent.accent || "#4f46e5"}55`, boxShadow:"0 6px 18px rgba(15,23,42,0.06)", fontSize:"12px", fontWeight:"900" }}><span>✦ أجواء {activeSeasonalLoginEvent.name}</span><span style={{ fontSize:"10px", color:"#64748b", fontWeight:"700" }}>خلفية موسمية مفعلة</span></div>}
           {loading && <div className="flex items-center justify-center h-screen"><Loader2 className="animate-spin text-indigo-600" size={48} /></div>}
 
           {!loading && (
