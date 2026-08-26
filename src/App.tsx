@@ -856,17 +856,19 @@ const VacationManagementSystem = () => {
   // تحميل إعدادات خلفيات تسجيل الدخول العامة؛ عند عدم وجود الجدول أو فشل الاتصال نستخدم الافتراضيات.
   useEffect(() => {
     let cancelled = false;
-    supabase.from("seasonal_login_events").select("*").order("priority", { ascending:false }).then(({ data, error }: any) => {
-      if (cancelled) return;
-      if (!error && Array.isArray(data) && data.length > 0) {
+    const loadSeasonalLoginEvents = async () => {
+      try {
+        const { data, error }: any = await supabase.from("seasonal_login_events").select("*").order("priority", { ascending:false });
+        if (cancelled || error || !Array.isArray(data) || data.length === 0) return;
         const remoteById = new Map(data.map((event: any) => [String(event.id), event]));
         const mergedDefaults = DEFAULT_SEASONAL_LOGIN_EVENTS.map((event: any) => ({ ...event, ...(remoteById.get(String(event.id)) || {}) }));
         const extraEvents = data.filter((event: any) => !DEFAULT_SEASONAL_LOGIN_EVENTS.some((defaultEvent: any) => String(defaultEvent.id) === String(event.id)));
         const mergedEvents = [...mergedDefaults, ...extraEvents];
         setSeasonalLoginEvents(mergedEvents);
         try { localStorage.setItem("vms_seasonal_login_events", JSON.stringify(mergedEvents)); } catch {}
-      }
-    }).catch(() => undefined);
+      } catch {}
+    };
+    void loadSeasonalLoginEvents();
     return () => { cancelled = true; };
   }, []);
 
