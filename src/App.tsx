@@ -3120,7 +3120,10 @@ const VacationManagementSystem = () => {
     vacationTypes,
     departments,
     publicHolidays,
-    attendanceRecords: attendanceRows,
+    attendanceRecords: attendanceRows.map((row: any) => {
+      const { employees: _employees, employee: _employee, ...attendance } = row || {};
+      return attendance;
+    }),
     seasonalLoginEvents,
     seasonalLoginImages,
     workTimeCategories,
@@ -3157,6 +3160,10 @@ const VacationManagementSystem = () => {
     setBackupLoading(true);
     try {
       const snapshot = version.snapshot;
+      const attendanceColumns = ["id", "employee_id", "attendance_date", "status", "check_in", "check_out", "notes", "created_by", "created_at", "updated_at"];
+      const cleanAttendanceRecords = Array.isArray(snapshot.attendanceRecords)
+        ? snapshot.attendanceRecords.map((row: any) => attendanceColumns.reduce((clean: any, column: string) => { if (row && row[column] !== undefined) clean[column] = row[column]; return clean; }, {}))
+        : [];
       const operations: Array<Promise<any>> = [];
       const queueRestore = (query: any) => { operations.push(Promise.resolve(query)); };
       if (Array.isArray(snapshot.departments) && snapshot.departments.length) queueRestore(supabase.from("departments").upsert(snapshot.departments));
@@ -3164,7 +3171,7 @@ const VacationManagementSystem = () => {
       if (Array.isArray(snapshot.employees) && snapshot.employees.length) queueRestore(supabase.from("employees").upsert(snapshot.employees));
       if (Array.isArray(snapshot.requests) && snapshot.requests.length) queueRestore(supabase.from("vacation_requests").upsert(snapshot.requests));
       if (Array.isArray(snapshot.publicHolidays) && snapshot.publicHolidays.length) queueRestore(supabase.from("public_holidays").upsert(snapshot.publicHolidays));
-      if (Array.isArray(snapshot.attendanceRecords) && snapshot.attendanceRecords.length) queueRestore(supabase.from("attendance_records").upsert(snapshot.attendanceRecords));
+      if (cleanAttendanceRecords.length) queueRestore(supabase.from("attendance_records").upsert(cleanAttendanceRecords));
       if (Array.isArray(snapshot.seasonalLoginEvents) && snapshot.seasonalLoginEvents.length) queueRestore(supabase.from("seasonal_login_events").upsert(snapshot.seasonalLoginEvents));
       if (Array.isArray(snapshot.seasonalLoginImages) && snapshot.seasonalLoginImages.length) queueRestore(supabase.from("seasonal_login_event_images").upsert(snapshot.seasonalLoginImages));
       if (Array.isArray(snapshot.workTimeCategories) && snapshot.workTimeCategories.length) queueRestore(supabase.from("work_time_categories").upsert(snapshot.workTimeCategories));
