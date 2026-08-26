@@ -1239,8 +1239,8 @@ const VacationManagementSystem = () => {
       if (cancelled || employees.length === 0 || !currentUser || !["admin", "owner", "dept_manager"].includes(currentUser.role)) return;
       const today = getLocalISODate();
       const currentMonthStart = `${today.slice(0, 7)}-01`;
-      const nextEmployees = [...employees];
-      const employeeUpdates: Array<{ id: string; payload: any; index: number }> = [];
+      // المزامنة لا تكتب أي حقل في employees حتى لا تستبدل تواريخ الموظفين الموجودة.
+      // تقتصر هنا على إغلاق معاملات الإجازات القديمة فقط.
       const requestClosures: Array<{ id: string; payload: any }> = [];
 
       employees.forEach((emp, index) => {
@@ -1264,44 +1264,15 @@ const VacationManagementSystem = () => {
         const oldRequestIds = new Set(oldRequests.map(r => String(r.id)));
         const openApproved = approved.filter(r => !oldRequestIds.has(String(r.id)));
 
-        // لا نغيّر الموظف الذي لديه إجازة مباشرة مفتوحة أو إجازة مستقبلية.
-        // إذا كان الطلب الوحيد قديمًا، نغلق حالة الموظف فقط دون تعديل الرصيد.
-        const manualReturnDate = normalizeDateKey(emp.return_date);
-        const manualVacationStillOpen = Boolean(manualReturnDate && manualReturnDate >= today);
-        if (openApproved.length === 0) {
-          if (emp.status === "إجازة" && !manualVacationStillOpen && (oldRequests.length > 0 || (manualReturnDate && manualReturnDate < currentMonthStart))) {
-            const payload = { status: "عمل", leave_start_date: null };
-            employeeUpdates.push({ id: String(emp.id), payload, index });
-            nextEmployees[index] = { ...emp, ...payload };
-          }
-          return;
-        }
-
-        const activeReq = openApproved.filter(r => today >= r.__effectiveStart && today < r.__back).sort((a, b) => String(b.__effectiveStart).localeCompare(String(a.__effectiveStart)))[0];
-        const futureReq = openApproved.filter(r => today < r.__effectiveStart).sort((a, b) => String(a.__effectiveStart).localeCompare(String(b.__effectiveStart)))[0];
-        const lastClosedReq = openApproved.filter(r => today >= r.__back).sort((a, b) => String(b.__back).localeCompare(String(a.__back)))[0];
-        const targetStatus = activeReq ? "إجازة" : "عمل";
-        const targetLeaveStart = activeReq?.__effectiveStart || futureReq?.__effectiveStart || null;
-        const targetReturnDate = activeReq?.__back || futureReq?.__back || lastClosedReq?.__back || emp.return_date || null;
-        const payload: any = {};
-
-        if ((emp.status === "إجازة" ? "إجازة" : "عمل") !== targetStatus) payload.status = targetStatus;
-        if ((emp.leave_start_date || null) !== targetLeaveStart) payload.leave_start_date = targetLeaveStart;
-        // لا نستبدل تاريخ العودة الذي أدخله المدير يدويًا بعد حفظه.
-        if (!emp.return_date && targetReturnDate) payload.return_date = targetReturnDate;
-
-        if (Object.keys(payload).length > 0) {
-          employeeUpdates.push({ id: String(emp.id), payload, index });
-          nextEmployees[index] = { ...emp, ...payload };
-        }
+        // لا تكتب هذه المزامنة status أو leave_start_date أو return_date في employees.
+        // تبقى تواريخ وبيانات الموظف كما حفظها المستخدم، وتُغلق المعاملة القديمة فقط.
+        return;
       });
 
-      if (cancelled || (employeeUpdates.length === 0 && requestClosures.length === 0)) return;
-      const employeeResults = await Promise.all(employeeUpdates.map(update => supabase.from("employees").update(update.payload).eq("id", update.id)));
+      if (cancelled || requestClosures.length === 0) return;
       const requestResults = await Promise.all(requestClosures.map(update => supabase.from("vacation_requests").update(update.payload).eq("id", update.id)));
       if (cancelled) return;
-      if (employeeResults.every(result => !result.error) && employeeUpdates.length > 0) setEmployees(nextEmployees);
-      if (requestResults.every(result => !result.error) && requestClosures.length > 0) {
+      if (requestResults.every(result => !result.error)) {
         const closedById = new Map(requestClosures.map(item => [item.id, item.payload]));
         setRequests(previous => previous.map(request => closedById.has(String(request.id)) ? { ...request, ...closedById.get(String(request.id)) } : request));
       }
@@ -1858,17 +1829,19 @@ const VacationManagementSystem = () => {
         if (existing) {
           // تحديث جزئي — فقط الحقول الموجودة في الملف (لا تمسح الحقول الفارغة)
           const updatePayload: any = { id: existing.id };
-          if (row.name !== undefined)             updatePayload.name = row.name;
-          if (row.position !== undefined)         updatePayload.position = row.position;
-          if (row.residence !== undefined)        updatePayload.residence = row.residence;
-          if (row.phone !== undefined)            updatePayload.phone = row.phone;
-          if (row.email !== undefined)            updatePayload.email = row.email;
-          if (row.balance !== undefined)          updatePayload.balance = row.balance;
-          if (row.monthly_balance !== undefined)  updatePayload.monthly_balance = row.monthly_balance;
-          if (row.hire_date !== undefined)        updatePayload.hire_date = row.hire_date || null;
-          if (row.return_date !== undefined)      updatePayload.return_date = row.return_date || null;
-          if (row.department_id !== undefined)    updatePayload.department_id = row.department_id;
-          if (row.branch_id !== undefined)        updatePayload.branch_id = row.branch_id;
+          // الخلية الفارغة لا تمسح قيمة محفوظة؛ لا نحدّث إلا إذا وُجدت قيمة فعلية.
+          const hasImportValue = (value: any) => value !== undefined && value !== null && String(value).trim() !== "";
+          if (hasImportValue(row.name))             updatePayload.name = row.name;
+          if (hasImportValue(row.position))         updatePayload.position = row.position;
+          if (hasImportValue(row.residence))        updatePayload.residence = row.residence;
+          if (hasImportValue(row.phone))            updatePayload.phone = row.phone;
+          if (hasImportValue(row.email))            updatePayload.email = row.email;
+          if (row.balance !== undefined && row.balance !== null && String(row.balance).trim() !== "") updatePayload.balance = row.balance;
+          if (row.monthly_balance !== undefined && row.monthly_balance !== null && String(row.monthly_balance).trim() !== "") updatePayload.monthly_balance = row.monthly_balance;
+          if (hasImportValue(row.hire_date))        updatePayload.hire_date = row.hire_date;
+          if (hasImportValue(row.return_date))      updatePayload.return_date = row.return_date;
+          if (hasImportValue(row.department_id))    updatePayload.department_id = row.department_id;
+          if (hasImportValue(row.branch_id))        updatePayload.branch_id = row.branch_id;
           toUpdate.push(updatePayload);
           updatedCount++;
         } else {
@@ -2065,7 +2038,7 @@ const VacationManagementSystem = () => {
   const handleUpdateEmployee = async () => {
     if (!requirePermission("employees", "can_edit")) return;
     const oldData = employees.find(e => e.id === editingEmp.id);
-    const { error } = await supabase.from("employees").update({
+    const employeeUpdatePayload: any = {
       name: editingEmp.name, code: editingEmp.code, position: editingEmp.position,
       residence: editingEmp.residence || "",
       phone: editingEmp.phone || "",
@@ -2074,9 +2047,11 @@ const VacationManagementSystem = () => {
       department_id: editingEmp.department_id,
       branch_id: editingEmp.branch_id || null,
       work_time_category_id: editingEmp.work_time_category_id || null,
-      hire_date: editingEmp.hire_date,
-      return_date: editingEmp.return_date ? String(editingEmp.return_date).slice(0, 10) : null,
-    }).eq("id", editingEmp.id);
+    };
+    // لا نرسل حقول التاريخ إذا كانت الخلية فارغة؛ هذا يحافظ على التاريخ المحفوظ.
+    if (editingEmp.hire_date !== undefined && String(editingEmp.hire_date || "").trim() !== "") employeeUpdatePayload.hire_date = String(editingEmp.hire_date).slice(0, 10);
+    if (editingEmp.return_date !== undefined && String(editingEmp.return_date || "").trim() !== "") employeeUpdatePayload.return_date = String(editingEmp.return_date).slice(0, 10);
+    const { error } = await supabase.from("employees").update(employeeUpdatePayload).eq("id", editingEmp.id);
     if (error) {
       alert("تعذر تحديث بيانات الموظف: " + error.message);
       return;
