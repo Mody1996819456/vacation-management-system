@@ -2015,7 +2015,7 @@ const VacationManagementSystem = () => {
       return;
     }
     setShowAddEmp(false);
-    setNewEmp({ name: "", code: "", position: "", residence: "", phone: "", balance: 21, monthly_balance: 0, department_id: "", branch_id: "", hire_date: "", return_date: "", email: "" });
+    setNewEmp({ name: "", code: "", position: "", residence: "", phone: "", balance: 21, monthly_balance: 0, department_id: "", branch_id: "", work_time_category_id: "", hire_date: "", return_date: "", email: "" });
     await fetchData();
     await logAction("create", "employees", null, null, empToInsert);
     alert("✅ تمت إضافة الموظف بنجاح!");
