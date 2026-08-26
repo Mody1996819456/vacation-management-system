@@ -2333,9 +2333,10 @@ const VacationManagementSystem = () => {
       await logAction("late_return_deduction", "vacation_requests", returnData.id, { lateness_days: latenessDays, deduction_days: deductionDays, new_balance: newBalance });
     }
 
+    setRequests(previous => previous.map(request => String(request.id) === String(returnData.id) ? { ...request, actual_return_date: actualReturn, lateness_days: latenessDays } : request));
     setShowReturnModal(false);
     setReturnData(null);
-    fetchData();
+    await fetchData();
     const msg = deductionDays > 0
       ? `تم تسجيل العودة ✅\n⚠️ تأخير ${latenessDays} يوم — تم خصم ${deductionDays} يوم من الرصيد\nالرصيد الجديد: ${newBalance} يوم`
       : "تم تسجيل العودة وتحديث تاريخ العودة ✅";
@@ -5098,7 +5099,7 @@ const VacationManagementSystem = () => {
                   : employees;
                 const scopedEmployeeMap = new Map(scopedVacEmployees.map(emp => [String(emp.id), emp]));
                 const approvedVacationRows = requests
-                  .filter(r => r.status === "approved" && !isRestVacationRequest(r, vacationTypes) && scopedEmployeeMap.has(String(r.employee_id)))
+                  .filter(r => r.status === "approved" && !r.actual_return_date && !isRestVacationRequest(r, vacationTypes) && scopedEmployeeMap.has(String(r.employee_id)))
                   .map((r, requestIndex) => {
                     const emp = scopedEmployeeMap.get(String(r.employee_id));
                     const effectiveStart = r.effective_start_date || r.start_date || getActualStartDate(r.departure_date || r.start_date, r.departure_time || "actual");
