@@ -821,6 +821,15 @@ const VacationManagementSystem = () => {
   const [showSeasonalEventForm, setShowSeasonalEventForm] = useState(false);
   const [seasonalEventForm, setSeasonalEventForm] = useState({ name:"", start_date:"", end_date:"", annual:false, priority:10, accent:"#6366f1" });
   const [seasonalEventDraft, setSeasonalEventDraft] = useState<any>(null);
+  // ===== المساعد الذكي وتقارير اليوم =====
+  const [showAIAssistant, setShowAIAssistant] = useState(false);
+  const [aiDraft, setAiDraft] = useState("");
+  const [aiMessages, setAiMessages] = useState<any[]>([]);
+  const [aiConversationId, setAiConversationId] = useState<string | null>(null);
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiReports, setAiReports] = useState<any[]>([]);
+  const [aiReportsLoading, setAiReportsLoading] = useState(false);
+  const [aiPendingConfirmation, setAiPendingConfirmation] = useState<any>(null);
   // ===== States للاشعارات =====
   const [notifSearch, setNotifSearch] = useState("");
   const [notifDateFrom, setNotifDateFrom] = useState(""); // فلتر تاريخ القرار من
@@ -3334,6 +3343,44 @@ const VacationManagementSystem = () => {
     await logAction("update", "notification_preferences", currentUser.id, null, notificationPrefs);
     alert("تم حفظ إعدادات التنبيهات بنجاح");
   };
+  // ==================== المساعد الذكي ====================
+  const askAIAssistant = async (text = aiDraft) => {
+    const message = String(text || "").trim();
+    if (!message || !currentUser?.id || aiBusy) return;
+    setAiBusy(true);
+    setAiMessages(prev => [...prev, { role:"user", content:message }]);
+    setAiDraft("");
+    try {
+      const { data, error } = await supabase.functions.invoke("ai-hr-assistant", {
+        body: { actor_id: String(currentUser.id), message, conversation_id: aiConversationId },
+      });
+      if (error) throw error;
+      if (data?.conversation_id) setAiConversationId(data.conversation_id);
+      if (data?.confirmation_required && data?.action) setAiPendingConfirmation({ message, action:data.action });
+      const suffix = data?.confirmation_required ? "\\n\\nهذه العملية حساسة وتحتاج تأكيدًا صريحًا قبل التنفيذ." : "";
+      const resultText = data?.result && Array.isArray(data.result)
+        ? `\\n\\nالنتائج: ${data.result.slice(0, 20).map((row:any) => row.name || row.employee_id || row.id).join("، ")}`
+        : "";
+      setAiMessages(prev => [...prev, { role:"assistant", content:String(data?.reply || "تمت معالجة طلبك.") + suffix + resultText, metadata:data }]);
+    } catch (error:any) {
+      setAiMessages(prev => [...prev, { role:"assistant", content:`تعذر تشغيل المساعد الآن: ${error?.message || "تحقق من نشر وظيفة Supabase وضبط الأسرار."}` }]);
+    } finally { setAiBusy(false); }
+  };
+  const loadAIDailyReports = async () => {
+    if (!currentUser?.id) return;
+    setAiReportsLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("ai-hr-assistant", { body:{ actor_id:String(currentUser.id), action:"list_reports" } });
+      if (error) throw error;
+      setAiReports(Array.isArray(data?.reports) ? data.reports : []);
+    } catch (error:any) {
+      console.warn("تعذر تحميل تقارير المساعد", error?.message || error);
+    } finally { setAiReportsLoading(false); }
+  };
+  useEffect(() => {
+    if (currentView === "admin" && currentUser && showAIAssistant) void loadAIDailyReports();
+  }, [showAIAssistant, currentView, currentUser?.id]);
+
   const deleteBranch = async (branch: any) => {
     if (!window.confirm(`حذف الفرع "${branch.name}"؟ سيتم فك ارتباط الموظفين والأقسام به.`)) return;
     await supabase.from("employees").update({ branch_id:null }).eq("branch_id", branch.id);
@@ -7124,6 +7171,37 @@ const VacationManagementSystem = () => {
           </div>
         )}
         {/* ==================== AI CHATBOT ==================== */}
+        <button
+          onClick={() => setShowAIAssistant(true)}
+          title="فتح المساعد الذكي"
+          style={{ position:"fixed", left:"24px", bottom:"24px", zIndex:80, width:"58px", height:"58px", borderRadius:"50%", border:"2px solid rgba(255,255,255,.75)", background:"linear-gradient(135deg,#7c3aed,#4f46e5)", color:"white", boxShadow:"0 14px 32px rgba(79,70,229,.38)", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}
+        ><Sparkles size={25} /></button>
+        {showAIAssistant && (
+          <div style={{ position:"fixed", inset:0, zIndex:90, background:"rgba(15,23,42,.42)", backdropFilter:"blur(4px)" }} onClick={() => setShowAIAssistant(false)}>
+            <section dir="rtl" style={{ position:"absolute", left:"24px", bottom:"24px", width:"min(440px,calc(100vw - 32px))", maxHeight:"min(700px,calc(100vh - 48px))", display:"flex", flexDirection:"column", background:"#fff", borderRadius:"24px", overflow:"hidden", boxShadow:"0 28px 80px rgba(15,23,42,.3)", border:"1px solid #e2e8f0" }} onClick={e => e.stopPropagation()}>
+              <header style={{ padding:"18px 20px", color:"white", background:"linear-gradient(135deg,#4f46e5,#7c3aed)", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                <div style={{ display:"flex", alignItems:"center", gap:"10px" }}><Sparkles size={21}/><div><strong style={{ display:"block", fontSize:"16px" }}>المساعد الذكي</strong><small style={{ opacity:.8 }}>افهم طلبك ونفذه بأمان</small></div></div>
+                <button onClick={() => setShowAIAssistant(false)} style={{ border:"none", background:"rgba(255,255,255,.16)", color:"white", borderRadius:"10px", padding:"7px", cursor:"pointer" }}><X size={18}/></button>
+              </header>
+              <div style={{ padding:"12px 16px", background:"#f8fafc", borderBottom:"1px solid #e2e8f0", display:"flex", gap:"7px", flexWrap:"wrap" }}>
+                {["مين الغايب النهارده؟","اعرض طلبات الإجازات","اعمل تقرير اليوم"].map(prompt => <button key={prompt} onClick={() => askAIAssistant(prompt)} style={{ border:"1px solid #c7d2fe", background:"#eef2ff", color:"#4338ca", borderRadius:"999px", padding:"7px 10px", fontSize:"11px", fontWeight:"800", cursor:"pointer" }}>{prompt}</button>)}
+                <button onClick={loadAIDailyReports} style={{ border:"1px solid #bbf7d0", background:"#f0fdf4", color:"#047857", borderRadius:"999px", padding:"7px 10px", fontSize:"11px", fontWeight:"800", cursor:"pointer" }}>التقارير اليومية</button>
+              </div>
+              <div style={{ flex:1, overflowY:"auto", padding:"16px", minHeight:"220px", maxHeight:"390px", background:"#f8fafc" }}>
+                {aiMessages.length === 0 && <div style={{ textAlign:"center", color:"#64748b", padding:"36px 12px", fontSize:"13px" }}>اكتب طلبك بطريقتك العادية، مثل: «شوف مين غايب النهارده».</div>}
+                {aiMessages.map((message:any, index:number) => <div key={index} style={{ display:"flex", justifyContent:message.role === "user" ? "flex-start" : "flex-end", marginBottom:"10px" }}><div style={{ maxWidth:"88%", whiteSpace:"pre-wrap", lineHeight:1.7, padding:"10px 13px", borderRadius:"15px", background:message.role === "user" ? "#e0e7ff" : "white", color:"#1e293b", border:message.role === "user" ? "1px solid #c7d2fe" : "1px solid #e2e8f0", fontSize:"13px" }}>{message.content}</div></div>)}
+                                {aiBusy && <div style={{ color:"#64748b", fontSize:"12px", padding:"8px" }}><Loader2 size={15} className="animate-spin" style={{ verticalAlign:"middle", marginLeft:"5px" }}/> المساعد يفكر...</div>}
+                {aiPendingConfirmation && <div style={{ marginTop:"10px", padding:"12px", borderRadius:"14px", background:"#fff7ed", border:"1px solid #fed7aa" }}><div style={{ color:"#9a3412", fontSize:"12px", fontWeight:"800", marginBottom:"8px" }}>هذه العملية تحتاج تأكيدك قبل التنفيذ.</div><div style={{ display:"flex", gap:"8px" }}><button onClick={async () => { const pending = aiPendingConfirmation; setAiPendingConfirmation(null); setAiBusy(true); try { const { data, error } = await supabase.functions.invoke("ai-hr-assistant", { body:{ actor_id:String(currentUser.id), message:pending.message, conversation_id:aiConversationId, confirmed:true } }); if (error) throw error; setAiMessages(prev => [...prev, { role:"assistant", content:String(data?.reply || "تم تنفيذ العملية بعد التأكيد."), metadata:data }]); } catch (error:any) { setAiMessages(prev => [...prev, { role:"assistant", content:`تعذر تنفيذ العملية: ${error?.message || "خطأ غير معروف"}` }]); } finally { setAiBusy(false); } }} style={{ border:"none", background:"#ea580c", color:"white", borderRadius:"10px", padding:"8px 12px", fontWeight:"800", cursor:"pointer" }}>تأكيد التنفيذ</button><button onClick={() => setAiPendingConfirmation(null)} style={{ border:"1px solid #fdba74", background:"white", color:"#9a3412", borderRadius:"10px", padding:"8px 12px", fontWeight:"800", cursor:"pointer" }}>إلغاء</button></div></div>}
+                {aiReports.length > 0 && <div style={{ marginTop:"12px", display:"grid", gap:"8px" }}>
+{aiReports.slice(0,5).map((report:any) => <article key={report.id} style={{ background:"#fff", border:"1px solid #bbf7d0", borderRadius:"14px", padding:"12px" }}><strong style={{ color:"#047857", fontSize:"12px" }}>تقرير {formatDate(report.report_date)}</strong><p style={{ margin:"7px 0 0", whiteSpace:"pre-wrap", fontSize:"12px", lineHeight:1.7, color:"#334155" }}>{report.report_text}</p></article>)}</div>}
+              </div>
+              <div style={{ padding:"12px", borderTop:"1px solid #e2e8f0", background:"white", display:"flex", gap:"8px", alignItems:"flex-end" }}>
+                <textarea value={aiDraft} onChange={e => setAiDraft(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void askAIAssistant(); } }} placeholder="اكتب طلبك بطريقتك..." rows={2} style={{ flex:1, resize:"none", border:"1px solid #cbd5e1", borderRadius:"13px", padding:"10px 12px", fontFamily:"inherit", fontSize:"13px", outline:"none" }} />
+                <button onClick={() => void askAIAssistant()} disabled={aiBusy || !aiDraft.trim()} style={{ width:"44px", height:"44px", border:"none", borderRadius:"13px", background:aiBusy || !aiDraft.trim() ? "#cbd5e1" : "#4f46e5", color:"white", cursor:aiBusy || !aiDraft.trim() ? "not-allowed" : "pointer", display:"flex", alignItems:"center", justifyContent:"center" }}><ArrowUpRight size={19}/></button>
+              </div>
+            </section>
+          </div>
+        )}
 
         {/* Reset PIN Modal */}
         {showResetPinModal && resetPinEmp && (
