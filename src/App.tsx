@@ -843,6 +843,7 @@ const VacationManagementSystem = () => {
   const [selectedDeptIds, setSelectedDeptIds] = useState<string[]>([]);
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<string[]>([]);
   const [employeeDepartmentFilters, setEmployeeDepartmentFilters] = useState<string[]>([]);
+  const [employeePositionFilters, setEmployeePositionFilters] = useState<string[]>([]);
   const [requestDepartmentFilters, setRequestDepartmentFilters] = useState<string[]>([]);
   const [selectedRequestIds, setSelectedRequestIds] = useState<string[]>([]);
   const [activeVacSortDir, setActiveVacSortDir] = useState<"asc"|"desc">("asc");
@@ -2192,34 +2193,17 @@ const VacationManagementSystem = () => {
     const req = requests.find(r => String(r.id) === String(requestId));
     if (!req) return alert("السجل غير موجود أو تم تحديث الصفحة");
     const emp = employees.find(e => String(e.id) === String(req.employee_id));
-    if (!window.confirm(`حذف إجازة ${req.employee_name || emp?.name || "الموظف"}؟\nسيتم إعادة ${req.days} يوم إلى الرصيد إذا كان الطلب مقبولًا.`)) return;
-
-    const days = Number(req.days || 0);
-    const oldBalance = Number(emp?.balance || 0);
-    const shouldRestore = req.status === "approved" && days > 0 && !!emp;
-    if (shouldRestore) {
-      const { error: empError } = await supabase.from("employees").update({ balance: oldBalance + days }).eq("id", emp.id);
-      if (empError) return alert("تعذر إعادة الرصيد، لذلك لم يتم حذف السجل: " + empError.message);
-    }
+    if (!window.confirm(`حذف إجازة ${req.employee_name || emp?.name || "الموظف"}؟\n⚠️ لن يتم إعادة الرصيد إلى الموظف.`)) return;
 
     const { error: deleteError } = await supabase.from("vacation_requests").delete().eq("id", requestId);
     if (deleteError) {
-      if (shouldRestore) await supabase.from("employees").update({ balance: oldBalance }).eq("id", emp.id);
-      return alert("تعذر حذف السجل وتمت إعادة الرصيد كما كان: " + deleteError.message);
+      return alert("تعذر حذف السجل: " + deleteError.message);
     }
 
-    if (shouldRestore) {
-      await supabase.from("balance_updates").insert([{
-        employee_id: emp.id,
-        amount: days,
-        update_date: getLocalISODate(),
-        description: `إعادة رصيد بعد حذف إجازة مكررة: ${days} يوم`,
-      }]);
-    }
-    await logAction("delete_approved_vacation", "vacation_requests", requestId, req, { restored_days: shouldRestore ? days : 0 });
+    await logAction("delete_approved_vacation", "vacation_requests", requestId, req, { restored_days: 0 });
     if (selectionId) setSelectedPrintIds(prev => { const next = new Set(prev); next.delete(selectionId); return next; });
     await fetchData();
-    alert("تم حذف سجل الإجازة بنجاح" + (shouldRestore ? ` وإعادة ${days} يوم إلى الرصيد ✅` : " ✅"));
+    alert("تم حذف سجل الإجازة بنجاح ✅");
   };
 
   const deleteVacationRequestsBatch = async (ids: string[], clearActiveSelection = false) => {
@@ -2227,45 +2211,16 @@ const VacationManagementSystem = () => {
     const uniqueIds = Array.from(new Set(ids.map(String))).filter(Boolean);
     const selected = requests.filter(request => uniqueIds.includes(String(request.id)));
     if (selected.length === 0) return alert("لا توجد سجلات محددة قابلة للحذف");
-    const approved = selected.filter(request => request.status === "approved");
-    const restoreByEmployee = new Map<string, number>();
-    approved.forEach(request => {
-      const key = String(request.employee_id);
-      restoreByEmployee.set(key, (restoreByEmployee.get(key) || 0) + Number(request.days || 0));
-    });
-    const restoreSummary = Array.from(restoreByEmployee.values()).reduce((sum, days) => sum + days, 0);
-    if (!window.confirm(`سيتم حذف ${selected.length} سجل${restoreSummary > 0 ? ` وإعادة ${restoreSummary} يومًا إلى أرصدة الطلبات المقبولة` : ""}. هل تريد المتابعة؟`)) return;
-    const balanceBefore = new Map<string, number>();
+    if (!window.confirm(`سيتم حذف ${selected.length} سجل.\n⚠️ لن يتم إعادة الرصيد إلى الموظفين. هل تريد المتابعة؟`)) return;
     try {
-      const balanceEntries = Array.from(restoreByEmployee.entries());
-      for (let index = 0; index < balanceEntries.length; index += 1) {
-        const employeeId = balanceEntries[index][0];
-        const days = balanceEntries[index][1];
-        const emp = employees.find(item => String(item.id) === employeeId);
-        if (!emp) continue;
-        const before = Number(emp.balance || 0);
-        balanceBefore.set(employeeId, before);
-        const result = await supabase.from("employees").update({ balance: before + days }).eq("id", emp.id);
-        if (result.error) throw result.error;
-      }
       const deleted = await supabase.from("vacation_requests").delete().in("id", uniqueIds);
       if (deleted.error) throw deleted.error;
-      if (restoreByEmployee.size > 0) {
-        const updates = Array.from(restoreByEmployee.entries()).map(([employee_id, amount]) => ({ employee_id, amount, update_date:getLocalISODate(), description:`إعادة رصيد بعد حذف جماعي: ${amount} يوم` }));
-        await supabase.from("balance_updates").insert(updates);
-      }
       if (clearActiveSelection) setSelectedPrintIds(new Set());
       setSelectedRequestIds([]);
       await fetchData();
       alert("تم حذف السجلات المحددة بنجاح ✅");
     } catch (error: any) {
-      const balanceEntries = Array.from(balanceBefore.entries());
-      for (let index = 0; index < balanceEntries.length; index += 1) {
-        const employeeId = balanceEntries[index][0];
-        const before = balanceEntries[index][1];
-        await supabase.from("employees").update({ balance: before }).eq("id", employeeId);
-      }
-      alert("تعذر إتمام الحذف الجماعي وتمت إعادة الأرصدة كما كانت: " + (error?.message || "خطأ غير معروف"));
+      alert("تعذر إتمام الحذف الجماعي: " + (error?.message || "خطأ غير معروف"));
     }
   };
   const handleDeleteSelectedRequests = async () => {
@@ -2642,13 +2597,25 @@ const VacationManagementSystem = () => {
       await logAction("manual_status", "employees", emp.id, { status: emp.status }, { status: isRestDay ? (emp.status || "عمل") : "إجازة", rest_day: isRestDay, deducted_days: isRestDay ? days : 0 });
       alert(isRestDay ? `✅ تم تسجيل راحة ${emp.name} وخصم ${days} يوم من الرصيد، والحالة تظل عمل` : `✅ تم تغيير حالة ${emp.name} إلى إجازة`);
     } else {
-      // تغيير إلى عمل
+      // تغيير إلى عمل (عودة مباشرة) — لازم يتزامن مع سجل الإجازات الفعلية لو موجود طلب مفتوح
+      const todayISO = new Date().toISOString().split("T")[0];
+      const openRequest = requests.find(r => String(r.employee_id) === String(emp.id) && r.status === "approved" && !r.actual_return_date && !isRestVacationRequest(r, vacationTypes));
       await supabase.from("employees").update({
         status: "عمل", leave_start_date: null,
-        return_date: new Date().toISOString().split("T")[0],
+        return_date: todayISO,
       }).eq("id", emp.id);
+      if (openRequest) {
+        const backDate = getCalculatedDates(openRequest.start_date, openRequest.days).back;
+        const latenessDays = backDate && todayISO > backDate
+          ? Math.ceil((new Date(todayISO).getTime() - new Date(backDate).getTime()) / 86400000)
+          : 0;
+        await supabase.from("vacation_requests").update({
+          actual_return_date: todayISO,
+          lateness_days: latenessDays,
+        }).eq("id", openRequest.id);
+      }
       await logAction("manual_status", "employees", emp.id, { status: emp.status }, { status: "عمل" });
-      alert(`✅ تم تغيير حالة ${emp.name} إلى عمل`);
+      alert(`✅ تم تغيير حالة ${emp.name} إلى عمل` + (openRequest ? "\nتم تحديث سجل الإجازة الفعلية تلقائيًا" : ""));
     }
     setShowStatusModal(false);
     setStatusChangeEmp(null);
@@ -2987,18 +2954,37 @@ const VacationManagementSystem = () => {
     ? requests.filter(r => scopedEmployees.some(e => e.id === r.employee_id))
     : requests;
 
+  // قائمة المناصب المتاحة (من الموظفين ضمن النطاق الحالي)
+  const distinctPositions = useMemo(() => {
+    const set = new Set<string>();
+    scopedEmployees.forEach(emp => { if (emp.position && emp.position.trim()) set.add(emp.position.trim()); });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, "ar")).map(p => ({ id: p, name: p }));
+  }, [scopedEmployees]);
+
+  // الأقسام المتاحة للفلترة بناءً على المنصب/المناصب المحددة - اختيار المنصب يحدد الأقسام الظاهرة
+  const departmentOptionsForFilter = useMemo(() => {
+    if (employeePositionFilters.length === 0) return departments;
+    const deptIds = new Set(
+      scopedEmployees
+        .filter(emp => employeePositionFilters.includes((emp.position || "").trim()))
+        .map(emp => String(emp.department_id || ""))
+    );
+    return departments.filter((d: any) => deptIds.has(String(d.id)));
+  }, [departments, scopedEmployees, employeePositionFilters]);
+
   // ========== FILTERED DATA ==========
   const filteredEmployees = useMemo(() => {
     let result = scopedEmployees.filter(emp => {
       const matchSearch = emp.name.includes(empSearch) || emp.code.includes(empSearch) || (emp.position||"").includes(empSearch) || (emp.residence||"").includes(empSearch) || (emp.phone||"").includes(empSearch);
       const matchDept = employeeDepartmentFilters.length === 0 || employeeDepartmentFilters.includes(String(emp.department_id || ""));
+      const matchPosition = employeePositionFilters.length === 0 || employeePositionFilters.includes((emp.position || "").trim());
       const matchBranch = branchFilter === "all" || (branchFilter === "none" ? !emp.branch_id : String(emp.branch_id || "") === String(branchFilter));
       // الحالة تُقرأ مباشرة من قاعدة البيانات
       const empStatus = emp.status === "إجازة" ? "إجازة" : "عمل";
       const matchStatus = empStatusFilter === "all" || empStatus === empStatusFilter;
       const matchHireFrom = !empHireFrom || (emp.hire_date && emp.hire_date >= empHireFrom);
       const matchHireTo = !empHireTo || (emp.hire_date && emp.hire_date <= empHireTo);
-      return matchSearch && matchDept && matchBranch && matchStatus && matchHireFrom && matchHireTo;
+      return matchSearch && matchDept && matchPosition && matchBranch && matchStatus && matchHireFrom && matchHireTo;
     });
     // فرز حسب العمود المحدد
     if (empSortField) {
@@ -3032,7 +3018,7 @@ const VacationManagementSystem = () => {
       });
     }
     return result;
-  }, [scopedEmployees, empSearch, employeeDepartmentFilters, branchFilter, empStatusFilter, empHireFrom, empHireTo, empSortField, empSortDir, requests]);
+  }, [scopedEmployees, empSearch, employeeDepartmentFilters, employeePositionFilters, branchFilter, empStatusFilter, empHireFrom, empHireTo, empSortField, empSortDir, requests]);
 
   const filteredRequests = useMemo(() => {
     return scopedRequests.filter(req => {
@@ -4537,8 +4523,10 @@ const VacationManagementSystem = () => {
                         onChange={(e) => setEmpSearch(e.target.value)}
                       />
                     </div>
+                    {/* فلتر المناصب - تحديد المنصب يحدد الأقسام الظاهرة في فلتر الأقسام */}
+                    {distinctPositions.length > 0 && <MultiSelectDropdown options={distinctPositions} selected={employeePositionFilters} onChange={setEmployeePositionFilters} label="المناصب" minWidth="200px" />}
                     {/* فلتر الأقسام بنفس قائمة التحديد المتعدد المستخدمة في الطلبات */}
-                    {!isDeptMgr && departments.length > 0 && <MultiSelectDropdown options={departments} selected={employeeDepartmentFilters} onChange={setEmployeeDepartmentFilters} label="الأقسام" minWidth="220px" />}
+                    {!isDeptMgr && departmentOptionsForFilter.length > 0 && <MultiSelectDropdown options={departmentOptionsForFilter} selected={employeeDepartmentFilters} onChange={setEmployeeDepartmentFilters} label="الأقسام" minWidth="220px" />}
                     {!isDeptMgr && branches.length > 0 && <select style={{ padding:"10px 14px", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:"12px", fontSize:"13px", outline:"none", color:"#475569" }} value={branchFilter} onChange={e => setBranchFilter(e.target.value)}><option value="all">كل الفروع</option><option value="none">بدون فرع</option>{branches.filter((b:any) => b.is_active !== false).map((branch:any) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}</select>}
                     <select style={{ padding:"10px 14px", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:"12px", fontSize:"13px", outline:"none", color:"#475569" }} value={empStatusFilter} onChange={(e) => setEmpStatusFilter(e.target.value)}>
                       <option value="all">كل الحالات</option>
@@ -4556,8 +4544,8 @@ const VacationManagementSystem = () => {
                       <input type="date" style={{ padding:"9px 10px", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:"10px", fontSize:"12px", outline:"none" }}
                         value={empHireTo} onChange={e => setEmpHireTo(e.target.value)} />
                     </div>
-                    {(empHireFrom || empHireTo || branchFilter !== "all" || employeeDepartmentFilters.length > 0) && (
-                      <button onClick={() => { setEmpHireFrom(""); setEmpHireTo(""); setBranchFilter("all"); setEmployeeDepartmentFilters([]); }}
+                    {(empHireFrom || empHireTo || branchFilter !== "all" || employeeDepartmentFilters.length > 0 || employeePositionFilters.length > 0) && (
+                      <button onClick={() => { setEmpHireFrom(""); setEmpHireTo(""); setBranchFilter("all"); setEmployeeDepartmentFilters([]); setEmployeePositionFilters([]); }}
                         style={{ padding:"9px 14px", background:"#fee2e2", color:"#dc2626", border:"none", borderRadius:"10px", fontSize:"12px", fontWeight:"700", cursor:"pointer" }}>
                         ✕ مسح الفلاتر
                       </button>
