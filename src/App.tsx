@@ -231,11 +231,18 @@ const isRestVacationRequest = (request: any, vacationTypes: any[] = []): boolean
   return isRestVacationType(type) || isRestVacationType(request?.vacation_type_name);
 };
 
+// نوع «مأمورية»: لا يخصم من الرصيد، ولا يغيّر حالة الموظف، ولا يؤثر على عدد أيام العمل - لكنه يظهر في السجلات وفي الإجازات الفعلية.
+const isMissionVacationType = (vacationType: any): boolean => String(vacationType?.name || vacationType || "").trim() === "مأمورية";
+const isMissionVacationRequest = (request: any, vacationTypes: any[] = []): boolean => {
+  const type = vacationTypes.find(vt => String(vt.id) === String(request?.vacation_type_id));
+  return isMissionVacationType(type) || isMissionVacationType(request?.vacation_type_name);
+};
+
 // الطلب المقبول الجاري للموظف، مع احترام تاريخ البداية الفعلي وعدم احتساب الطلبات المستقبلية.
 const getCurrentApprovedVacationRequest = (employee: any, employeeRequests: any[] = [], vacationTypes: any[] = [], today = getLocalISODate()) => {
   if (!employee) return null;
   return employeeRequests
-    .filter(r => r.employee_id === employee.id && r.status === "approved" && !r.actual_return_date && !isRestVacationRequest(r, vacationTypes))
+    .filter(r => r.employee_id === employee.id && r.status === "approved" && !r.actual_return_date && !isRestVacationRequest(r, vacationTypes) && !isMissionVacationRequest(r, vacationTypes))
     .map(r => {
       const effectiveStart = r.effective_start_date || r.start_date || getActualStartDate(r.departure_date || r.start_date, r.departure_time || "actual");
       const { back } = getCalculatedDates(effectiveStart, Number(r.days || 0));
@@ -2090,16 +2097,24 @@ const VacationManagementSystem = () => {
 
     if (action === "approved") {
       if (!emp) return;
-      if (Number(emp.balance) < Number(days)) {
+      const approvedVacationType = vacationTypes.find(vt => String(vt.id) === String(currentRequest.vacation_type_id));
+      const isRestDay = isRestVacationType(approvedVacationType);
+      const isMissionDay = isMissionVacationType(approvedVacationType);
+      if (!isMissionDay && Number(emp.balance) < Number(days)) {
         alert("رصيد الموظف غير كاف (" + emp.balance + " يوم متاح)");
         setShowApprovalModal(false); return;
       }
       const effectiveStart = currentRequest.effective_start_date || currentRequest.start_date || getActualStartDate(currentRequest.departure_date || currentRequest.start_date, currentRequest.departure_time || "actual");
       const { back: backDate } = getCalculatedDates(effectiveStart, days);
       const todayStr = getLocalISODate();
-      const approvedVacationType = vacationTypes.find(vt => String(vt.id) === String(currentRequest.vacation_type_id));
-      const isRestDay = isRestVacationType(approvedVacationType);
-      const empUpdatePayload: any = isRestDay
+      const empUpdatePayload: any = isMissionDay
+        ? {
+            // «مأمورية»: لا تخصم رصيد ولا تغيّر حالة الموظف ولا تواريخه.
+            status: emp.status || "عمل",
+            leave_start_date: emp.leave_start_date || null,
+            return_date: emp.return_date || null,
+          }
+        : isRestDay
         ? {
             balance: Number(emp.balance) - Number(days),
             status: emp.status || "عمل",
@@ -2112,8 +2127,8 @@ const VacationManagementSystem = () => {
             leave_start_date: effectiveStart,
           };
       // الطلب المقبول مستقبلاً لا يغيّر حالة الموظف قبل أول يوم فعلي.
-      if (!isRestDay && todayStr >= effectiveStart) empUpdatePayload.status = "إجازة";
-      else if (!isRestDay && emp.status !== "إجازة") empUpdatePayload.status = "عمل";
+      if (!isRestDay && !isMissionDay && todayStr >= effectiveStart) empUpdatePayload.status = "إجازة";
+      else if (!isRestDay && !isMissionDay && emp.status !== "إجازة") empUpdatePayload.status = "عمل";
       const { error: empUpdateError } = await supabase.from("employees").update(empUpdatePayload).eq("id", emp.id);
       if (empUpdateError) {
         alert("تعذر تحديث رصيد وحالة الموظف قبل اعتماد الطلب: " + empUpdateError.message);
@@ -2557,14 +2572,22 @@ const VacationManagementSystem = () => {
     if (statusChangeForm.status === "إجازة") {
       // التحقق من الرصيد
       const days = Number(statusChangeForm.days);
-      if (days > 0 && Number(emp.balance) < days) {
+      const selectedVacationType = vacationTypes.find(vt => String(vt.id) === String(statusChangeForm.vacation_type_id));
+      const isRestDay = isRestVacationType(selectedVacationType);
+      const isMissionDay = isMissionVacationType(selectedVacationType);
+      if (!isMissionDay && days > 0 && Number(emp.balance) < days) {
         if (!window.confirm(`رصيد ${emp.name} (${emp.balance} يوم) أقل من المطلوب (${days} يوم).\nهل تريد المتابعة؟`)) return;
       }
       const effectiveStart = statusChangeForm.start_date || new Date().toISOString().split("T")[0];
       const todayStr = new Date().toISOString().split("T")[0];
-      const selectedVacationType = vacationTypes.find(vt => String(vt.id) === String(statusChangeForm.vacation_type_id));
-      const isRestDay = isRestVacationType(selectedVacationType);
-      const manualPayload: any = isRestDay
+      const manualPayload: any = isMissionDay
+        ? {
+            // «مأمورية»: لا تخصم رصيد ولا تغيّر حالة الموظف ولا تواريخه.
+            status: emp.status || "عمل",
+            leave_start_date: emp.leave_start_date || null,
+            return_date: emp.return_date || null,
+          }
+        : isRestDay
         ? {
             ...(days > 0 ? { balance: Number(emp.balance) - days } : {}),
             status: emp.status || "عمل",
@@ -2576,8 +2599,8 @@ const VacationManagementSystem = () => {
             return_date: statusChangeForm.start_date && days > 0 ? getCalculatedDates(effectiveStart, days).back : null,
             ...(days > 0 ? { balance: Number(emp.balance) - days } : {}),
           };
-      // الإجازة العادية تصبح إجازة عند بدايتها؛ «راحة» لا تغيّر الحالة أبدًا.
-      if (!isRestDay && todayStr >= effectiveStart) manualPayload.status = "إجازة";
+      // الإجازة العادية تصبح إجازة عند بدايتها؛ «راحة» و«مأمورية» لا يغيّران الحالة أبدًا.
+      if (!isRestDay && !isMissionDay && todayStr >= effectiveStart) manualPayload.status = "إجازة";
       await supabase.from("employees").update(manualPayload).eq("id", emp.id);
       // إضافة سجل إجازة لو كانت فيه بيانات
       if (statusChangeForm.start_date && statusChangeForm.vacation_type_id) {
@@ -2594,12 +2617,12 @@ const VacationManagementSystem = () => {
           owner_approved_at: new Date().toISOString(),
         }]);
       }
-      await logAction("manual_status", "employees", emp.id, { status: emp.status }, { status: isRestDay ? (emp.status || "عمل") : "إجازة", rest_day: isRestDay, deducted_days: isRestDay ? days : 0 });
-      alert(isRestDay ? `✅ تم تسجيل راحة ${emp.name} وخصم ${days} يوم من الرصيد، والحالة تظل عمل` : `✅ تم تغيير حالة ${emp.name} إلى إجازة`);
+      await logAction("manual_status", "employees", emp.id, { status: emp.status }, { status: (isRestDay || isMissionDay) ? (emp.status || "عمل") : "إجازة", rest_day: isRestDay, mission_day: isMissionDay, deducted_days: isRestDay ? days : 0 });
+      alert(isMissionDay ? `✅ تم تسجيل مأمورية ${emp.name} من غير خصم من الرصيد، والحالة تظل عمل` : isRestDay ? `✅ تم تسجيل راحة ${emp.name} وخصم ${days} يوم من الرصيد، والحالة تظل عمل` : `✅ تم تغيير حالة ${emp.name} إلى إجازة`);
     } else {
       // تغيير إلى عمل (عودة مباشرة) — لازم يتزامن مع سجل الإجازات الفعلية لو موجود طلب مفتوح
       const todayISO = new Date().toISOString().split("T")[0];
-      const openRequest = requests.find(r => String(r.employee_id) === String(emp.id) && r.status === "approved" && !r.actual_return_date && !isRestVacationRequest(r, vacationTypes));
+      const openRequest = requests.find(r => String(r.employee_id) === String(emp.id) && r.status === "approved" && !r.actual_return_date && !isRestVacationRequest(r, vacationTypes) && !isMissionVacationRequest(r, vacationTypes));
       await supabase.from("employees").update({
         status: "عمل", leave_start_date: null,
         return_date: todayISO,
@@ -2642,9 +2665,10 @@ const VacationManagementSystem = () => {
     if (!back) return alert("تعذر حساب تاريخ العودة؛ راجع تاريخ البداية وعدد الأيام ❌");
     const selectedVacationType = vacationTypes.find(vt => String(vt.id) === String(directVacForm.vacation_type_id));
     const isRestDay = isRestVacationType(selectedVacationType);
+    const isMissionDay = isMissionVacationType(selectedVacationType);
 
     // منع إنشاء إجازة مباشرة متداخلة للموظف نفسه.
-    const sameEmployeeOverlap = isRestDay ? [] : requests.filter(req => {
+    const sameEmployeeOverlap = (isRestDay || isMissionDay) ? [] : requests.filter(req => {
       if (String(req.employee_id) !== String(emp.id) || req.actual_return_date) return false;
       if (!["pending", "dept_approved", "approved"].includes(req.status)) return false;
       const reqStart = req.effective_start_date || req.start_date;
@@ -2665,13 +2689,13 @@ const VacationManagementSystem = () => {
       && Number(req.days || 0) === days
       && String(req.vacation_type_id || "") === String(directVacForm.vacation_type_id || ""));
     if (exactDuplicate) return alert("هذه الإجازة موجودة بالفعل لهذا الموظف بنفس التاريخ والمدة والنوع، ولن يتم تكرارها ❌");
-    if (currentBalance < days) {
+    if (!isMissionDay && currentBalance < days) {
       const proceed = window.confirm(`رصيد الموظف ${currentBalance} يوم، بينما الإجازة ${days} يوم. سيصبح الرصيد ${currentBalance - days} يوم. هل تريد المتابعة؟`);
       if (!proceed) return;
     }
 
     const dept = departments.find(d => String(d.id) === String(emp.department_id));
-    const departmentOverlap = isRestDay ? [] : requests.filter(req => {
+    const departmentOverlap = (isRestDay || isMissionDay) ? [] : requests.filter(req => {
       if (String(req.employee_id) === String(emp.id) || req.actual_return_date) return false;
       if (!["pending", "dept_approved", "approved"].includes(req.status)) return false;
       const otherEmp = employees.find(item => String(item.id) === String(req.employee_id));
@@ -2711,8 +2735,15 @@ const VacationManagementSystem = () => {
     }
 
     // «راحة» تخصم الرصيد فقط؛ لا تغيّر حالة الموظف ولا تاريخ العودة ولا عداد أيام العمل.
-    const isCurrentlyOnLeave = !isRestDay && todayStr >= effectiveStart && todayStr < back;
-    const directPayload: any = isRestDay
+    // «مأمورية» لا تخصم رصيدًا ولا تغيّر حالة الموظف ولا تاريخه إطلاقًا.
+    const isCurrentlyOnLeave = !isRestDay && !isMissionDay && todayStr >= effectiveStart && todayStr < back;
+    const directPayload: any = isMissionDay
+      ? {
+          status: emp.status || "عمل",
+          leave_start_date: emp.leave_start_date || null,
+          return_date: emp.return_date || null,
+        }
+      : isRestDay
       ? {
           balance: currentBalance - days,
           status: emp.status || "عمل",
@@ -2735,14 +2766,16 @@ const VacationManagementSystem = () => {
       return;
     }
 
-    const { error: balanceLogError } = await supabase.from("balance_updates").insert([{
-      employee_id: emp.id,
-      amount: -days,
-      update_date: todayStr,
-      description: `خصم إجازة مباشرة: ${days} يوم — الرصيد: ${currentBalance} → ${currentBalance - days}`,
-    }]);
-    if (balanceLogError) console.warn("تعذر تسجيل حركة خصم الإجازة المباشرة:", balanceLogError.message);
-    await logAction("direct_vacation", "vacation_requests", null, null, { employee_id: emp.id, employee: emp.name, days, start_date: effectiveStart, return_date: back, status: directPayload.status, balance_before: currentBalance, balance_after: currentBalance - days });
+    if (!isMissionDay) {
+      const { error: balanceLogError } = await supabase.from("balance_updates").insert([{
+        employee_id: emp.id,
+        amount: -days,
+        update_date: todayStr,
+        description: `خصم إجازة مباشرة: ${days} يوم — الرصيد: ${currentBalance} → ${currentBalance - days}`,
+      }]);
+      if (balanceLogError) console.warn("تعذر تسجيل حركة خصم الإجازة المباشرة:", balanceLogError.message);
+    }
+    await logAction("direct_vacation", "vacation_requests", null, null, { employee_id: emp.id, employee: emp.name, days, start_date: effectiveStart, return_date: back, status: directPayload.status, balance_before: currentBalance, balance_after: isMissionDay ? currentBalance : currentBalance - days });
     await sendExternalNotification("direct_vacation_created", { employee_name: emp.name, phone: emp.phone || null, email: emp.email || null, days, start_date: effectiveStart, return_date: back, status: directPayload.status });
     if (emp.email && notificationPrefs.email_enabled) {
       await sendEmail(EMAILJS_TEMPLATES.approved, emp.email, { employee_name: emp.name, decision: "approved", start_date: formatDate(effectiveStart), days, back_date: formatDate(back), admin_notes: directVacForm.notes || "إجازة مباشرة من الإدارة" });
@@ -2753,7 +2786,9 @@ const VacationManagementSystem = () => {
     setIsSubmitting(false);
     directVacationSubmittingRef.current = false;
     await fetchData();
-    alert(isRestDay
+    alert(isMissionDay
+      ? `✅ تم تسجيل مأمورية ${emp.name} بنجاح!\nمن غير خصم من الرصيد، وحالة الموظف تظل عمل.`
+      : isRestDay
       ? `✅ تم تسجيل راحة ${emp.name} بنجاح!\nتم خصم ${days} يوم من الرصيد، وحالة الموظف تظل عمل.`
       : `✅ تمت إضافة إجازة ${emp.name} بنجاح!\nتاريخ العودة: ${formatDate(back)}`);
   };
@@ -5134,7 +5169,7 @@ const VacationManagementSystem = () => {
                   : employees;
                 const scopedEmployeeMap = new Map(scopedVacEmployees.map(emp => [String(emp.id), emp]));
                 const approvedVacationRows = requests
-                  .filter(r => r.status === "approved" && !r.actual_return_date && !isRestVacationRequest(r, vacationTypes) && scopedEmployeeMap.has(String(r.employee_id)))
+                  .filter(r => r.status === "approved" && !r.actual_return_date && !isRestVacationRequest(r, vacationTypes) && !isMissionVacationRequest(r, vacationTypes) && scopedEmployeeMap.has(String(r.employee_id)))
                   .map((r, requestIndex) => {
                     const emp = scopedEmployeeMap.get(String(r.employee_id));
                     const effectiveStart = r.effective_start_date || r.start_date || getActualStartDate(r.departure_date || r.start_date, r.departure_time || "actual");
@@ -5155,6 +5190,7 @@ const VacationManagementSystem = () => {
                       selectionId: `request:${String(r.id || `${r.employee_id}-${effectiveStart}-${r.days}-${requestIndex}`)}`,
                       source: "طلب مقبول",
                       isRestDay: false,
+                      isMissionDay: false,
                     };
                   })
                   .filter(row => row.emp && row.lastReq?.__effectiveStart);
@@ -5178,6 +5214,30 @@ const VacationManagementSystem = () => {
                       selectionId: `rest:${String(r.id || `${r.employee_id}-${effectiveStart}-${r.days}-${requestIndex}`)}`,
                       source: "راحة",
                       isRestDay: true,
+                      isMissionDay: false,
+                    };
+                  });
+
+                // «مأمورية» تظهر في السجل وفي الإجازات الفعلية للعلم فقط - لا تخصم رصيدًا ولا تغيّر حالة الموظف ولا تدخل في تنبيهات العودة.
+                const missionVacationRows = requests
+                  .filter(r => r.status === "approved" && isMissionVacationRequest(r, vacationTypes) && scopedEmployeeMap.has(String(r.employee_id)))
+                  .map((r, requestIndex) => {
+                    const emp = scopedEmployeeMap.get(String(r.employee_id));
+                    const effectiveStart = r.effective_start_date || r.start_date || getActualStartDate(r.departure_date || r.start_date, r.departure_time || "actual");
+                    const calc = getCalculatedDates(effectiveStart, Number(r.days || 0));
+                    return {
+                      emp,
+                      lastReq: { ...r, __effectiveStart: effectiveStart, __end: calc.end, __back: calc.back },
+                      dept: departments.find(d => d.id === emp?.department_id),
+                      vacType: vacationTypes.find(vt => String(vt.id) === String(r.vacation_type_id)),
+                      back: calc.back,
+                      end: calc.end,
+                      daysLeft: null,
+                      daysElapsed: 0,
+                      selectionId: `mission:${String(r.id || `${r.employee_id}-${effectiveStart}-${r.days}-${requestIndex}`)}`,
+                      source: "مأمورية",
+                      isRestDay: false,
+                      isMissionDay: true,
                     };
                   });
 
@@ -5202,10 +5262,11 @@ const VacationManagementSystem = () => {
                       selectionId: `manual:${String(emp.id)}`,
                       source: "إجازة مباشرة",
                       isRestDay: false,
+                      isMissionDay: false,
                     };
                   });
 
-                const vacRows = [...approvedVacationRows, ...restVacationRows, ...manualVacationRows];
+                const vacRows = [...approvedVacationRows, ...restVacationRows, ...missionVacationRows, ...manualVacationRows];
 
                 // فلترة بحث وقسم
                 const activeVacationSearch = normalizeSearchText(vacSearch2);
@@ -5713,7 +5774,7 @@ const VacationManagementSystem = () => {
                             </thead>
                             <tbody>
                               {filtered.map(row => {
-                                const { emp, lastReq, dept, vacType, back, end, daysLeft, daysElapsed, source, isRestDay } = row;
+                                const { emp, lastReq, dept, vacType, back, end, daysLeft, daysElapsed, source, isRestDay, isMissionDay } = row;
                                 return (
                                   <tr key={row.selectionId} style={{ borderBottom:"1px solid #f1f5f9" }}
                                     onMouseEnter={e => (e.currentTarget.style.background="#f8fafc")}
@@ -5766,13 +5827,13 @@ const VacationManagementSystem = () => {
                                     <td style={{ border:"1px solid #94a3b8", padding:"10px 8px", color:"#1e293b", textAlign:"center" }}>
                                       <span style={{
                                         padding:"3px 10px", borderRadius:"20px", fontSize:"11px", fontWeight:"700",
-                                        background: source === "طلب" ? "#eef2ff" : source === "راحة" ? "#e0f2fe" : "#fef3c7",
-                                        color: source === "طلب" ? "#4f46e5" : source === "راحة" ? "#0369a1" : "#d97706"
+                                        background: source === "طلب" ? "#eef2ff" : source === "راحة" ? "#e0f2fe" : source === "مأمورية" ? "#fef9c3" : "#fef3c7",
+                                        color: source === "طلب" ? "#4f46e5" : source === "راحة" ? "#0369a1" : source === "مأمورية" ? "#a16207" : "#d97706"
                                       }}>{source}</span>
                                     </td>
                                     <td style={{ border:"1px solid #94a3b8", padding:"10px 8px", color:"#1e293b", textAlign:"center" }}>
                                       <div style={{ display:"flex", gap:"6px", justifyContent:"center" }}>
-                                        {lastReq && !isRestDay && (
+                                        {lastReq && !isRestDay && !isMissionDay && (
                                           <button onClick={() => openReturnModal(lastReq) }
                                             style={{ padding:"6px 10px", background:"#dcfce7", color:"#16a34a", border:"none", borderRadius:"8px", fontWeight:"700", cursor:"pointer", fontSize:"12px", fontFamily:"inherit", whiteSpace:"nowrap" }}>
                                             ✅ عودة
@@ -5879,6 +5940,11 @@ const VacationManagementSystem = () => {
                         {isRestVacationType(vacationTypes.find(vt => String(vt.id) === String(directVacForm.vacation_type_id))) && (
                           <div style={{ marginTop:"6px", color:"#0369a1", background:"#e0f2fe", borderRadius:"10px", padding:"8px 10px", fontSize:"11px", fontWeight:"800" }}>
                             ℹ️ «راحة»: يخصم الرصيد فقط، ولا يغيّر حالة الموظف ولا يوقف عداد أيام العمل.
+                          </div>
+                        )}
+                        {isMissionVacationType(vacationTypes.find(vt => String(vt.id) === String(directVacForm.vacation_type_id))) && (
+                          <div style={{ marginTop:"6px", color:"#a16207", background:"#fef9c3", borderRadius:"10px", padding:"8px 10px", fontSize:"11px", fontWeight:"800" }}>
+                            ℹ️ «مأمورية»: لا تخصم من الرصيد، ولا تغيّر حالة الموظف، ولا تؤثر على عداد أيام العمل — تظهر فقط في السجلات والإجازات الفعلية.
                           </div>
                         )}
                       </div>
@@ -7439,6 +7505,11 @@ const VacationManagementSystem = () => {
                 {isRestVacationType(vacationTypes.find(vt => String(vt.id) === String(newRequest.vacation_type_id))) && (
                   <div style={{ marginTop:"6px", color:"#0369a1", background:"#e0f2fe", borderRadius:"10px", padding:"8px 10px", fontSize:"11px", fontWeight:"800" }}>
                     ℹ️ «راحة»: يخصم الرصيد فقط، ولا يغيّر حالة الموظف ولا يوقف عداد أيام العمل.
+                  </div>
+                )}
+                {isMissionVacationType(vacationTypes.find(vt => String(vt.id) === String(newRequest.vacation_type_id))) && (
+                  <div style={{ marginTop:"6px", color:"#a16207", background:"#fef9c3", borderRadius:"10px", padding:"8px 10px", fontSize:"11px", fontWeight:"800" }}>
+                    ℹ️ «مأمورية»: لا تخصم من الرصيد، ولا تغيّر حالة الموظف، ولا تؤثر على عداد أيام العمل.
                   </div>
                 )}
               </div>
