@@ -32,6 +32,9 @@ const EMAILJS_TEMPLATES = {
 };
 
 const ADMIN_EMAIL = "mohamedgamal199681945@gmail.com";
+// حساب المالك ثابت وليس صفًا في قاعدة البيانات، فلا يملك id حقيقي.
+// نستخدم معرفًا ثابتًا (بصيغة UUID متوافقة مع أعمدة uuid) لربط تفضيلاته (مثل إعدادات التنبيهات) بصف واحد ثابت في القاعدة.
+const OWNER_LOCAL_ID = "00000000-0000-0000-0000-0000000000f1";
 
 // ==================== EMAIL SENDER ====================
 // منع تكرار إيميلات تلقائية (return_reminder) بس - مش إيميلات الموافقة/الرفض
@@ -609,7 +612,7 @@ const DailyFollowupPanel = ({ isOwner, employees, requests, departments, vacatio
   if (!isOwner) return null;
   const todayKey = getLocalISODate();
   const startsToday = requests
-    .filter((req: any) => req.status === "approved" && !req.actual_return_date && !isRestVacationRequest(req, vacationTypes))
+    .filter((req: any) => req.status === "approved" && !req.actual_return_date && !isRestVacationRequest(req, vacationTypes) && !isMissionVacationRequest(req, vacationTypes))
     .map((req: any) => {
       const start = req.effective_start_date || req.start_date || getActualStartDate(req.departure_date || req.start_date, req.departure_time || "actual");
       return { req, start, emp: employees.find((emp: any) => String(emp.id) === String(req.employee_id)) };
@@ -620,7 +623,7 @@ const DailyFollowupPanel = ({ isOwner, employees, requests, departments, vacatio
     .sort((a: any, b: any) => Number(a.balance || 0) - Number(b.balance || 0))
     .slice(0, 6);
   const conflictMap = new Map<string, any[]>();
-  requests.filter((req: any) => req.status === "approved" && !req.actual_return_date && !isRestVacationRequest(req, vacationTypes)).forEach((req: any) => {
+  requests.filter((req: any) => req.status === "approved" && !req.actual_return_date && !isRestVacationRequest(req, vacationTypes) && !isMissionVacationRequest(req, vacationTypes)).forEach((req: any) => {
     const emp = employees.find((item: any) => String(item.id) === String(req.employee_id));
     const start = normalizeDateKey(req.effective_start_date || req.start_date || getActualStartDate(req.departure_date || req.start_date, req.departure_time || "actual"));
     if (!emp?.department_id || !start) return;
@@ -1059,7 +1062,13 @@ const VacationManagementSystem = () => {
       const savedUser = localStorage.getItem("vms_currentUser");
       const savedView = localStorage.getItem("vms_currentView");
       if (savedUser && savedView && savedView !== "login") {
-        setCurrentUser(JSON.parse(savedUser));
+        const parsedUser = JSON.parse(savedUser);
+        // تصحيح جلسات المالك القديمة المحفوظة قبل إضافة id ثابت له.
+        if (parsedUser?.role === "owner" && !parsedUser.id) {
+          parsedUser.id = OWNER_LOCAL_ID;
+          localStorage.setItem("vms_currentUser", JSON.stringify(parsedUser));
+        }
+        setCurrentUser(parsedUser);
         setCurrentView(savedView);
       }
     } catch (e) {
@@ -1080,7 +1089,7 @@ const VacationManagementSystem = () => {
     const dueEmployeeIds = new Set<string>();
 
     requestRows
-      .filter(req => req.status === "approved" && !req.actual_return_date && !isRestVacationRequest(req, vacationTypeRows))
+      .filter(req => req.status === "approved" && !req.actual_return_date && !isRestVacationRequest(req, vacationTypeRows) && !isMissionVacationRequest(req, vacationTypeRows))
       .forEach((req, index) => {
         const emp = employeeMap.get(String(req.employee_id));
         const effectiveStart = req.effective_start_date || req.start_date || getActualStartDate(req.departure_date || req.start_date, req.departure_time || "actual");
@@ -1235,7 +1244,7 @@ const VacationManagementSystem = () => {
     const tomorrowStr = tomorrow.toISOString().split("T")[0];
 
     requests.forEach(req => {
-      if (req.status !== "approved" || isRestVacationRequest(req, vacationTypes)) return;
+      if (req.status !== "approved" || isRestVacationRequest(req, vacationTypes) || isMissionVacationRequest(req, vacationTypes)) return;
       const { back } = getCalculatedDates(req.start_date, req.days);
       if (back === tomorrowStr) {
         const emp = employees.find(e => e.id === req.employee_id);
@@ -1262,7 +1271,7 @@ const VacationManagementSystem = () => {
 
       employees.forEach((emp, index) => {
         const approved = requests
-          .filter(r => r.employee_id === emp.id && r.status === "approved" && !r.actual_return_date && !isRestVacationRequest(r, vacationTypes))
+          .filter(r => r.employee_id === emp.id && r.status === "approved" && !r.actual_return_date && !isRestVacationRequest(r, vacationTypes) && !isMissionVacationRequest(r, vacationTypes))
           .map(r => {
             const effectiveStart = r.effective_start_date || r.start_date || getActualStartDate(r.departure_date || r.start_date, r.departure_time || "actual");
             const { back } = getCalculatedDates(effectiveStart, Number(r.days || 0));
@@ -1491,7 +1500,7 @@ const VacationManagementSystem = () => {
   const handleLogin = async () => {
     // 1️⃣ Owner
     if (loginData.email === ADMIN_EMAIL && loginData.password === process.env.REACT_APP_OWNER_PASSWORD) {
-      const ownerUser = { role: "owner", name: "محمد جمال" };
+      const ownerUser = { role: "owner", name: "محمد جمال", id: OWNER_LOCAL_ID };
       setCurrentUser(ownerUser);
       setCurrentView("admin");
       localStorage.setItem("vms_currentUser", JSON.stringify(ownerUser));
@@ -3233,7 +3242,7 @@ const VacationManagementSystem = () => {
     });
     if (isRestDay || isHolidayForAttendance(dateKey)) return { status:"rest", notes: isRestDay ? "راحة معتمدة" : "عطلة رسمية" };
     const isActualLeave = employeeRequests.some(request => {
-      if (isRestVacationRequest(request, vacationTypes) || request.actual_return_date) return false;
+      if (isRestVacationRequest(request, vacationTypes) || isMissionVacationRequest(request, vacationTypes) || request.actual_return_date) return false;
       const start = normalizeDateKey(request.effective_start_date || request.start_date || getActualStartDate(request.departure_date || request.start_date, request.departure_time || "actual"));
       if (!start) return false;
       const back = normalizeDateKey(getCalculatedDates(start, Number(request.days || 0)).back);
