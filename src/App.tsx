@@ -32,9 +32,6 @@ const EMAILJS_TEMPLATES = {
 };
 
 const ADMIN_EMAIL = "mohamedgamal199681945@gmail.com";
-// حساب المالك ثابت وليس صفًا في قاعدة البيانات، فلا يملك id حقيقي.
-// نستخدم معرفًا ثابتًا (بصيغة UUID متوافقة مع أعمدة uuid) لربط تفضيلاته (مثل إعدادات التنبيهات) بصف واحد ثابت في القاعدة.
-const OWNER_LOCAL_ID = "00000000-0000-0000-0000-0000000000f1";
 
 // ==================== EMAIL SENDER ====================
 // منع تكرار إيميلات تلقائية (return_reminder) بس - مش إيميلات الموافقة/الرفض
@@ -1062,13 +1059,7 @@ const VacationManagementSystem = () => {
       const savedUser = localStorage.getItem("vms_currentUser");
       const savedView = localStorage.getItem("vms_currentView");
       if (savedUser && savedView && savedView !== "login") {
-        const parsedUser = JSON.parse(savedUser);
-        // تصحيح جلسات المالك القديمة المحفوظة قبل إضافة id ثابت له.
-        if (parsedUser?.role === "owner" && !parsedUser.id) {
-          parsedUser.id = OWNER_LOCAL_ID;
-          localStorage.setItem("vms_currentUser", JSON.stringify(parsedUser));
-        }
-        setCurrentUser(parsedUser);
+        setCurrentUser(JSON.parse(savedUser));
         setCurrentView(savedView);
       }
     } catch (e) {
@@ -1210,8 +1201,8 @@ const VacationManagementSystem = () => {
     fetchData();
   }, [fetchData]);
   useEffect(() => {
-    if (currentUser?.id) loadNotificationPreferences(currentUser.id);
-  }, [currentUser?.id]);
+    if (currentUser?.role === "owner" || currentUser?.id) loadNotificationPreferences(currentUser.id);
+  }, [currentUser?.id, currentUser?.role]);
   useEffect(() => {
     let cancelled = false;
     const loadCurrentPermissions = async () => {
@@ -1500,7 +1491,7 @@ const VacationManagementSystem = () => {
   const handleLogin = async () => {
     // 1️⃣ Owner
     if (loginData.email === ADMIN_EMAIL && loginData.password === process.env.REACT_APP_OWNER_PASSWORD) {
-      const ownerUser = { role: "owner", name: "محمد جمال", id: OWNER_LOCAL_ID };
+      const ownerUser = { role: "owner", name: "محمد جمال" };
       setCurrentUser(ownerUser);
       setCurrentView("admin");
       localStorage.setItem("vms_currentUser", JSON.stringify(ownerUser));
@@ -3341,7 +3332,18 @@ const VacationManagementSystem = () => {
     setNewBranch({ name:branch.name || "", code:branch.code || "", address:branch.address || "", timezone:branch.timezone || "Africa/Cairo" });
     setShowAddBranch(true);
   };
+  // مفتاح تخزين محلي لتفضيلات المالك؛ حساب المالك غير موجود كصف في القاعدة (لا يوجد له id حقيقي)
+  // وجدول notification_preferences مقيّد بمفتاح خارجي (foreign key) على user_id، فلا يمكن إدراج قيمة وهمية له.
+  const OWNER_NOTIFICATION_PREFS_KEY = "vms_owner_notification_prefs";
+
   const loadNotificationPreferences = async (userId?: string) => {
+    if (currentUser?.role === "owner") {
+      try {
+        const saved = localStorage.getItem(OWNER_NOTIFICATION_PREFS_KEY);
+        if (saved) setNotificationPrefs(JSON.parse(saved));
+      } catch {}
+      return;
+    }
     const uid = userId || currentUser?.id;
     if (!uid) return;
     const { data } = await supabase.from("notification_preferences").select("*").eq("user_id", uid).maybeSingle();
@@ -3365,6 +3367,19 @@ const VacationManagementSystem = () => {
     await Promise.all(active.map(async item => { try { await fetch(item.endpoint_url, { method:"POST", headers:{ "Content-Type":"application/json" }, body:JSON.stringify({ event:eventType, payload, sent_at:new Date().toISOString() }) }); } catch (e) { console.warn("تعذر إرسال Webhook", item.label, e); } }));
   };
   const saveNotificationPreferences = async () => {
+    if (currentUser?.role === "owner") {
+      // حساب المالك ليس له صف في قاعدة البيانات، فتُحفظ تفضيلاته محليًا في هذا المتصفح.
+      setNotificationPrefsSaving(true);
+      try {
+        localStorage.setItem(OWNER_NOTIFICATION_PREFS_KEY, JSON.stringify(notificationPrefs));
+      } catch (e: any) {
+        setNotificationPrefsSaving(false);
+        return alert("تعذر حفظ إعدادات التنبيهات محليًا: " + (e?.message || "خطأ غير معروف"));
+      }
+      setNotificationPrefsSaving(false);
+      alert("تم حفظ إعدادات التنبيهات بنجاح (محفوظة على هذا المتصفح فقط)");
+      return;
+    }
     if (!currentUser?.id) return;
     setNotificationPrefsSaving(true);
     const { error } = await supabase.from("notification_preferences").upsert([{ user_id:currentUser.id, return_due:notificationPrefs.return_due, leave_starts_today:notificationPrefs.leave_start, low_balance:notificationPrefs.low_balance, conflict_alerts:notificationPrefs.conflict, request_decisions:notificationPrefs.request_decision, browser_push:notificationPrefs.browser_push, email_enabled:notificationPrefs.email_enabled, updated_at:new Date().toISOString() }], { onConflict:"user_id" });
