@@ -723,6 +723,9 @@ const VacationManagementSystem = () => {
   const returnDueNotifiedRef = React.useRef<Set<string>>(new Set());
   const [showReturnModal, setShowReturnModal] = useState(false);
   const [returnData, setReturnData] = useState<any>(null);
+  const [showLatenessModal, setShowLatenessModal] = useState(false);
+  const [latenessData, setLatenessData] = useState<any>(null);
+  const [latenessForm, setLatenessForm] = useState({ vacation_type_id: "", notes: "", actual_return_date: "" });
   const [showAddDept, setShowAddDept] = useState(false);
   const [showAddBranch, setShowAddBranch] = useState(false);
   const [editingBranch, setEditingBranch] = useState<any>(null);
@@ -2339,6 +2342,90 @@ const VacationManagementSystem = () => {
     await logAction("return_from_vacation", "vacation_requests", returnData.id);
   };
 
+  // ========== تصنيف أيام التأخير + تسجيل العودة في عملية واحدة مترابطة ==========
+  // بدل ما نخصم أيام التأخير كخصم رصيد صامت، نسيب المدير يحدد نوعها (امتداد/راحة/جزاء/أي نوع تاني)
+  // ويحدد تاريخ العودة الفعلي في نفس الخطوة. بالتأكيد على "تصنيف وتسجيل العودة" بتحصل 3 عمليات مربوطة مع بعض:
+  // 1) قفل الطلب الأصلي عند تاريخ عودته المخطط أصلاً. 2) إنشاء طلب مستقل بالأيام الزيادة بالنوع المختار (يظهر في السجلات).
+  // 3) قفل هذا الطلب الجديد فورًا بتاريخ العودة الفعلي المُدخل، وإرجاع حالة الموظف لـ"عمل" مباشرة.
+  const openLatenessModal = (request: any) => {
+    const effectiveStart = request.effective_start_date || request.start_date;
+    const { back } = getCalculatedDates(effectiveStart, Number(request.days || 0));
+    const today = getLocalISODate();
+    setLatenessData({ ...request, __back: back });
+    setLatenessForm({ vacation_type_id: "", notes: "", actual_return_date: today });
+    setShowLatenessModal(true);
+  };
+
+  const handleClassifyLatenessDays = async () => {
+    if (!latenessData) return;
+    if (!latenessForm.vacation_type_id) return alert("اختر نوع الإجازة لأيام التأخير أولًا");
+    if (!latenessForm.actual_return_date) return alert("حدد تاريخ العودة الفعلي");
+    const emp = employees.find(e => e.id === latenessData.employee_id);
+    if (!emp) return;
+
+    const originalBack = latenessData.__back;
+    const actualReturn = new Date(latenessForm.actual_return_date).toISOString().split("T")[0];
+    // عدد أيام التأخير بيتحسب تلقائيًا من الفرق بين تاريخ العودة الأصلي وتاريخ العودة الفعلي الجديد.
+    const days = Math.ceil((new Date(actualReturn).getTime() - new Date(originalBack).getTime()) / 86400000);
+    if (!days || days <= 0) return alert(`تاريخ العودة الفعلي لازم يكون بعد تاريخ العودة المخطط (${formatDate(originalBack)})`);
+    const chosenType = vacationTypes.find(vt => String(vt.id) === String(latenessForm.vacation_type_id));
+    const isMissionDay = isMissionVacationType(chosenType);
+
+    // 1) إغلاق الطلب الأصلي عند تاريخ عودته المخطط أصلاً؛ الأيام الزيادة بقت طلبًا مستقلًا.
+    const { error: closeError } = await supabase.from("vacation_requests").update({
+      actual_return_date: originalBack,
+      lateness_days: 0,
+    }).eq("id", latenessData.id);
+    if (closeError) return alert("تعذر إغلاق الطلب الأصلي: " + closeError.message);
+
+    // 2) إنشاء طلب جديد بالأيام الزيادة بالنوع المختار، ونقفله فورًا بتاريخ العودة الفعلي (عملية العودة مربوطة في نفس الخطوة).
+    const { data: newReqData, error: insertError } = await supabase.from("vacation_requests").insert([{
+      employee_id: emp.id,
+      employee_name: emp.name,
+      start_date: originalBack,
+      effective_start_date: originalBack,
+      days,
+      vacation_type_id: latenessForm.vacation_type_id,
+      notes: latenessForm.notes || `تصنيف أيام تأخير العودة: ${days} يوم`,
+      status: "approved",
+      owner_approved_by: currentUser?.name,
+      owner_approved_at: new Date().toISOString(),
+      actual_return_date: actualReturn,
+      lateness_days: 0,
+    }]).select().maybeSingle();
+    if (insertError) {
+      // تراجع عن إغلاق الطلب الأصلي لو فشل إنشاء طلب الأيام الزيادة
+      await supabase.from("vacation_requests").update({ actual_return_date: null, lateness_days: latenessData.lateness_days || 0 }).eq("id", latenessData.id);
+      return alert("تعذر إنشاء طلب الأيام الزيادة: " + insertError.message);
+    }
+
+    // 3) خصم الرصيد حسب النوع المختار (مأمورية فقط لا تخصم)، وإرجاع حالة الموظف لـ"عمل" فورًا — العودة اتسجلت في نفس الخطوة.
+    const deductDays = isMissionDay ? 0 : days;
+    const newBalance = Number(emp.balance) - deductDays;
+    const empPayload: any = {
+      status: "عمل",
+      leave_start_date: null,
+      return_date: actualReturn,
+      ...(deductDays > 0 ? { balance: newBalance } : {}),
+    };
+    const { error: empError } = await supabase.from("employees").update(empPayload).eq("id", emp.id);
+    if (empError) return alert("تم إنشاء الطلب الجديد، لكن تعذر تحديث بيانات الموظف: " + empError.message);
+
+    if (deductDays > 0) {
+      await supabase.from("balance_updates").insert([{
+        employee_id: emp.id, amount: -deductDays, update_date: getLocalISODate(),
+        description: `تصنيف أيام تأخير عودة كـ${chosenType?.name || "إجازة"} وتسجيل العودة: ${deductDays} يوم - الرصيد: ${emp.balance} → ${newBalance}`,
+      }]);
+    }
+
+    await logAction("classify_lateness_and_return", "vacation_requests", latenessData.id, { lateness_days: latenessData.lateness_days || 0 }, { closed_at: originalBack, new_request_id: newReqData?.id, type: chosenType?.name, days, actual_return_date: actualReturn });
+
+    setShowLatenessModal(false);
+    setLatenessData(null);
+    await fetchData();
+    alert(`✅ تم تصنيف أيام التأخير كـ"${chosenType?.name || ""}" (${days} يوم، من ${formatDate(originalBack)} إلى ${formatDate(actualReturn)}) وتسجيل العودة في نفس الخطوة\nالرصيد الجديد: ${newBalance} يوم — حالة الموظف: عمل`);
+  };
+
   // ========== EMPLOYEE PORTAL ==========
   const submitVacationRequest = async () => {
     if (!newRequest.start_date) return alert("حدد تاريخ البداية");
@@ -3161,11 +3248,12 @@ const VacationManagementSystem = () => {
   };
 
   // ==================== VERSIONED SUPABASE BACKUP ====================
-  const buildRawBackupSnapshot = () => ({
+  const buildRawBackupSnapshot = (extra: { balanceUpdates?: any[]; vacationSignatures?: any[] } = {}) => ({
     employees,
     requests,
     vacationTypes,
     departments,
+    branches,
     publicHolidays,
     attendanceRecords: attendanceRows.map((row: any) => {
       const { employees: _employees, employee: _employee, ...attendance } = row || {};
@@ -3174,7 +3262,8 @@ const VacationManagementSystem = () => {
     seasonalLoginEvents,
     seasonalLoginImages,
     workTimeCategories,
-    balanceUpdates: [],
+    balanceUpdates: extra.balanceUpdates || [],
+    vacationSignatures: extra.vacationSignatures || [],
     createdAt: new Date().toISOString(),
   });
 
@@ -3188,17 +3277,27 @@ const VacationManagementSystem = () => {
   const saveVersionedBackup = async () => {
     if (!currentUser) return;
     setBackupLoading(true);
-    const snapshot = buildRawBackupSnapshot();
+    // بيانات تشغيلية إضافية غير محمّلة في الذاكرة (مش بيانات مستخدمين/دخول) — نجيبها وقت الحفظ فقط.
+    const [balanceUpdatesRes, vacationSignaturesRes] = await Promise.all([
+      supabase.from("balance_updates").select("*"),
+      supabase.from("vacation_signatures").select("*"),
+    ]);
+    const snapshot = buildRawBackupSnapshot({
+      balanceUpdates: balanceUpdatesRes.data || [],
+      vacationSignatures: vacationSignaturesRes.data || [],
+    });
     const { error } = await supabase.from("backup_versions").insert([{
       created_by: currentUser.id,
       label: `نسخة يدوية — ${new Date().toLocaleString("ar-EG")}`,
       snapshot,
-      tables_included: ["employees", "vacation_requests", "vacation_types", "departments", "public_holidays", "attendance_records", "seasonal_login_events", "seasonal_login_event_images", "work_time_categories"],
+      // ⚠️ مقصود استبعاد جداول المستخدمين والصلاحيات (users, user_permissions, department_managers,
+      // notification_preferences, notification_integrations) لأنها بيانات دخول/حسابات حساسة.
+      tables_included: ["employees", "vacation_requests", "vacation_types", "departments", "branches", "public_holidays", "attendance_records", "seasonal_login_events", "seasonal_login_event_images", "work_time_categories", "balance_updates", "vacation_signatures"],
     }]);
     setBackupLoading(false);
     if (error) return alert("تعذر حفظ النسخة داخل Supabase: " + error.message);
     setLastBackup(new Date().toLocaleString("ar-EG"));
-    alert("تم حفظ نسخة قابلة للاسترجاع داخل Supabase ✅");
+    alert("تم حفظ نسخة شاملة قابلة للاسترجاع داخل Supabase ✅\n(بيانات النظام والتشغيل فقط، بدون حسابات المستخدمين وصلاحياتهم)");
   };
 
   const restoreBackupVersion = async (version: any) => {
@@ -3214,6 +3313,7 @@ const VacationManagementSystem = () => {
       const operations: Array<Promise<any>> = [];
       const queueRestore = (query: any) => { operations.push(Promise.resolve(query)); };
       if (Array.isArray(snapshot.departments) && snapshot.departments.length) queueRestore(supabase.from("departments").upsert(snapshot.departments));
+      if (Array.isArray(snapshot.branches) && snapshot.branches.length) queueRestore(supabase.from("branches").upsert(snapshot.branches));
       if (Array.isArray(snapshot.vacationTypes) && snapshot.vacationTypes.length) queueRestore(supabase.from("vacation_types").upsert(snapshot.vacationTypes));
       if (Array.isArray(snapshot.employees) && snapshot.employees.length) queueRestore(supabase.from("employees").upsert(snapshot.employees));
       if (Array.isArray(snapshot.requests) && snapshot.requests.length) queueRestore(supabase.from("vacation_requests").upsert(snapshot.requests));
@@ -3222,6 +3322,8 @@ const VacationManagementSystem = () => {
       if (Array.isArray(snapshot.seasonalLoginEvents) && snapshot.seasonalLoginEvents.length) queueRestore(supabase.from("seasonal_login_events").upsert(snapshot.seasonalLoginEvents));
       if (Array.isArray(snapshot.seasonalLoginImages) && snapshot.seasonalLoginImages.length) queueRestore(supabase.from("seasonal_login_event_images").upsert(snapshot.seasonalLoginImages));
       if (Array.isArray(snapshot.workTimeCategories) && snapshot.workTimeCategories.length) queueRestore(supabase.from("work_time_categories").upsert(snapshot.workTimeCategories));
+      if (Array.isArray(snapshot.balanceUpdates) && snapshot.balanceUpdates.length) queueRestore(supabase.from("balance_updates").upsert(snapshot.balanceUpdates));
+      if (Array.isArray(snapshot.vacationSignatures) && snapshot.vacationSignatures.length) queueRestore(supabase.from("vacation_signatures").upsert(snapshot.vacationSignatures));
       const results = await Promise.all(operations);
       const failed = results.find(result => result?.error);
       if (failed?.error) throw failed.error;
@@ -5879,6 +5981,12 @@ const VacationManagementSystem = () => {
                                             ✅ عودة
                                           </button>
                                         )}
+                                        {lastReq && !isRestDay && !isMissionDay && daysLeft !== null && daysLeft <= 0 && (
+                                          <button onClick={() => openLatenessModal(lastReq)}
+                                            style={{ padding:"6px 10px", background:"#fef3c7", color:"#b45309", border:"none", borderRadius:"8px", fontWeight:"700", cursor:"pointer", fontSize:"12px", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+                                            🏷️ تصنيف التأخير وعودة
+                                          </button>
+                                        )}
                                         {lastReq && hasPermission("requests", "can_delete") && (
                                           <button onClick={() => handleDeleteApprovedVacation(lastReq.id, row.selectionId)}
                                             style={{ padding:"6px 10px", background:"#fff1f2", color:"#dc2626", border:"none", borderRadius:"8px", fontWeight:"700", cursor:"pointer", fontSize:"12px", fontFamily:"inherit", whiteSpace:"nowrap" }}>
@@ -7137,10 +7245,55 @@ const VacationManagementSystem = () => {
                 </div>
                 <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 space-y-3">
                   <label className="text-sm font-black block text-amber-800">التعامل مع التأخير</label>
-                  <p className="text-sm font-bold text-amber-800 m-0">يتم خصم أيام التأخير يومًا بيوم من رصيد الإجازات.</p>
-                  <p className="text-xs text-amber-700 m-0">سيظهر عدد أيام التأخير وقيمة الخصم بعد اختيار تاريخ العودة.</p>
+                  <p className="text-sm font-bold text-amber-800 m-0">يتم خصم أيام التأخير يومًا بيوم من رصيد الإجازات كخصم مباشر.</p>
+                  <p className="text-xs text-amber-700 m-0">لو عايز تحدد نوع مختلف لأيام التأخير (امتداد، راحة، ...) بدل الخصم المباشر، استخدم زر "🏷️ تصنيف التأخير" من جدول الإجازات الفعلية قبل ما تسجّل العودة هنا.</p>
                 </div>
                 <button onClick={handleReturnFromVacation} className="w-full bg-emerald-600 text-white p-5 rounded-2xl font-black">تأكيد العودة وتحديث البيانات</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* تصنيف أيام التأخير + تسجيل العودة معًا في خطوة واحدة */}
+        {showLatenessModal && latenessData && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-6 z-[100]" onClick={() => setShowLatenessModal(false)}>
+            <div className="bg-white p-10 rounded-[2.5rem] w-full max-w-lg shadow-2xl" dir="rtl" onClick={(e) => e.stopPropagation()}>
+              <div className="flex justify-between mb-8">
+                <h3 className="text-2xl font-black">🏷️ تصنيف التأخير وتسجيل العودة</h3>
+                <button onClick={() => setShowLatenessModal(false)}><X size={28} /></button>
+              </div>
+              <div className="space-y-5">
+                <div className="bg-slate-50 p-6 rounded-xl">
+                  <p className="font-black text-lg mb-2">{latenessData.employee_name}</p>
+                  <div className="text-sm space-y-1">
+                    <p><span className="text-slate-500">كان المفروض يرجع في:</span> <span className="font-bold text-indigo-600">{formatDate(latenessData.__back)}</span></p>
+                  </div>
+                </div>
+                <p className="text-xs text-slate-500 m-0">بالتأكيد، 3 حاجات هتحصل مربوطة مع بعض في نفس الوقت: قفل الإجازة الأصلية عند تاريخ عودتها المتوقع، تسجيل طلب جديد بالأيام الزيادة بالنوع اللي هتختاره (يظهر في السجلات)، وتسجيل عودة الموظف فعليًا وإرجاع حالته لـ"عمل".</p>
+                <div>
+                  <label className="text-sm font-black mb-2 block">نوع أيام التأخير</label>
+                  <select className="w-full p-4 border-2 border-slate-300 rounded-2xl" value={latenessForm.vacation_type_id} onChange={(e) => setLatenessForm({ ...latenessForm, vacation_type_id: e.target.value })}>
+                    <option value="">اختر النوع...</option>
+                    {vacationTypes.map((vt: any) => <option key={vt.id} value={vt.id}>{vt.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-sm font-black mb-2 block text-indigo-700">تاريخ العودة الفعلي (هيتسجل فورًا وترجع حالة الموظف "عمل")</label>
+                  <input type="date" className="w-full p-4 border-2 border-indigo-300 rounded-2xl" value={latenessForm.actual_return_date} onChange={(e) => setLatenessForm({ ...latenessForm, actual_return_date: e.target.value })} />
+                </div>
+                {latenessForm.actual_return_date && (() => {
+                  const computedDays = Math.ceil((new Date(latenessForm.actual_return_date).getTime() - new Date(latenessData.__back).getTime()) / 86400000);
+                  return (
+                    <div className={`rounded-2xl p-4 text-center font-black ${computedDays > 0 ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-600"}`}>
+                      {computedDays > 0 ? `عدد أيام التأخير المحسوبة: ${computedDays} يوم` : "⚠️ تاريخ العودة الفعلي لازم يكون بعد تاريخ العودة المخطط"}
+                    </div>
+                  );
+                })()}
+                <div>
+                  <label className="text-sm font-black mb-2 block">ملاحظات (اختياري)</label>
+                  <textarea className="w-full p-4 border-2 border-slate-300 rounded-2xl" rows={2} value={latenessForm.notes} onChange={(e) => setLatenessForm({ ...latenessForm, notes: e.target.value })} placeholder="سبب التأخير..." />
+                </div>
+                <button onClick={handleClassifyLatenessDays} disabled={!latenessForm.actual_return_date || Math.ceil((new Date(latenessForm.actual_return_date).getTime() - new Date(latenessData.__back).getTime()) / 86400000) <= 0} className="w-full bg-amber-600 text-white p-5 rounded-2xl font-black disabled:opacity-50 disabled:cursor-not-allowed">تأكيد التصنيف وتسجيل العودة</button>
               </div>
             </div>
           </div>
