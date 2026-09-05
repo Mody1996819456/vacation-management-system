@@ -1256,9 +1256,10 @@ const VacationManagementSystem = () => {
       if (cancelled || employees.length === 0 || !currentUser || !["admin", "owner", "dept_manager"].includes(currentUser.role)) return;
       const today = getLocalISODate();
       const currentMonthStart = `${today.slice(0, 7)}-01`;
-      // المزامنة لا تكتب أي حقل في employees حتى لا تستبدل تواريخ الموظفين الموجودة.
-      // تقتصر هنا على إغلاق معاملات الإجازات القديمة فقط.
+      // المزامنة تغلق معاملات الإجازات القديمة، وتُفعّل حالة "إجازة" فقط عند وصول تاريخ البداية الفعلي.
+      // لا تُعيد الحالة تلقائيًا إلى "عمل" ولا تلمس leave_start_date/return_date حتى لا تستبدل تواريخ محفوظة يدويًا أو تتعارض مع تسجيل العودة اليدوي.
       const requestClosures: Array<{ id: string; payload: any }> = [];
+      const employeeActivations: Array<{ id: string; payload: any }> = [];
 
       employees.forEach((emp, index) => {
         const approved = requests
@@ -1281,12 +1282,27 @@ const VacationManagementSystem = () => {
         const oldRequestIds = new Set(oldRequests.map(r => String(r.id)));
         const openApproved = approved.filter(r => !oldRequestIds.has(String(r.id)));
 
-        // لا تكتب هذه المزامنة status أو leave_start_date أو return_date في employees.
-        // تبقى تواريخ وبيانات الموظف كما حفظها المستخدم، وتُغلق المعاملة القديمة فقط.
-        return;
+        // تفعيل الحالة: لو وصل تاريخ بداية طلب مقبول ومفتوح فعليًا (اليوم >= تاريخ البداية) وحالة الموظف لسه "عمل"،
+        // نحوّل الحالة إلى "إجازة" فقط — من غير ما نلمس أي تاريخ آخر.
+        if (emp.status !== "إجازة") {
+          const dueToStart = openApproved.find(r => String(r.__effectiveStart) <= today);
+          if (dueToStart) {
+            employeeActivations.push({ id: String(emp.id), payload: { status: "إجازة" } });
+          }
+        }
       });
 
-      if (cancelled || requestClosures.length === 0) return;
+      if (cancelled) return;
+      const empResults = employeeActivations.length > 0
+        ? await Promise.all(employeeActivations.map(update => supabase.from("employees").update(update.payload).eq("id", update.id)))
+        : [];
+      if (cancelled) return;
+      if (empResults.length > 0 && empResults.every(result => !result.error)) {
+        const activatedById = new Map(employeeActivations.map(item => [item.id, item.payload]));
+        setEmployees(previous => previous.map(emp => activatedById.has(String(emp.id)) ? { ...emp, ...activatedById.get(String(emp.id)) } : emp));
+      }
+
+      if (requestClosures.length === 0) return;
       const requestResults = await Promise.all(requestClosures.map(update => supabase.from("vacation_requests").update(update.payload).eq("id", update.id)));
       if (cancelled) return;
       if (requestResults.every(result => !result.error)) {
