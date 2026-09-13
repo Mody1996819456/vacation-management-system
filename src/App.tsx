@@ -569,6 +569,85 @@ const EmpEditModal = ({ req, vacationTypes, onClose, onChange, onSave }: {
   );
 };
 
+// ==================== SUCCESS ANIMATION (Lottie) ====================
+// أنيميشن نجاح (Lottie) بيتحمل من CDN مرة واحدة فقط عند أول استخدام - بدون أي تثبيت إضافي (npm install).
+const LOTTIE_SUCCESS_ANIMATION: any = {"v":"5.3.4","fr":25,"ip":0,"op":73,"w":1000,"h":1000,"nm":"page scroll","ddd":0,"assets":[],"layers":[{"ddd":0,"ind":1,"ty":4,"nm":"Layer 23/icons_pack1_v1 Outlines - Group 1","td":1,"sr":1,"ks":{"o":{"a":0,"k":100,"ix":11},"r":{"a":0,"k":0,"ix":10},"p":{"a":0,"k":[515.08,484.08,0],"ix":2},"a":{"a":0,"k":[553,553.738,0],"ix":1},"s":{"a":0,"k":[100,100,100],"ix":6}},"ao":0,"shapes":[{"ty":"gr","it":[{"ind":0,"ty":"sh","ix":1,"ks":{"a":0,"k":{"i":[[0,0],[0,0],[0,0]],"o":[[0,0],[0,0],[0,0]],"v":[[-280.16,-35.74],[-68.44,175.98],[250,-144.139]],"c":false},"ix":2},"nm":"Path 1","mn":"ADBE Vector Shape - Group","hd":false},{"ty":"st","c":{"a":0,"k":[0,0,0,1],"ix":3},"o":{"a":0,"k":100,"ix":4},"w":{"a":0,"k":80,"ix":5},"lc":2,"lj":1,"ml":10,"ml2":{"a":0,"k":10,"ix":8},"nm":"Stroke 1","mn":"ADBE Vector Graphic - Stroke","hd":false},{"ty":"tm","s":{"a":1,"k":[{"i":{"x":[0],"y":[1]},"o":{"x":[0.333],"y":[0]},"n":["0_1_0p333_0"],"t":51,"s":[0],"e":[0]},{"i":{"x":[0.833],"y":[1]},"o":{"x":[0.333],"y":[0]},"n":["0p833_1_0p333_0"],"t":67,"s":[0],"e":[0]},{"i":{"x":[0.667],"y":[1]},"o":{"x":[1],"y":[0]},"n":["0p667_1_1_0"],"t":119,"s":[0],"e":[100]},{"t":144}],"ix":1},"e":{"a":1,"k":[{"i":{"x":[0],"y":[1]},"o":{"x":[0.333],"y":[0]},"n":["0_1_0p333_0"],"t":51,"s":[0],"e":[100]},{"i":{"x":[0.833],"y":[1]},"o":{"x":[0.333],"y":[0]},"n":["0p833_1_0p333_0"],"t":67,"s":[100],"e":[100]},{"t":119}],"ix":2},"o":{"a":0,"k":0,"ix":3},"m":1,"ix":3,"nm":"Trim Paths 1","mn":"ADBE Vector Filter - Trim","hd":false},{"ty":"tr","p":{"a":0,"k":[553,553.738],"ix":2},"a":{"a":0,"k":[0,0],"ix":1},"s":{"a":0,"k":[100,100],"ix":3},"r":{"a":0,"k":0,"ix":6},"o":{"a":0,"k":100,"ix":7},"sk":{"a":0,"k":0,"ix":4},"sa":{"a":0,"k":0,"ix":5},"nm":"Transform"}],"nm":"Group 1","np":3,"cix":2,"ix":1,"mn":"ADBE Vector Group","hd":false}],"ip":51,"op":73,"st":63,"bm":0},{"ddd":0,"ind":2,"ty":4,"nm":"\u0421\u043b\u043e\u0439 23","tt":2,"sr":1,"ks":{"o":{"a":0,"k":100,"ix":11},"r":{"a":0,"k":0,"ix":10},"p":{"a":0,"k":[500,500,0],"ix":2},"a":{"a":0,"k":[0,0,0],"ix":1},"s":{"a":0,"k":[100,100,100],"ix":6}},"ao":0,"shapes":[{"ty":"gr","it":[{"ind":0,"ty":"sh","ix":1,"ks":{"a":0,"k":{"i":[[0,-272],[272,0],[0,272],[-272,0]],"o":[[0,272],[-272,0],[0,-272],[272,0]],"v":[[492.5,0],[0,492.5],[-492.5,0],[0,-492.5]],"c":true},"ix":2},"nm":"Path 1","mn":"ADBE Vector Shape - Group","hd":false},{"ty":"st","c":{"a":0,"k":[0,0,0,1],"ix":3},"o":{"a":0,"k":100,"ix":4},"w":{"a":0,"k":10,"ix":5},"lc":1,"lj":1,"ml":10,"ml2":{"a":0,"k":10,"ix":8},"nm":"Stroke 1","mn":"ADBE Vector Graphic - Stroke","hd":false},{"ty":"fl","c":{"a":0,"k":[0.058823529631,0.058823529631,0.066666670144,1],"ix":4},"o":{"a":0,"k":100,"ix":5},"r":1,"nm":"Fill 1","mn":"ADBE Vector Graphic - Fill","hd":false},{"ty":"tr","p":{"a":0,"k":[0,0],"ix":2},"a":{"a":0,"k":[0,0],"ix":1},"s":{"a":0,"k":[100,100],"ix":3},"r":{"a":0,"k":0,"ix":6},"o":{"a":0,"k":100,"ix":7},"sk":{"a":0,"k":0,"ix":4},"sa":{"a":0,"k":0,"ix":5},"nm":"Transform"}],"nm":"Group 1","np":3,"cix":2,"ix":1,"mn":"ADBE Vector Group","hd":false}],"ip":51,"op":107,"st":0,"bm":0},{"ddd":0,"ind":3,"ty":4,"nm":"\u0421\u043b\u043e\u0439 1","td":1,"sr":1,"ks":{"o":{"a":0,"k":100,"ix":11},"r":{"a":0,"k":0,"ix":10},"p":{"a":1,"k":[{"i":{"x":0.377,"y":0.777},"o":{"x":0.392,"y":0},"n":"0p377_0p777_0p392_0","t":0,"s":[1004.777,1284.866,0],"e":[-1472.007,165.793,0],"to":[-398.159637451172,-179.65739440918,0],"ti":[592.980346679688,267.564300537109,0]},{"i":{"x":0.61,"y":1},"o":{"x":0.281,"y":0.634},"n":"0p61_1_0p281_0p634","t":51,"s":[-1472.007,165.793,0],"e":[-1619.223,100.866,0],"to":[-58.3415184020996,-26.3248310089111,0],"ti":[39.1737022399902,17.6759395599365,0]},{"t":70}],"ix":2},"a":{"a":0,"k":[0,0,0],"ix":1},"s":{"a":0,"k":[102.772,325.567,100],"ix":6}},"ao":0,"shapes":[{"ty":"gr","it":[{"ind":0,"ty":"sh","ix":1,"ks":{"a":0,"k":{"i":[[-155.117,-143.655],[-143.237,56.356],[-283.741,23.501],[-276.622,35.167],[-216.826,6.709],[-209.218,-7.619],[-120.314,-0.16],[-282.045,-19.206],[-130.264,7.855],[130.819,269.606],[20.548,-261.74],[4.063,-97.548],[0,0],[0,0]],"o":[[76.172,70.543],[183.018,-72.007],[403.228,-33.397],[369.879,-47.023],[106.981,-3.31],[130.885,4.766],[101.105,0.134],[168.571,11.48],[199.978,-12.059],[-48.548,-100.053],[-0.895,11.392],[-13.038,313.02],[0,0],[0,0]],"v":[[-2054.127,-447.998],[-1436.161,-71.009],[-701.091,-77.856],[-21.649,-59.315],[600.629,-52.244],[1071.024,-77.521],[1489.113,-44.217],[1956.909,-51.546],[2343.215,-49.734],[2825.029,-483.18],[3016.071,-42.136],[2803.461,248.636],[1871.221,728.086],[-1876.153,725.086]],"c":true},"ix":2},"nm":"Path 1","mn":"ADBE Vector Shape - Group","hd":false},{"ty":"fl","c":{"a":0,"k":[0,0,0,1],"ix":4},"o":{"a":0,"k":100,"ix":5},"r":2,"nm":"Fill 1","mn":"ADBE Vector Graphic - Fill","hd":false},{"ty":"tr","p":{"a":0,"k":[0,0],"ix":2},"a":{"a":0,"k":[0,0],"ix":1},"s":{"a":0,"k":[100,100],"ix":3},"r":{"a":0,"k":0,"ix":6},"o":{"a":0,"k":100,"ix":7},"sk":{"a":0,"k":0,"ix":4},"sa":{"a":0,"k":0,"ix":5},"nm":"Transform"}],"nm":"Group 1","np":2,"cix":2,"ix":1,"mn":"ADBE Vector Group","hd":false},{"ty":"st","c":{"a":0,"k":[0,0,0,1],"ix":3},"o":{"a":0,"k":100,"ix":4},"w":{"a":0,"k":2,"ix":5},"lc":1,"lj":1,"ml":4,"ml2":{"a":0,"k":4,"ix":8},"nm":"Stroke 1","mn":"ADBE Vector Graphic - Stroke","hd":false}],"ip":0,"op":51,"st":0,"bm":0},{"ddd":0,"ind":4,"ty":4,"nm":"\u0421\u043b\u043e\u0439 22","tt":1,"sr":1,"ks":{"o":{"a":0,"k":100,"ix":11},"r":{"a":0,"k":0,"ix":10},"p":{"a":0,"k":[500,500,0],"ix":2},"a":{"a":0,"k":[0,0,0],"ix":1},"s":{"a":0,"k":[100,100,100],"ix":6}},"ao":0,"shapes":[{"ty":"gr","it":[{"ind":0,"ty":"sh","ix":1,"ks":{"a":0,"k":{"i":[[0,-272],[272,0],[0,272],[-272,0]],"o":[[0,272],[-272,0],[0,-272],[272,0]],"v":[[492.5,0],[0,492.5],[-492.5,0],[0,-492.5]],"c":true},"ix":2},"nm":"Path 1","mn":"ADBE Vector Shape - Group","hd":false},{"ty":"st","c":{"a":0,"k":[0,0,0,1],"ix":3},"o":{"a":0,"k":100,"ix":4},"w":{"a":0,"k":10,"ix":5},"lc":1,"lj":1,"ml":10,"ml2":{"a":0,"k":10,"ix":8},"nm":"Stroke 1","mn":"ADBE Vector Graphic - Stroke","hd":false},{"ty":"fl","c":{"a":0,"k":[0.058823529631,0.058823529631,0.066666670144,1],"ix":4},"o":{"a":0,"k":100,"ix":5},"r":1,"nm":"Fill 1","mn":"ADBE Vector Graphic - Fill","hd":false},{"ty":"tr","p":{"a":0,"k":[0,0],"ix":2},"a":{"a":0,"k":[0,0],"ix":1},"s":{"a":0,"k":[100,100],"ix":3},"r":{"a":0,"k":0,"ix":6},"o":{"a":0,"k":100,"ix":7},"sk":{"a":0,"k":0,"ix":4},"sa":{"a":0,"k":0,"ix":5},"nm":"Transform"}],"nm":"Group 1","np":3,"cix":2,"ix":1,"mn":"ADBE Vector Group","hd":false}],"ip":0,"op":107,"st":0,"bm":0}],"markers":[]};
+
+let lottieLibraryPromise: Promise<any> | null = null;
+const loadLottieLibrary = (): Promise<any> => {
+  if (typeof window === "undefined") return Promise.resolve(null);
+  if ((window as any).lottie) return Promise.resolve((window as any).lottie);
+  if (lottieLibraryPromise) return lottieLibraryPromise;
+  lottieLibraryPromise = new Promise((resolve, reject) => {
+    const existing = document.querySelector('script[data-lottie-lib="true"]');
+    if (existing) {
+      existing.addEventListener("load", () => resolve((window as any).lottie));
+      existing.addEventListener("error", reject);
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = "https://unpkg.com/lottie-web@5.12.2/build/player/lottie_svg.min.js";
+    script.async = true;
+    script.dataset.lottieLib = "true";
+    script.onload = () => resolve((window as any).lottie);
+    script.onerror = reject;
+    document.head.appendChild(script);
+  });
+  return lottieLibraryPromise;
+};
+
+// نافذة تأكيد نجاح جميلة بأنيميشن، بديلة عن alert() العادي.
+const SuccessToast = ({ visible, message, onClose }: { visible: boolean; message: string; onClose: () => void }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const animRef = useRef<any>(null);
+
+  useEffect(() => {
+    if (!visible) return;
+    let cancelled = false;
+    loadLottieLibrary().then(lottie => {
+      if (cancelled || !lottie || !containerRef.current) return;
+      if (animRef.current) { animRef.current.destroy(); animRef.current = null; }
+      containerRef.current.innerHTML = "";
+      animRef.current = lottie.loadAnimation({
+        container: containerRef.current,
+        renderer: "svg",
+        loop: false,
+        autoplay: true,
+        animationData: LOTTIE_SUCCESS_ANIMATION,
+      });
+    }).catch(() => {});
+    const timer = setTimeout(onClose, 2800);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+      if (animRef.current) { animRef.current.destroy(); animRef.current = null; }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, message]);
+
+  if (!visible) return null;
+  return (
+    <div
+      style={{ position:"fixed", inset:0, zIndex:99999, display:"flex", alignItems:"center", justifyContent:"center", background:"rgba(15,23,42,0.4)", backdropFilter:"blur(6px)", animation:"successFadeIn 0.2s ease-out" }}
+      onClick={onClose}
+    >
+      <style>{`
+        @keyframes successFadeIn { from { opacity:0; } to { opacity:1; } }
+        @keyframes successPop { from { transform:scale(0.85); opacity:0; } to { transform:scale(1); opacity:1; } }
+      `}</style>
+      <div
+        style={{ background:"white", borderRadius:"28px", padding:"36px 44px", boxShadow:"0 30px 70px rgba(15,23,42,0.35)", display:"flex", flexDirection:"column", alignItems:"center", gap:"8px", minWidth:"300px", maxWidth:"92vw", animation:"successPop 0.28s cubic-bezier(0.34,1.56,0.64,1)" }}
+        onClick={e => e.stopPropagation()}
+        dir="rtl"
+      >
+        <div ref={containerRef} style={{ width:"130px", height:"130px" }} />
+        <p style={{ margin:"4px 0 0", fontWeight:900, fontSize:"16px", color:"#1e293b", textAlign:"center", whiteSpace:"pre-line", lineHeight:1.6 }}>{message}</p>
+        <button onClick={onClose} style={{ marginTop:"10px", padding:"8px 24px", background:"#f1f5f9", color:"#475569", border:"none", borderRadius:"10px", fontWeight:"800", fontSize:"13px", cursor:"pointer" }}>تم</button>
+      </div>
+    </div>
+  );
+};
+
 const MultiSelectDropdown = ({
   options, selected, onChange, label = "الأقسام", minWidth = "220px",
 }: {
@@ -722,6 +801,8 @@ const VacationManagementSystem = () => {
   const [integrationForm, setIntegrationForm] = useState({ provider:"webhook", label:"", endpoint_url:"", enabled:true });
   const returnDueNotifiedRef = React.useRef<Set<string>>(new Set());
   const [showReturnModal, setShowReturnModal] = useState(false);
+  const [successToast, setSuccessToast] = useState<{ visible: boolean; message: string }>({ visible: false, message: "" });
+  const showSuccess = (message: string) => setSuccessToast({ visible: true, message });
   const [returnData, setReturnData] = useState<any>(null);
   const [showLatenessModal, setShowLatenessModal] = useState(false);
   const [latenessData, setLatenessData] = useState<any>(null);
@@ -1369,7 +1450,7 @@ const VacationManagementSystem = () => {
       setShowResetPinModal(false);
       setResetPinEmp(null);
       setResetPinValue("");
-      alert(`✅ تم إعادة تعيين الرقم السري للموظف ${resetPinEmp.name} بنجاح`);
+      showSuccess(`✅ تم إعادة تعيين الرقم السري للموظف ${resetPinEmp.name} بنجاح`);
     } catch (err) {
       console.error("Error resetting PIN:", err);
       alert("حدث خطأ أثناء إعادة تعيين الرقم السري");
@@ -1660,7 +1741,7 @@ const VacationManagementSystem = () => {
     if (error) { alert("حدث خطأ أثناء التحديث ❌"); return; }
     setShowChangePinModal(false);
     setChangePinForm({ oldPin: "", newPin: "", confirmPin: "" });
-    alert("تم تغيير PIN بنجاح ✅");
+    showSuccess("تم تغيير PIN بنجاح ✅");
   };
 
   // ========== EXCEL OPERATIONS ==========
@@ -2027,7 +2108,7 @@ const VacationManagementSystem = () => {
     setNewEmp({ name: "", code: "", position: "", residence: "", phone: "", balance: 21, monthly_balance: 0, department_id: "", branch_id: "", work_time_category_id: "", hire_date: "", return_date: "", email: "" });
     await fetchData();
     await logAction("create", "employees", null, null, empToInsert);
-    alert("✅ تمت إضافة الموظف بنجاح!");
+    showSuccess("✅ تمت إضافة الموظف بنجاح!");
   };
 
   const handleDeleteEmployee = async (id: string) => {
@@ -2044,7 +2125,7 @@ const VacationManagementSystem = () => {
       await logAction("delete", "employees", id, emp);
       setSelectedEmployeeIds(prev => prev.filter(x => x !== String(id)));
       await fetchData();
-      alert("تم حذف الموظف وكل بياناته ✅");
+      showSuccess("تم حذف الموظف وكل بياناته ✅");
     } catch (error: any) {
       alert("تعذر حذف الموظف: " + (error?.message || "تحقق من صلاحيات Supabase والعلاقات المرتبطة"));
     }
@@ -2065,7 +2146,7 @@ const VacationManagementSystem = () => {
       await Promise.all(ids.map(id => logAction("delete", "employees", id)));
       setSelectedEmployeeIds([]);
       await fetchData();
-      alert(`تم حذف ${ids.length} موظف بنجاح ✅`);
+      showSuccess(`تم حذف ${ids.length} موظف بنجاح ✅`);
     } catch (error: any) {
       alert("تعذر حذف الموظفين المحددين: " + (error?.message || "تحقق من صلاحيات Supabase والعلاقات المرتبطة"));
     }
@@ -2094,7 +2175,7 @@ const VacationManagementSystem = () => {
     }
     setEditingEmp(null);
     await fetchData();
-    alert("تم التحديث ✅");
+    showSuccess("تم التحديث ✅");
     await logAction("update", "employees", editingEmp.id, oldData, { ...editingEmp, return_date: editingEmp.return_date ? String(editingEmp.return_date).slice(0, 10) : null });
   };
 
@@ -2219,7 +2300,7 @@ const VacationManagementSystem = () => {
     await supabase.from("vacation_requests").delete().eq("id", id);
     await logAction("delete", "vacation_requests", id, req);
     fetchData();
-    alert("✅ تم حذف السجل.\nملاحظة: رصيد الموظف وحالته لم يتغيرا.");
+    showSuccess("✅ تم حذف السجل.\nملاحظة: رصيد الموظف وحالته لم يتغيرا.");
   };
 
   const handleDeleteApprovedVacation = async (requestId: string, selectionId?: string) => {
@@ -2237,7 +2318,7 @@ const VacationManagementSystem = () => {
     await logAction("delete_approved_vacation", "vacation_requests", requestId, req, { restored_days: 0 });
     if (selectionId) setSelectedPrintIds(prev => { const next = new Set(prev); next.delete(selectionId); return next; });
     await fetchData();
-    alert("تم حذف سجل الإجازة بنجاح ✅");
+    showSuccess("تم حذف سجل الإجازة بنجاح ✅");
   };
 
   const deleteVacationRequestsBatch = async (ids: string[], clearActiveSelection = false) => {
@@ -2252,7 +2333,7 @@ const VacationManagementSystem = () => {
       if (clearActiveSelection) setSelectedPrintIds(new Set());
       setSelectedRequestIds([]);
       await fetchData();
-      alert("تم حذف السجلات المحددة بنجاح ✅");
+      showSuccess("تم حذف السجلات المحددة بنجاح ✅");
     } catch (error: any) {
       alert("تعذر إتمام الحذف الجماعي: " + (error?.message || "خطأ غير معروف"));
     }
@@ -2279,7 +2360,7 @@ const VacationManagementSystem = () => {
     }
     setEditingVac(null);
     fetchData();
-    alert("تم التحديث ✅");
+    showSuccess("تم التحديث ✅");
     await logAction("update", "vacation_requests", editingVac.id, oldData, editingVac);
   };
 
@@ -2423,7 +2504,7 @@ const VacationManagementSystem = () => {
     setShowLatenessModal(false);
     setLatenessData(null);
     await fetchData();
-    alert(`✅ تم تصنيف أيام التأخير كـ"${chosenType?.name || ""}" (${days} يوم، من ${formatDate(originalBack)} إلى ${formatDate(actualReturn)}) وتسجيل العودة في نفس الخطوة\nالرصيد الجديد: ${newBalance} يوم — حالة الموظف: عمل`);
+    showSuccess(`✅ تم تصنيف أيام التأخير كـ"${chosenType?.name || ""}" (${days} يوم، من ${formatDate(originalBack)} إلى ${formatDate(actualReturn)}) وتسجيل العودة في نفس الخطوة\nالرصيد الجديد: ${newBalance} يوم — حالة الموظف: عمل`);
   };
 
   // ========== EMPLOYEE PORTAL ==========
@@ -2512,7 +2593,7 @@ const VacationManagementSystem = () => {
       setNewRequest({ start_date: "", days: 1, notes: "", vacation_type_id: "", departure_time: "actual" });
       setIsSubmitting(false);
       fetchData();
-      alert("✅ تم إرسال طلب الإجازة بنجاح!");
+      showSuccess("✅ تم إرسال طلب الإجازة بنجاح!");
       sendEmail(EMAILJS_TEMPLATES.new_request_admin, ADMIN_EMAIL, {
         employee_name: currentUser.name,
         start_date: formatDate(actualStartDate),
@@ -2565,7 +2646,7 @@ const VacationManagementSystem = () => {
       setShowExtensionModal(false);
       setIsSubmitting(false);
       fetchData();
-      alert("✅ تم إرسال طلب الامتداد بنجاح!");
+      showSuccess("✅ تم إرسال طلب الامتداد بنجاح!");
       sendEmail(EMAILJS_TEMPLATES.new_request_admin, ADMIN_EMAIL, {
         employee_name: currentUser.name,
         start_date: formatDate(originalReq.start_date),
@@ -2639,7 +2720,7 @@ const VacationManagementSystem = () => {
     setShowEditRequestModal(false);
     setEmpEditReq(null);
     await fetchData();
-    alert("✅ تم تعديل الطلب بنجاح");
+    showSuccess("✅ تم تعديل الطلب بنجاح");
   };
 
   // ===== Handler: المدير يعدّل الإجازة (أيام + تاريخ + سبب) =====
@@ -2664,7 +2745,7 @@ const VacationManagementSystem = () => {
     setShowManagerEditModal(false);
     setMgrEditForm({ id:"", empName:"", days:1, start_date:"", reason:"", oldDays:1 });
     await fetchData();
-    alert("✅ تم تعديل الإجازة بنجاح");
+    showSuccess("✅ تم تعديل الإجازة بنجاح");
   };
 
   // ========== تغيير حالة الموظف يدوياً ==========
@@ -2721,7 +2802,7 @@ const VacationManagementSystem = () => {
         }]);
       }
       await logAction("manual_status", "employees", emp.id, { status: emp.status }, { status: (isRestDay || isMissionDay) ? (emp.status || "عمل") : "إجازة", rest_day: isRestDay, mission_day: isMissionDay, deducted_days: isRestDay ? days : 0 });
-      alert(isMissionDay ? `✅ تم تسجيل مأمورية ${emp.name} من غير خصم من الرصيد، والحالة تظل عمل` : isRestDay ? `✅ تم تسجيل راحة ${emp.name} وخصم ${days} يوم من الرصيد، والحالة تظل عمل` : `✅ تم تغيير حالة ${emp.name} إلى إجازة`);
+      showSuccess(isMissionDay ? `✅ تم تسجيل مأمورية ${emp.name} من غير خصم من الرصيد، والحالة تظل عمل` : isRestDay ? `✅ تم تسجيل راحة ${emp.name} وخصم ${days} يوم من الرصيد، والحالة تظل عمل` : `✅ تم تغيير حالة ${emp.name} إلى إجازة`);
     } else {
       // تغيير إلى عمل (عودة مباشرة) — لازم يتزامن مع سجل الإجازات الفعلية لو موجود طلب مفتوح
       const todayISO = new Date().toISOString().split("T")[0];
@@ -2741,7 +2822,7 @@ const VacationManagementSystem = () => {
         }).eq("id", openRequest.id);
       }
       await logAction("manual_status", "employees", emp.id, { status: emp.status }, { status: "عمل" });
-      alert(`✅ تم تغيير حالة ${emp.name} إلى عمل` + (openRequest ? "\nتم تحديث سجل الإجازة الفعلية تلقائيًا" : ""));
+      showSuccess(`✅ تم تغيير حالة ${emp.name} إلى عمل` + (openRequest ? "\nتم تحديث سجل الإجازة الفعلية تلقائيًا" : ""));
     }
     setShowStatusModal(false);
     setStatusChangeEmp(null);
@@ -2910,7 +2991,7 @@ const VacationManagementSystem = () => {
     setNewDept({ name: "", description: "", branch_id: "" });
     fetchData();
     await logAction("create", "departments", null, null, deptToInsert);
-    alert("تم إضافة القسم ✅");
+    showSuccess("تم إضافة القسم ✅");
   };
 
   const detachDepartmentRelations = async (departmentId: string) => {
@@ -2948,7 +3029,7 @@ const VacationManagementSystem = () => {
       await logAction("delete", "departments", id);
       setSelectedDeptIds(prev => prev.filter(x => x !== String(id)));
       await fetchData();
-      alert("تم حذف القسم ✅");
+      showSuccess("تم حذف القسم ✅");
     } catch (error: any) {
       alert("تعذر حذف القسم: " + (error?.message || "تحقق من صلاحيات Supabase والعلاقات المرتبطة"));
     }
@@ -2966,7 +3047,7 @@ const VacationManagementSystem = () => {
       await Promise.all(ids.map(id => logAction("delete", "departments", id)));
       setSelectedDeptIds([]);
       await fetchData();
-      alert("تم حذف الأقسام المحددة ✅");
+      showSuccess("تم حذف الأقسام المحددة ✅");
     } catch (error: any) {
       alert("تعذر حذف الأقسام: " + (error?.message || "تحقق من صلاحيات Supabase والعلاقات المرتبطة"));
     }
@@ -2981,7 +3062,7 @@ const VacationManagementSystem = () => {
       setNewHoliday({ name: "", date: "", is_recurring: false });
       fetchData();
       await logAction("create", "public_holidays", null, null, newHoliday);
-      alert("تم إضافة العطلة ✅");
+      showSuccess("تم إضافة العطلة ✅");
     }
   };
 
@@ -3297,7 +3378,7 @@ const VacationManagementSystem = () => {
     setBackupLoading(false);
     if (error) return alert("تعذر حفظ النسخة داخل Supabase: " + error.message);
     setLastBackup(new Date().toLocaleString("ar-EG"));
-    alert("تم حفظ نسخة شاملة قابلة للاسترجاع داخل Supabase ✅\n(بيانات النظام والتشغيل فقط، بدون حسابات المستخدمين وصلاحياتهم)");
+    showSuccess("تم حفظ نسخة شاملة قابلة للاسترجاع داخل Supabase ✅\n(بيانات النظام والتشغيل فقط، بدون حسابات المستخدمين وصلاحياتهم)");
   };
 
   const restoreBackupVersion = async (version: any) => {
@@ -3328,7 +3409,7 @@ const VacationManagementSystem = () => {
       const failed = results.find(result => result?.error);
       if (failed?.error) throw failed.error;
       await fetchData();
-      alert("تم استرجاع النسخة بنجاح ✅");
+      showSuccess("تم استرجاع النسخة بنجاح ✅");
     } catch (error: any) {
       alert("فشل الاسترجاع: " + (error?.message || "تحقق من بنية الجداول"));
     }
@@ -3495,7 +3576,7 @@ const VacationManagementSystem = () => {
         return alert("تعذر حفظ إعدادات التنبيهات محليًا: " + (e?.message || "خطأ غير معروف"));
       }
       setNotificationPrefsSaving(false);
-      alert("تم حفظ إعدادات التنبيهات بنجاح (محفوظة على هذا المتصفح فقط)");
+      showSuccess("تم حفظ إعدادات التنبيهات بنجاح (محفوظة على هذا المتصفح فقط)");
       return;
     }
     if (!currentUser?.id) return;
@@ -3504,7 +3585,7 @@ const VacationManagementSystem = () => {
     setNotificationPrefsSaving(false);
     if (error) return alert("تعذر حفظ إعدادات التنبيهات: " + error.message);
     await logAction("update", "notification_preferences", currentUser.id, null, notificationPrefs);
-    alert("تم حفظ إعدادات التنبيهات بنجاح");
+    showSuccess("تم حفظ إعدادات التنبيهات بنجاح");
   };
   // ==================== المساعد الذكي ====================
   const askAIAssistant = async (text = aiDraft) => {
@@ -3602,7 +3683,7 @@ const VacationManagementSystem = () => {
       const now = new Date().toLocaleString("ar-EG");
       setLastBackup(now);
       localStorage.setItem("lastBackup", now);
-      alert("✅ تم النسخ الاحتياطي بنجاح إلى Google Sheets!");
+      showSuccess("✅ تم النسخ الاحتياطي بنجاح إلى Google Sheets!");
     } catch (err) {
       alert("❌ فشل النسخ الاحتياطي. تأكد من إعداد Google Apps Script.");
     }
@@ -3651,7 +3732,7 @@ const VacationManagementSystem = () => {
     await persistSeasonalLoginEvents([...seasonalLoginEvents, event]);
     setSeasonalEventForm({ name:"", start_date:"", end_date:"", annual:false, priority:10, accent:"#6366f1" });
     setShowSeasonalEventForm(false);
-    alert("تمت إضافة المناسبة. يمكنك الآن رفع صورة أو أكثر لها ✅");
+    showSuccess("تمت إضافة المناسبة. يمكنك الآن رفع صورة أو أكثر لها ✅");
   };
   const uploadSeasonalLoginImage = async (event: any, file: File | null) => {
     if (!file) return;
@@ -3678,7 +3759,7 @@ const VacationManagementSystem = () => {
         throw error;
       }
       setSeasonalLoginImages(previous => [...previous, data || image]);
-      alert("تم رفع الصورة وإضافتها للمناسبة ✅");
+      showSuccess("تم رفع الصورة وإضافتها للمناسبة ✅");
     } catch (error: any) {
       alert("تعذر رفع الصورة. تأكد من تشغيل SQL الخاص بالصور وإنشاء Storage: " + (error?.message || "خطأ غير معروف"));
     } finally {
@@ -5773,7 +5854,7 @@ const VacationManagementSystem = () => {
                   if (navigator.share) {
                     try { await navigator.share({ title:"بيان اجازات يومي", text:shareText }); } catch {}
                   } else {
-                    navigator.clipboard.writeText(shareText).then(() => alert("✅ تم نسخ البيان — الصقه في أي تطبيق مشاركة"));
+                    navigator.clipboard.writeText(shareText).then(() => showSuccess("✅ تم نسخ البيان — الصقه في أي تطبيق مشاركة"));
                   }
                 };
 
@@ -7494,6 +7575,7 @@ const VacationManagementSystem = () => {
           </div>
         )}
 
+        <SuccessToast visible={successToast.visible} message={successToast.message} onClose={() => setSuccessToast(s => ({ ...s, visible:false }))} />
       </div>
     );
   }
@@ -8023,6 +8105,7 @@ const VacationManagementSystem = () => {
           </div>
         </div>
       )}
+      <SuccessToast visible={successToast.visible} message={successToast.message} onClose={() => setSuccessToast(s => ({ ...s, visible:false }))} />
       </>
     );
   }
