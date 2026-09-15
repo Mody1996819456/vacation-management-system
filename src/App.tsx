@@ -357,6 +357,140 @@ const printHTMLContent = (html: string) => {
   doc.close();
 };
 
+// ==================== قالب طباعة "بيان اجازات يومي" الرسمي (لينة) ====================
+// دالة عامة تُستخدم من أي مكان في التطبيق (الإجازات الفعلية + سجل الإجازات) لإنتاج نفس شكل الطباعة الرسمي.
+// كل عنصر في selectedRows لازم يكون على الشكل: { emp: {code,name,position,balance}, lastReq: {start_date,days}, end, vacType: {name} }
+const buildLinahTemplateHTML = (selectedRows: any[]) => {
+  const todayStr = toArabicDigits(new Date().toLocaleDateString("ar-EG", { year:"numeric", month:"2-digit", day:"2-digit" }));
+  const dataRows = [...selectedRows];
+  // لو المحدد 5 موظفين أو أقل، اعرض 5 سطور بحد أقصى في الورقة (كامل أو فاضي)
+  // لو أكتر من 5، اعرض عددهم بالظبط من غير سطور فاضية زيادة
+  if (dataRows.length <= 5) {
+    while (dataRows.length < 5) dataRows.push(null as any);
+  }
+
+  return `<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+<meta charset="UTF-8"/>
+<title>بيان اجازات يومي</title>
+<style>
+  @page { size:A4 portrait; margin:8mm; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:'Segoe UI', Arial, sans-serif; direction:rtl; background:#fff; padding:0; margin:0; }
+  
+  .container { width:100%; padding:0; }
+  
+  /* صف الشركة والعنوان والتاريخ */
+  .header-top { display:flex; border:1px solid #333; }
+  
+  .logo-section { flex:0 0 240px; background:#fff; display:flex; align-items:center; justify-content:center; border-left:1px solid #333; padding:6px; }
+  .logo-section-content { text-align:center; }
+  .logo-section-content .company-name { font-size:14px; font-weight:bold; color:#1B3B7F; line-height:1.3; }
+  .logo-section-content .company-desc { font-size:8px; color:#666; }
+  
+  .title-section { flex:1; display:flex; align-items:center; justify-content:center; padding:8px; border-left:1px solid #333; }
+  .title-section h1 { font-size:17px; font-weight:bold; color:#000; text-align:center; line-height:1.4; }
+  
+  .date-section { flex:0 0 150px; display:flex; align-items:center; justify-content:center; padding:8px; }
+  .date-section .label { font-size:13px; font-weight:bold; }
+  
+  /* الجدول */
+  table { width:100%; border-collapse:collapse; margin:0; border:1px solid #333; }
+  thead { background:#F4B36A; }
+  th { padding:8px 3px; border:1px solid #333; font-weight:bold; font-size:11.5px; text-align:center; color:#000; }
+  td { padding:7px 3px; border:1px solid #333; text-align:center; font-size:11.5px; font-family:'Segoe UI', Arial, sans-serif; }
+  tbody tr { border:1px solid #333; }
+  tbody td { border:1px solid #333; }
+  
+  .col-num { background:#F4B36A; font-weight:bold; width:4%; }
+  .col-code { width:7%; }
+  .col-name { width:24%; text-align:right; padding-right:8px; white-space:nowrap; }
+  .col-position { width:11%; }
+  .col-balance { width:7%; font-weight:bold; }
+  .col-date { width:9%; }
+  .col-date-end { width:9%; }
+  .col-days { width:5%; }
+  .col-type { width:11%; }
+  .col-record { width:13%; }
+  
+  tfoot { border:none; }
+  tfoot td { padding:22px 6px 55px; font-weight:bold; font-size:12.5px; border:none; }
+  
+  @media print {
+    body { margin:0; padding:0; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <!-- صف العنوان والتاريخ -->
+  <div class="header-top">
+    <div class="logo-section">
+      <div class="logo-section-content">
+        <div class="company-name">شركة لينة للتنمية السياحية والعمرانية</div>
+        <div class="company-desc">LINAH TOURISTIC & URBAN DEVELOPMENT</div>
+      </div>
+    </div>
+    <div class="title-section">
+      <h1>بيان اجازات يومي قسم : الإدارة الفنية</h1>
+    </div>
+    <div class="date-section">
+      <div class="label">تاريخ اليوم: ${todayStr}</div>
+    </div>
+  </div>
+
+  <!-- جدول البيانات -->
+  <table>
+    <thead>
+      <tr>
+        <th class="col-num">م</th>
+        <th class="col-code">الكود</th>
+        <th class="col-name">اسم الموظف</th>
+        <th class="col-position">الوظيفه</th>
+        <th class="col-balance">رصيد الاجازات</th>
+        <th class="col-date">تاريخ بدايه الاجازة</th>
+        <th class="col-date-end">تاريخ نهايه الاجازة</th>
+        <th class="col-days">مدة الاجازة</th>
+        <th class="col-type">نوع الاجازة</th>
+        <th class="col-record">تسجيل اودوو</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${dataRows.map((row, i) => {
+        const originalBalance = row ? Math.round((row.emp?.balance || 0) + (row.lastReq?.days || 0)) : "";
+        return `
+      <tr>
+        <td class="col-num">${toArabicDigits(i+1)}</td>
+        <td class="col-code">${toArabicDigits(row?.emp?.code)}</td>
+        <td class="col-name">${row?.emp?.name||""}</td>
+        <td class="col-position">${row?.emp?.position||""}</td>
+        <td class="col-balance">${row ? toArabicDigits(originalBalance) : ""}</td>
+        <td class="col-date">${row?.lastReq?.start_date ? toArabicDigits(new Date(row.lastReq.start_date).toLocaleDateString("ar-EG")) : ""}</td>
+        <td class="col-date-end">${row?.end ? toArabicDigits(new Date(row.end).toLocaleDateString("ar-EG")) : ""}</td>
+        <td class="col-days">${row?.lastReq?.days ? toArabicDigits(row.lastReq.days) : ""}</td>
+        <td class="col-type">${row?.vacType?.name||""}</td>
+        <td class="col-record"></td>
+      </tr>`;
+      }).join("")}
+    </tbody>
+    <tfoot>
+      <tr>
+        <td colspan="10" style="padding:25px 6px; text-align:center; border:none;">
+          <div style="display:flex; justify-content:space-around; font-size:10px; font-weight:bold;">
+            <div>مدير القسم/</div>
+            <div>شئون العاملين/</div>
+            <div>اعتماد نهائي/</div>
+          </div>
+        </td>
+      </tr>
+    </tfoot>
+  </table>
+</div>
+</body>
+</html>`;
+};
+
 // ==================== PDF EXPORT HELPER ====================
 // يحوّل أي HTML جاهز (نفس اللي بنطبعه) لصورة عالية الدقة ثم يحطها في ملف PDF قابل للتحميل.
 // هذا الأسلوب يتجاوز مشاكل الخطوط العربية في jsPDF (لأنه بيصدّر كصورة).
@@ -3309,8 +3443,15 @@ const VacationManagementSystem = () => {
   const openSelectedRequestsPrint = () => {
     const approved = filteredRequests.filter(r => selectedRequestIds.includes(String(r.id)) && r.status === "approved");
     if (approved.length === 0) return alert("حدد طلبًا مقبولًا واحدًا على الأقل للطباعة");
-    setPrintSelected(approved.map(r => r.id));
-    setPrintFrom(""); setPrintTo(""); setShowPrintModal(true);
+    // نفس القالب الرسمي المستخدم في "الإجازات الفعلية" (بيان اجازات يومي) — طباعة مباشرة بضغطة واحدة.
+    const rows = approved.map(r => {
+      const emp = employees.find(e => String(e.id) === String(r.employee_id));
+      const effectiveStart = r.effective_start_date || r.start_date;
+      const { end } = getCalculatedDates(effectiveStart, Number(r.days || 0));
+      const vacType = vacationTypes.find(vt => String(vt.id) === String(r.vacation_type_id));
+      return { emp, lastReq: r, end, vacType };
+    });
+    printHTMLContent(buildLinahTemplateHTML(rows));
   };
 
   const toggleEmployeeSelection = (id: string) => {
@@ -5683,136 +5824,7 @@ const VacationManagementSystem = () => {
                   XLSX.writeFile(wb, `بيان-اجازات-يومي-${new Date().toISOString().split("T")[0]}.xlsx`);
                 };
 
-                const buildLinahTemplateHTML = (selectedRows: any[]) => {
-                  const todayStr = toArabicDigits(new Date().toLocaleDateString("ar-EG", { year:"numeric", month:"2-digit", day:"2-digit" }));
-                  const dataRows = [...selectedRows];
-                  // لو المحدد 5 موظفين أو أقل، اعرض 5 سطور بحد أقصى في الورقة (كامل أو فاضي)
-                  // لو أكتر من 5، اعرض عددهم بالظبط من غير سطور فاضية زيادة
-                  if (dataRows.length <= 5) {
-                    while (dataRows.length < 5) dataRows.push(null as any);
-                  }
-
-                  return `<!DOCTYPE html>
-<html dir="rtl" lang="ar">
-<head>
-<meta charset="UTF-8"/>
-<title>بيان اجازات يومي</title>
-<style>
-  @page { size:A4 portrait; margin:8mm; }
-  * { box-sizing:border-box; margin:0; padding:0; }
-  body { font-family:'Segoe UI', Arial, sans-serif; direction:rtl; background:#fff; padding:0; margin:0; }
-  
-  .container { width:100%; padding:0; }
-  
-  /* صف الشركة والعنوان والتاريخ */
-  .header-top { display:flex; border:1px solid #333; }
-  
-  .logo-section { flex:0 0 240px; background:#fff; display:flex; align-items:center; justify-content:center; border-left:1px solid #333; padding:6px; }
-  .logo-section-content { text-align:center; }
-  .logo-section-content .company-name { font-size:14px; font-weight:bold; color:#1B3B7F; line-height:1.3; }
-  .logo-section-content .company-desc { font-size:8px; color:#666; }
-  
-  .title-section { flex:1; display:flex; align-items:center; justify-content:center; padding:8px; border-left:1px solid #333; }
-  .title-section h1 { font-size:17px; font-weight:bold; color:#000; text-align:center; line-height:1.4; }
-  
-  .date-section { flex:0 0 150px; display:flex; align-items:center; justify-content:center; padding:8px; }
-  .date-section .label { font-size:13px; font-weight:bold; }
-  
-  /* الجدول */
-  table { width:100%; border-collapse:collapse; margin:0; border:1px solid #333; }
-  thead { background:#F4B36A; }
-  th { padding:8px 3px; border:1px solid #333; font-weight:bold; font-size:11.5px; text-align:center; color:#000; }
-  td { padding:7px 3px; border:1px solid #333; text-align:center; font-size:11.5px; font-family:'Segoe UI', Arial, sans-serif; }
-  tbody tr { border:1px solid #333; }
-  tbody td { border:1px solid #333; }
-  
-  .col-num { background:#F4B36A; font-weight:bold; width:4%; }
-  .col-code { width:7%; }
-  .col-name { width:24%; text-align:right; padding-right:8px; white-space:nowrap; }
-  .col-position { width:11%; }
-  .col-balance { width:7%; font-weight:bold; }
-  .col-date { width:9%; }
-  .col-date-end { width:9%; }
-  .col-days { width:5%; }
-  .col-type { width:11%; }
-  .col-record { width:13%; }
-  
-  tfoot { border:none; }
-  tfoot td { padding:22px 6px 55px; font-weight:bold; font-size:12.5px; border:none; }
-  
-  @media print {
-    body { margin:0; padding:0; }
-  }
-</style>
-</head>
-<body>
-<div class="container">
-  <!-- صف العنوان والتاريخ -->
-  <div class="header-top">
-    <div class="logo-section">
-      <div class="logo-section-content">
-        <div class="company-name">شركة لينة للتنمية السياحية والعمرانية</div>
-        <div class="company-desc">LINAH TOURISTIC & URBAN DEVELOPMENT</div>
-      </div>
-    </div>
-    <div class="title-section">
-      <h1>بيان اجازات يومي قسم : الإدارة الفنية</h1>
-    </div>
-    <div class="date-section">
-      <div class="label">تاريخ اليوم: ${todayStr}</div>
-    </div>
-  </div>
-
-  <!-- جدول البيانات -->
-  <table>
-    <thead>
-      <tr>
-        <th class="col-num">م</th>
-        <th class="col-code">الكود</th>
-        <th class="col-name">اسم الموظف</th>
-        <th class="col-position">الوظيفه</th>
-        <th class="col-balance">رصيد الاجازات</th>
-        <th class="col-date">تاريخ بدايه الاجازة</th>
-        <th class="col-date-end">تاريخ نهايه الاجازة</th>
-        <th class="col-days">مدة الاجازة</th>
-        <th class="col-type">نوع الاجازة</th>
-        <th class="col-record">تسجيل اودوو</th>
-      </tr>
-    </thead>
-    <tbody>
-      ${dataRows.map((row, i) => {
-        const originalBalance = row ? Math.round((row.emp?.balance || 0) + (row.lastReq?.days || 0)) : "";
-        return `
-      <tr>
-        <td class="col-num">${toArabicDigits(i+1)}</td>
-        <td class="col-code">${toArabicDigits(row?.emp?.code)}</td>
-        <td class="col-name">${row?.emp?.name||""}</td>
-        <td class="col-position">${row?.emp?.position||""}</td>
-        <td class="col-balance">${row ? toArabicDigits(originalBalance) : ""}</td>
-        <td class="col-date">${row?.lastReq?.start_date ? toArabicDigits(new Date(row.lastReq.start_date).toLocaleDateString("ar-EG")) : ""}</td>
-        <td class="col-date-end">${row?.end ? toArabicDigits(new Date(row.end).toLocaleDateString("ar-EG")) : ""}</td>
-        <td class="col-days">${row?.lastReq?.days ? toArabicDigits(row.lastReq.days) : ""}</td>
-        <td class="col-type">${row?.vacType?.name||""}</td>
-        <td class="col-record"></td>
-      </tr>`;
-      }).join("")}
-    </tbody>
-    <tfoot>
-      <tr>
-        <td colspan="10" style="padding:25px 6px; text-align:center; border:none;">
-          <div style="display:flex; justify-content:space-around; font-size:10px; font-weight:bold;">
-            <div>مدير القسم/</div>
-            <div>شئون العاملين/</div>
-            <div>اعتماد نهائي/</div>
-          </div>
-        </td>
-      </tr>
-    </tfoot>
-  </table>
-</div>
-</body>
-</html>`;
-                };
+                // buildLinahTemplateHTML أصبحت دالة عامة على مستوى الملف (انظر أعلى الملف) — قابلة للاستخدام من أي تبويب.
 
                 const printLinahTemplate = () => {
                   // إذا ما اختار حد، طبع كل الموجودين
