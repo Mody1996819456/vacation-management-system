@@ -12,7 +12,7 @@ import {
   FileDown, BarChart3, Building2, TrendingUp,
   AlertCircle, RefreshCw, PieChart, BarChart2,
   History, Mail, Briefcase, Smartphone, Wifi, WifiOff,
-  Award, Target, Flame, Eye, KeyRound, Printer, Share2, Sparkles, MapPin,
+  Award, Target, Flame, Eye, KeyRound, Printer, Share2, Sparkles,
 } from "lucide-react";
 
 // ==================== SUPABASE CONFIG ====================
@@ -983,281 +983,6 @@ const BranchLocationMap = ({ branch, onClose, onSave }: { branch: any; onClose: 
   );
 };
 
-// ==================== أدوات رسم مناطق العمل (Leaflet.draw) ====================
-let leafletDrawPromise: Promise<any> | null = null;
-const loadLeafletDraw = (): Promise<any> => {
-  return loadLeafletLibrary().then(L => {
-    if (typeof window === "undefined" || !L) return L;
-    if ((L as any).Draw) return L;
-    if (leafletDrawPromise) return leafletDrawPromise;
-    leafletDrawPromise = new Promise((resolve, reject) => {
-      if (!document.querySelector('link[data-leaflet-draw-css="true"]')) {
-        const link = document.createElement("link");
-        link.rel = "stylesheet";
-        link.href = "https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css";
-        link.dataset.leafletDrawCss = "true";
-        document.head.appendChild(link);
-      }
-      const existing = document.querySelector('script[data-leaflet-draw-lib="true"]');
-      if (existing) {
-        existing.addEventListener("load", () => resolve(L));
-        existing.addEventListener("error", reject);
-        return;
-      }
-      const script = document.createElement("script");
-      script.src = "https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js";
-      script.async = true;
-      script.dataset.leafletDrawLib = "true";
-      script.onload = () => resolve(L);
-      script.onerror = reject;
-      document.head.appendChild(script);
-    });
-    return leafletDrawPromise;
-  });
-};
-
-const ZONE_TILE_LAYERS = {
-  satellite: { url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", attribution: "Tiles © Esri" },
-  street: { url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", attribution: "© OpenStreetMap" },
-};
-
-// خريطة تفاعلية (قمر صناعي/شوارع) لرسم مناطق عمل (مضلعات) وربط كل منطقة بموظف.
-const WorkZonesMap = ({ employees, zones, onSaveZone, onDeleteZone }: { employees: any[]; zones: any[]; onSaveZone: (zone: any) => Promise<void>; onDeleteZone: (zone: any) => Promise<void> }) => {
-  const mapContainerRef = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<any>(null);
-  const editableLayerRef = useRef<any>(null); // الطبقة اللي بيرسم عليها leaflet-draw (منطقة قيد الرسم فقط)
-  const savedLayerGroupRef = useRef<any>(null); // كل المناطق المحفوظة
-  const tileLayerRef = useRef<any>(null);
-
-  const [ready, setReady] = useState(false);
-  const [tileMode, setTileMode] = useState<"satellite" | "street">("satellite");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<any[]>([]);
-  const [searching, setSearching] = useState(false);
-  const [listFilter, setListFilter] = useState("");
-  const [showZoneForm, setShowZoneForm] = useState(false);
-  const [pendingLatLngs, setPendingLatLngs] = useState<{ lat: number; lng: number }[] | null>(null);
-  const [zoneForm, setZoneForm] = useState({ name: "", employee_id: "", color: "#4f46e5" });
-  const [saving, setSaving] = useState(false);
-
-  // تهيئة الخريطة وأداة الرسم مرة واحدة
-  useEffect(() => {
-    let cancelled = false;
-    loadLeafletDraw().then(L => {
-      if (cancelled || !L || !mapContainerRef.current || mapRef.current) return;
-      const map = L.map(mapContainerRef.current, { zoomControl: true }).setView([30.0444, 31.2357], 6);
-      const layer = ZONE_TILE_LAYERS.satellite;
-      tileLayerRef.current = L.tileLayer(layer.url, { maxZoom: 19, attribution: layer.attribution }).addTo(map);
-      mapRef.current = map;
-
-      const editableLayer = new L.FeatureGroup();
-      map.addLayer(editableLayer);
-      editableLayerRef.current = editableLayer;
-      const savedGroup = new L.FeatureGroup();
-      map.addLayer(savedGroup);
-      savedLayerGroupRef.current = savedGroup;
-
-      if ((L as any).drawLocal) {
-        const dl = (L as any).drawLocal;
-        dl.draw.toolbar.buttons.polygon = "ارسم منطقة عمل";
-        dl.draw.handlers.polygon.tooltip.start = "اضغط لبدء رسم المنطقة";
-        dl.draw.handlers.polygon.tooltip.cont = "اضغط لإضافة نقطة";
-        dl.draw.handlers.polygon.tooltip.end = "اضغط على أول نقطة لإنهاء الرسم";
-        dl.edit.toolbar.buttons.edit = "تعديل المنطقة";
-        dl.edit.toolbar.buttons.remove = "حذف المنطقة";
-        dl.edit.toolbar.actions.save.title = "حفظ التعديل";
-        dl.edit.toolbar.actions.save.text = "حفظ";
-        dl.edit.toolbar.actions.cancel.title = "إلغاء";
-        dl.edit.toolbar.actions.cancel.text = "إلغاء";
-      }
-
-      const drawControl = new (L as any).Control.Draw({
-        position: "topleft",
-        draw: { polygon: { allowIntersection: false, showArea: true }, polyline: false, rectangle: false, circle: false, circlemarker: false, marker: false },
-        edit: { featureGroup: editableLayer, remove: true },
-      });
-      map.addControl(drawControl);
-
-      map.on((L as any).Draw.Event.CREATED, (e: any) => {
-        editableLayer.clearLayers();
-        editableLayer.addLayer(e.layer);
-        const latlngs = (e.layer.getLatLngs()[0] || []).map((p: any) => ({ lat: p.lat, lng: p.lng }));
-        setPendingLatLngs(latlngs);
-        setZoneForm({ name: "", employee_id: "", color: "#4f46e5" });
-        setShowZoneForm(true);
-      });
-
-      setTimeout(() => map.invalidateSize(), 150);
-      setReady(true);
-    }).catch(() => {});
-    return () => {
-      cancelled = true;
-      if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; }
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // رسم/تحديث المناطق المحفوظة كل ما تتغير القائمة
-  useEffect(() => {
-    const L = (window as any).L;
-    if (!ready || !L || !savedLayerGroupRef.current) return;
-    savedLayerGroupRef.current.clearLayers();
-    const filterText = listFilter.trim().toLowerCase();
-    zones.forEach((zone: any) => {
-      const emp = employees.find((e: any) => String(e.id) === String(zone.employee_id));
-      const matches = !filterText || (zone.name || "").toLowerCase().includes(filterText) || (emp?.name || "").toLowerCase().includes(filterText);
-      if (!Array.isArray(zone.polygon) || zone.polygon.length < 3) return;
-      const poly = L.polygon(zone.polygon.map((p: any) => [p.lat, p.lng]), {
-        color: zone.color || "#4f46e5",
-        fillOpacity: matches ? 0.35 : 0.08,
-        opacity: matches ? 1 : 0.25,
-        weight: 2,
-      }).addTo(savedLayerGroupRef.current);
-      poly.bindPopup(`<b>${zone.name || "منطقة"}</b><br/>${emp?.name || "بدون موظف محدد"}`);
-      (poly as any).__zoneId = zone.id;
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [zones, ready, listFilter, employees]);
-
-  const switchTile = (mode: "satellite" | "street") => {
-    const L = (window as any).L;
-    if (!L || !mapRef.current) { setTileMode(mode); return; }
-    if (tileLayerRef.current) mapRef.current.removeLayer(tileLayerRef.current);
-    const layer = ZONE_TILE_LAYERS[mode];
-    tileLayerRef.current = L.tileLayer(layer.url, { maxZoom: 19, attribution: layer.attribution }).addTo(mapRef.current);
-    setTileMode(mode);
-  };
-
-  const runSearch = async () => {
-    if (!searchQuery.trim()) return;
-    setSearching(true);
-    try {
-      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=5&q=${encodeURIComponent(searchQuery.trim())}`);
-      const data = await res.json();
-      setSearchResults(Array.isArray(data) ? data : []);
-    } catch { setSearchResults([]); }
-    setSearching(false);
-  };
-
-  const pickSearchResult = (result: any) => {
-    const lat = Number(result.lat), lng = Number(result.lon);
-    if (mapRef.current) mapRef.current.flyTo([lat, lng], 15, { duration: 0.6 });
-    setSearchResults([]);
-    setSearchQuery(result.display_name || "");
-  };
-
-  const flyToZone = (zone: any) => {
-    const L = (window as any).L;
-    if (!L || !mapRef.current || !Array.isArray(zone.polygon) || zone.polygon.length === 0) return;
-    const bounds = L.latLngBounds(zone.polygon.map((p: any) => [p.lat, p.lng]));
-    mapRef.current.flyToBounds(bounds, { duration: 0.6, padding: [40, 40] });
-  };
-
-  const cancelZoneForm = () => {
-    if (editableLayerRef.current) editableLayerRef.current.clearLayers();
-    setPendingLatLngs(null);
-    setShowZoneForm(false);
-  };
-
-  const confirmZoneForm = async () => {
-    if (!zoneForm.name.trim()) return alert("اكتب اسم المنطقة أولًا");
-    if (!pendingLatLngs || pendingLatLngs.length < 3) return alert("ارسم منطقة صالحة على الخريطة أولًا");
-    setSaving(true);
-    await onSaveZone({ name: zoneForm.name.trim(), employee_id: zoneForm.employee_id || null, color: zoneForm.color, polygon: pendingLatLngs });
-    setSaving(false);
-    if (editableLayerRef.current) editableLayerRef.current.clearLayers();
-    setPendingLatLngs(null);
-    setShowZoneForm(false);
-  };
-
-  const filteredZones = zones.filter((zone: any) => {
-    if (!listFilter.trim()) return true;
-    const emp = employees.find((e: any) => String(e.id) === String(zone.employee_id));
-    const q = listFilter.trim().toLowerCase();
-    return (zone.name || "").toLowerCase().includes(q) || (emp?.name || "").toLowerCase().includes(q);
-  });
-
-  return (
-    <div style={{ display: "flex", gap: "14px", flexWrap: "wrap", alignItems: "flex-start" }}>
-      <div style={{ flex: "1 1 560px", minWidth: "320px" }}>
-        <div style={{ display: "flex", gap: "8px", marginBottom: "10px", flexWrap: "wrap", position: "relative" }}>
-          <input
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); runSearch(); } }}
-            placeholder="ابحث عن مكان على الخريطة..."
-            style={{ flex: 1, minWidth: "180px", padding: "11px 14px", border: "1px solid #e2e8f0", borderRadius: "12px", fontFamily: "inherit", outline: "none" }}
-          />
-          <button onClick={runSearch} disabled={searching} style={{ padding: "11px 16px", background: "#4f46e5", color: "white", border: "none", borderRadius: "12px", fontWeight: 800, cursor: "pointer", fontFamily: "inherit" }}>
-            {searching ? "..." : "🔍 بحث"}
-          </button>
-          <button onClick={() => switchTile(tileMode === "satellite" ? "street" : "satellite")} style={{ padding: "11px 14px", background: "#f0f9ff", color: "#0284c7", border: "1px solid #bae6fd", borderRadius: "12px", fontWeight: 800, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}>
-            {tileMode === "satellite" ? "🗺️ خريطة الشوارع" : "🛰️ قمر صناعي"}
-          </button>
-          {searchResults.length > 0 && (
-            <div style={{ position: "absolute", top: "52px", right: 0, left: 0, background: "white", border: "1px solid #e2e8f0", borderRadius: "14px", boxShadow: "0 12px 28px rgba(15,23,42,0.15)", zIndex: 500, maxHeight: "220px", overflowY: "auto" }}>
-              {searchResults.map((r, i) => (
-                <div key={i} onClick={() => pickSearchResult(r)} style={{ padding: "10px 14px", cursor: "pointer", fontSize: "12px", borderBottom: i < searchResults.length - 1 ? "1px solid #f1f5f9" : "none" }}
-                  onMouseEnter={e => (e.currentTarget.style.background = "#f8fafc")} onMouseLeave={e => (e.currentTarget.style.background = "white")}>
-                  {r.display_name}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-        <div style={{ background: "#eef2ff", color: "#4338ca", borderRadius: "12px", padding: "9px 14px", fontSize: "12px", fontWeight: 700, marginBottom: "10px" }}>
-          ✏️ استخدم أداة رسم المضلع في أعلى يسار الخريطة لرسم منطقة عمل، ثم أغلق الشكل بالضغط على أول نقطة رسمتها.
-        </div>
-        <div ref={mapContainerRef} style={{ width: "100%", height: "520px", borderRadius: "18px", overflow: "hidden", border: "1px solid #e2e8f0", background: "#f1f5f9", position: "relative" }} />
-        {!ready && <div style={{ textAlign: "center", fontSize: "12px", color: "#94a3b8", marginTop: "8px" }}>جاري تحميل الخريطة...</div>}
-
-        {showZoneForm && (
-          <div style={{ marginTop: "12px", background: "white", border: "2px solid #4f46e5", borderRadius: "16px", padding: "16px" }}>
-            <h4 style={{ margin: "0 0 10px", fontWeight: 900, fontSize: "14px" }}>💾 حفظ منطقة العمل الجديدة</h4>
-            <div style={{ display: "grid", gridTemplateColumns: "2fr 2fr 1fr", gap: "8px", marginBottom: "10px" }}>
-              <input placeholder="اسم المنطقة" value={zoneForm.name} onChange={e => setZoneForm({ ...zoneForm, name: e.target.value })} style={{ padding: "10px", border: "1px solid #e2e8f0", borderRadius: "10px", fontFamily: "inherit" }} />
-              <select value={zoneForm.employee_id} onChange={e => setZoneForm({ ...zoneForm, employee_id: e.target.value })} style={{ padding: "10px", border: "1px solid #e2e8f0", borderRadius: "10px", fontFamily: "inherit" }}>
-                <option value="">بدون موظف محدد</option>
-                {employees.map((emp: any) => <option key={emp.id} value={emp.id}>{emp.name}</option>)}
-              </select>
-              <input type="color" value={zoneForm.color} onChange={e => setZoneForm({ ...zoneForm, color: e.target.value })} style={{ padding: "4px", border: "1px solid #e2e8f0", borderRadius: "10px", height: "42px", cursor: "pointer" }} />
-            </div>
-            <div style={{ display: "flex", gap: "8px" }}>
-              <button onClick={cancelZoneForm} style={{ flex: 1, padding: "11px", background: "#f1f5f9", color: "#475569", border: "none", borderRadius: "10px", fontWeight: 800, cursor: "pointer", fontFamily: "inherit" }}>إلغاء</button>
-              <button onClick={confirmZoneForm} disabled={saving} style={{ flex: 2, padding: "11px", background: "linear-gradient(135deg, #4f46e5, #7c3aed)", color: "white", border: "none", borderRadius: "10px", fontWeight: 900, cursor: "pointer", fontFamily: "inherit" }}>{saving ? "جاري الحفظ..." : "حفظ المنطقة"}</button>
-            </div>
-          </div>
-        )}
-      </div>
-
-      <div style={{ flex: "0 0 300px", minWidth: "260px" }}>
-        <input
-          value={listFilter}
-          onChange={e => setListFilter(e.target.value)}
-          placeholder="🔍 ابحث باسم الموظف أو المنطقة..."
-          style={{ width: "100%", boxSizing: "border-box", padding: "11px 14px", border: "1px solid #e2e8f0", borderRadius: "12px", marginBottom: "10px", fontFamily: "inherit", outline: "none" }}
-        />
-        <div style={{ display: "flex", flexDirection: "column", gap: "8px", maxHeight: "560px", overflowY: "auto" }}>
-          {filteredZones.length === 0 && <div style={{ textAlign: "center", color: "#94a3b8", fontSize: "12px", padding: "20px" }}>لا توجد مناطق عمل بعد. ارسم منطقة على الخريطة للبدء.</div>}
-          {filteredZones.map((zone: any) => {
-            const emp = employees.find((e: any) => String(e.id) === String(zone.employee_id));
-            return (
-              <div key={zone.id} style={{ background: "white", border: "1px solid #e2e8f0", borderRadius: "14px", padding: "12px", display: "flex", alignItems: "center", gap: "10px" }}>
-                <div onClick={() => flyToZone(zone)} style={{ width: "14px", height: "14px", borderRadius: "50%", background: zone.color || "#4f46e5", flexShrink: 0, cursor: "pointer" }} />
-                <div onClick={() => flyToZone(zone)} style={{ flex: 1, cursor: "pointer" }}>
-                  <div style={{ fontWeight: 800, fontSize: "13px" }}>{zone.name}</div>
-                  <div style={{ fontSize: "11px", color: "#64748b" }}>{emp?.name || "بدون موظف محدد"}</div>
-                </div>
-                <button onClick={() => onDeleteZone(zone)} style={{ border: "none", background: "#fff1f2", color: "#dc2626", borderRadius: "8px", padding: "6px", cursor: "pointer" }}><Trash2 size={14} /></button>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
-};
-
 const MultiSelectDropdown = ({
   options, selected, onChange, label = "الأقسام", minWidth = "220px",
 }: {
@@ -1349,7 +1074,6 @@ const VacationManagementSystem = () => {
   const [vacationTypes, setVacationTypes] = useState<any[]>([]);
   const [departments, setDepartments] = useState<any[]>([]);
   const [branches, setBranches] = useState<any[]>([]);
-  const [workZones, setWorkZones] = useState<any[]>([]);
   const [publicHolidays, setPublicHolidays] = useState<any[]>([]);
   const [auditLog, setAuditLog] = useState<any[]>([]);
   const [attendanceRows, setAttendanceRows] = useState<any[]>([]);
@@ -1845,7 +1569,7 @@ const VacationManagementSystem = () => {
     try {
       const [
         { data: emps }, { data: reqs }, { data: types },
-        { data: depts }, { data: branchRows }, { data: holidays }, { data: logs }, { data: attendanceData }, { data: integrationData }, { data: seasonalImageData }, { data: categoryData }, { data: zoneData }
+        { data: depts }, { data: branchRows }, { data: holidays }, { data: logs }, { data: attendanceData }, { data: integrationData }, { data: seasonalImageData }, { data: categoryData }
       ] = await Promise.all([
         supabase.from("employees").select("*").order("name"),
         supabase.from("vacation_requests").select("*").order("created_at", { ascending: false }),
@@ -1858,7 +1582,6 @@ const VacationManagementSystem = () => {
         supabase.from("notification_integrations").select("*").order("created_at", { ascending:false }),
         supabase.from("seasonal_login_event_images").select("*").order("sort_order", { ascending:true }),
         supabase.from("work_time_categories").select("*").order("name"),
-        supabase.from("work_zones").select("*").order("created_at", { ascending:false }),
       ]);
 
       if (emps) setEmployees(emps);
@@ -1872,7 +1595,6 @@ const VacationManagementSystem = () => {
       if (integrationData) setNotificationIntegrations(integrationData);
       if (Array.isArray(seasonalImageData)) setSeasonalLoginImages(seasonalImageData);
       if (Array.isArray(categoryData)) setWorkTimeCategories(categoryData);
-      if (Array.isArray(zoneData)) setWorkZones(zoneData);
       setLastUpdatedAt(new Date());
 
       if (currentUser && currentView === "employee") {
@@ -3964,7 +3686,6 @@ const VacationManagementSystem = () => {
     seasonalLoginEvents,
     seasonalLoginImages,
     workTimeCategories,
-    workZones,
     balanceUpdates: extra.balanceUpdates || [],
     vacationSignatures: extra.vacationSignatures || [],
     createdAt: new Date().toISOString(),
@@ -3995,7 +3716,7 @@ const VacationManagementSystem = () => {
       snapshot,
       // ⚠️ مقصود استبعاد جداول المستخدمين والصلاحيات (users, user_permissions, department_managers,
       // notification_preferences, notification_integrations) لأنها بيانات دخول/حسابات حساسة.
-      tables_included: ["employees", "vacation_requests", "vacation_types", "departments", "branches", "public_holidays", "attendance_records", "seasonal_login_events", "seasonal_login_event_images", "work_time_categories", "work_zones", "balance_updates", "vacation_signatures"],
+      tables_included: ["employees", "vacation_requests", "vacation_types", "departments", "branches", "public_holidays", "attendance_records", "seasonal_login_events", "seasonal_login_event_images", "work_time_categories", "balance_updates", "vacation_signatures"],
     }]);
     setBackupLoading(false);
     if (error) return alert("تعذر حفظ النسخة داخل Supabase: " + error.message);
@@ -4025,7 +3746,6 @@ const VacationManagementSystem = () => {
       if (Array.isArray(snapshot.seasonalLoginEvents) && snapshot.seasonalLoginEvents.length) queueRestore(supabase.from("seasonal_login_events").upsert(snapshot.seasonalLoginEvents));
       if (Array.isArray(snapshot.seasonalLoginImages) && snapshot.seasonalLoginImages.length) queueRestore(supabase.from("seasonal_login_event_images").upsert(snapshot.seasonalLoginImages));
       if (Array.isArray(snapshot.workTimeCategories) && snapshot.workTimeCategories.length) queueRestore(supabase.from("work_time_categories").upsert(snapshot.workTimeCategories));
-      if (Array.isArray(snapshot.workZones) && snapshot.workZones.length) queueRestore(supabase.from("work_zones").upsert(snapshot.workZones));
       if (Array.isArray(snapshot.balanceUpdates) && snapshot.balanceUpdates.length) queueRestore(supabase.from("balance_updates").upsert(snapshot.balanceUpdates));
       if (Array.isArray(snapshot.vacationSignatures) && snapshot.vacationSignatures.length) queueRestore(supabase.from("vacation_signatures").upsert(snapshot.vacationSignatures));
       const results = await Promise.all(operations);
@@ -4161,20 +3881,6 @@ const VacationManagementSystem = () => {
     setMapBranch(null);
     await fetchData();
     showSuccess(`✅ تم حفظ موقع "${branch.name}" على الخريطة`);
-  };
-  const saveWorkZone = async (zone: any) => {
-    const { error } = await supabase.from("work_zones").insert([{ ...zone, created_by: currentUser?.id || null }]);
-    if (error) return alert("تعذر حفظ منطقة العمل: " + error.message + "\n(تأكد أنك نفّذت كود SQL الخاص بإنشاء جدول work_zones)");
-    await logAction("create", "work_zones", null, null, zone);
-    await fetchData();
-    showSuccess(`✅ تم حفظ منطقة "${zone.name}"`);
-  };
-  const deleteWorkZone = async (zone: any) => {
-    if (!window.confirm(`حذف منطقة "${zone.name}"؟`)) return;
-    const { error } = await supabase.from("work_zones").delete().eq("id", zone.id);
-    if (error) return alert("تعذر حذف المنطقة: " + error.message);
-    await logAction("delete", "work_zones", zone.id, zone);
-    await fetchData();
   };
   // مفتاح تخزين محلي لتفضيلات المالك؛ حساب المالك غير موجود كصف في القاعدة (لا يوجد له id حقيقي)
   // وجدول notification_preferences مقيّد بمفتاح خارجي (foreign key) على user_id، فلا يمكن إدراج قيمة وهمية له.
@@ -4697,7 +4403,6 @@ const VacationManagementSystem = () => {
               { id: "calendar",    label: "التقويم",          icon: Calendar,        ownerOnly: false, managerAllowed: false },
               { id: "reports",     label: "التقارير",         icon: BarChart3,       ownerOnly: false, managerAllowed: false },
               { id: "branches",    label: "الفروع والمواقع", icon: Building2,       ownerOnly: true,  managerAllowed: false },
-              { id: "work_zones", label: "مناطق العمل", icon: MapPin, ownerOnly: true, managerAllowed: false },
               { id: "attendance",  label: "الحضور والانصراف", icon: Clock,           ownerOnly: true,  managerAllowed: false },
               { id: "departments", label: "الأقسام",          icon: Building2,       ownerOnly: true,  managerAllowed: false },
               { id: "managers",    label: "مديرو الأقسام",   icon: ShieldCheck,     ownerOnly: true,  managerAllowed: false },
@@ -5955,7 +5660,7 @@ const VacationManagementSystem = () => {
                   {mapBranch && <BranchLocationMap branch={mapBranch} onClose={() => setMapBranch(null)} onSave={(lat, lng) => saveBranchLocation(mapBranch, lat, lng)} />}
                 </div>
               )}
-          
+
               {/* ===== ATTENDANCE ===== */}
               {activeTab === "attendance" && isOwner && (
                 <div style={{ width:"100%", boxSizing:"border-box" }}>
