@@ -5955,18 +5955,7 @@ const VacationManagementSystem = () => {
                   {mapBranch && <BranchLocationMap branch={mapBranch} onClose={() => setMapBranch(null)} onSave={(lat, lng) => saveBranchLocation(mapBranch, lat, lng)} />}
                 </div>
               )}
-
-              {/* ===== WORK ZONES (مناطق العمل) ===== */}
-              {activeTab === "work_zones" && isOwner && (
-                <div style={{ width:"100%", boxSizing:"border-box" }} className="space-y-6">
-                  <div>
-                    <h2 className="text-2xl font-black">🗺️ مناطق العمل</h2>
-                    <p className="text-sm text-slate-500 mt-1">ارسم مناطق العمل على خريطة قمر صناعي واربط كل منطقة بموظف، لتعرف مكان عمل كل واحد بدقة.</p>
-                  </div>
-                  <WorkZonesMap employees={employees} zones={workZones} onSaveZone={saveWorkZone} onDeleteZone={deleteWorkZone} />
-                </div>
-              )}
-
+          
               {/* ===== ATTENDANCE ===== */}
               {activeTab === "attendance" && isOwner && (
                 <div style={{ width:"100%", boxSizing:"border-box" }}>
