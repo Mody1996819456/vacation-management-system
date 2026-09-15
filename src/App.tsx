@@ -782,6 +782,207 @@ const SuccessToast = ({ visible, message, onClose }: { visible: boolean; message
   );
 };
 
+// ==================== خريطة GPS تفاعلية للفروع (Leaflet + OpenStreetMap) ====================
+// بتتحمل من CDN مرة واحدة فقط (بدون npm install) — خرائط OpenStreetMap مجانية وبدون مفتاح API.
+let leafletLibraryPromise: Promise<any> | null = null;
+const loadLeafletLibrary = (): Promise<any> => {
+  if (typeof window === "undefined") return Promise.resolve(null);
+  if ((window as any).L) return Promise.resolve((window as any).L);
+  if (leafletLibraryPromise) return leafletLibraryPromise;
+  leafletLibraryPromise = new Promise((resolve, reject) => {
+    if (!document.querySelector('link[data-leaflet-css="true"]')) {
+      const link = document.createElement("link");
+      link.rel = "stylesheet";
+      link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+      link.dataset.leafletCss = "true";
+      document.head.appendChild(link);
+    }
+    const existing = document.querySelector('script[data-leaflet-lib="true"]');
+    if (existing) {
+      existing.addEventListener("load", () => resolve((window as any).L));
+      existing.addEventListener("error", reject);
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
+    script.async = true;
+    script.dataset.leafletLib = "true";
+    script.onload = () => resolve((window as any).L);
+    script.onerror = reject;
+    document.head.appendChild(script);
+  });
+  return leafletLibraryPromise;
+};
+
+// رابط صورة خريطة ثابتة (بدون مكتبة) — تُستخدم في معاينات صغيرة وفي المشاركة كصورة.
+const buildStaticMapUrl = (lat: number, lng: number, zoom = 15, size = "640x420") =>
+  `https://staticmap.openstreetmap.de/staticmap.php?center=${lat},${lng}&zoom=${zoom}&size=${size}&maptype=mapnik&markers=${lat},${lng},red-pushpin`;
+
+// نافذة تحديد موقع الفرع على خريطة تفاعلية: بحث عن مكان، ضغط على الخريطة لتثبيت الدبوس، تحديد موقعي الحالي، حفظ، ومشاركة كصورة.
+const BranchLocationMap = ({ branch, onClose, onSave }: { branch: any; onClose: () => void; onSave: (lat: number, lng: number) => Promise<void> }) => {
+  const mapContainerRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<any>(null);
+  const markerRef = useRef<any>(null);
+  const [ready, setReady] = useState(false);
+  const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(
+    branch?.latitude != null && branch?.longitude != null ? { lat: Number(branch.latitude), lng: Number(branch.longitude) } : null
+  );
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [locating, setLocating] = useState(false);
+
+  const placeMarker = (L: any, lat: number, lng: number, fly = true) => {
+    if (!mapRef.current) return;
+    if (markerRef.current) { markerRef.current.setLatLng([lat, lng]); }
+    else { markerRef.current = L.marker([lat, lng], { draggable: true }).addTo(mapRef.current); markerRef.current.on("dragend", () => { const p = markerRef.current.getLatLng(); setCoords({ lat: p.lat, lng: p.lng }); }); }
+    if (fly) mapRef.current.flyTo([lat, lng], Math.max(mapRef.current.getZoom(), 14), { duration: 0.6 });
+    setCoords({ lat, lng });
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+    loadLeafletLibrary().then(L => {
+      if (cancelled || !L || !mapContainerRef.current || mapRef.current) return;
+      const startLat = coords?.lat ?? 30.0444;
+      const startLng = coords?.lng ?? 31.2357;
+      const map = L.map(mapContainerRef.current, { zoomControl: true }).setView([startLat, startLng], coords ? 15 : 6);
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "© OpenStreetMap" }).addTo(map);
+      mapRef.current = map;
+      if (coords) placeMarker(L, coords.lat, coords.lng, false);
+      map.on("click", (e: any) => placeMarker(L, e.latlng.lat, e.latlng.lng, false));
+      setTimeout(() => map.invalidateSize(), 150);
+      setReady(true);
+    }).catch(() => {});
+    return () => {
+      cancelled = true;
+      if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; markerRef.current = null; }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const runSearch = async () => {
+    if (!searchQuery.trim()) return;
+    setSearching(true);
+    try {
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=5&q=${encodeURIComponent(searchQuery.trim())}`);
+      const data = await res.json();
+      setSearchResults(Array.isArray(data) ? data : []);
+    } catch { setSearchResults([]); }
+    setSearching(false);
+  };
+
+  const pickSearchResult = (result: any) => {
+    const lat = Number(result.lat), lng = Number(result.lon);
+    const L = (window as any).L;
+    if (L) placeMarker(L, lat, lng, true);
+    setSearchResults([]);
+    setSearchQuery(result.display_name || "");
+  };
+
+  const useMyLocation = () => {
+    if (!navigator.geolocation) return alert("المتصفح لا يدعم تحديد الموقع الحالي");
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      pos => { const L = (window as any).L; if (L) placeMarker(L, pos.coords.latitude, pos.coords.longitude, true); setLocating(false); },
+      () => { alert("تعذر الوصول لموقعك الحالي — تأكد من إذن الموقع في المتصفح"); setLocating(false); },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
+
+  const handleSave = async () => {
+    if (!coords) return alert("حدد نقطة على الخريطة أولًا");
+    setSaving(true);
+    await onSave(coords.lat, coords.lng);
+    setSaving(false);
+  };
+
+  const shareAsImage = async () => {
+    if (!coords) return alert("حدد نقطة على الخريطة أولًا");
+    const url = buildStaticMapUrl(coords.lat, coords.lng);
+    try {
+      const res = await fetch(url);
+      const blob = await res.blob();
+      const file = new File([blob], `موقع-${branch?.name || "الفرع"}.png`, { type: "image/png" });
+      if (navigator.canShare?.({ files: [file] })) {
+        await navigator.share({ files: [file], title: `موقع ${branch?.name || "الفرع"}` });
+      } else {
+        const dlUrl = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = dlUrl; a.download = `موقع-${branch?.name || "الفرع"}.png`; a.click();
+        URL.revokeObjectURL(dlUrl);
+      }
+    } catch { alert("تعذر تجهيز صورة الموقع للمشاركة"); }
+  };
+
+  const copyGoogleMapsLink = () => {
+    if (!coords) return alert("حدد نقطة على الخريطة أولًا");
+    const link = `https://www.google.com/maps?q=${coords.lat},${coords.lng}`;
+    navigator.clipboard.writeText(link).then(() => alert("✅ تم نسخ رابط الموقع"));
+  };
+
+  return (
+    <div style={{ position:"fixed", inset:0, zIndex:2000, background:"rgba(15,23,42,0.6)", backdropFilter:"blur(4px)", display:"flex", alignItems:"center", justifyContent:"center", padding:"16px" }} onClick={onClose}>
+      <div style={{ background:"white", borderRadius:"24px", width:"100%", maxWidth:"720px", maxHeight:"92vh", display:"flex", flexDirection:"column", overflow:"hidden" }} dir="rtl" onClick={e => e.stopPropagation()}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"18px 22px", borderBottom:"1px solid #e2e8f0" }}>
+          <div>
+            <h3 style={{ margin:0, fontWeight:900, fontSize:"17px" }}>📍 تحديد موقع {branch?.name || "الفرع"}</h3>
+            <p style={{ margin:"4px 0 0", fontSize:"12px", color:"#64748b" }}>ابحث عن مكان، أو اضغط على الخريطة، أو اسحب الدبوس لتحديد الموقع بدقة</p>
+          </div>
+          <button onClick={onClose} style={{ border:"1px solid #e2e8f0", borderRadius:"8px", padding:"6px 10px", cursor:"pointer", background:"white" }}>✕</button>
+        </div>
+
+        <div style={{ padding:"14px 22px 0", display:"flex", gap:"8px", position:"relative" }}>
+          <input
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); runSearch(); } }}
+            placeholder="ابحث عن مكان (اسم مدينة، شارع، منطقة...)"
+            style={{ flex:1, padding:"11px 14px", border:"1px solid #e2e8f0", borderRadius:"12px", fontFamily:"inherit", outline:"none" }}
+          />
+          <button onClick={runSearch} disabled={searching} style={{ padding:"11px 16px", background:"#4f46e5", color:"white", border:"none", borderRadius:"12px", fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>
+            {searching ? "..." : "🔍 بحث"}
+          </button>
+          <button onClick={useMyLocation} disabled={locating} title="استخدام موقعي الحالي" style={{ padding:"11px 14px", background:"#f0f9ff", color:"#0284c7", border:"1px solid #bae6fd", borderRadius:"12px", fontWeight:800, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+            {locating ? "..." : "🧭 موقعي"}
+          </button>
+          {searchResults.length > 0 && (
+            <div style={{ position:"absolute", top:"52px", right:"22px", left:"110px", background:"white", border:"1px solid #e2e8f0", borderRadius:"14px", boxShadow:"0 12px 28px rgba(15,23,42,0.15)", zIndex:10, maxHeight:"220px", overflowY:"auto" }}>
+              {searchResults.map((r, i) => (
+                <div key={i} onClick={() => pickSearchResult(r)} style={{ padding:"10px 14px", cursor:"pointer", fontSize:"12px", borderBottom: i < searchResults.length-1 ? "1px solid #f1f5f9" : "none" }}
+                  onMouseEnter={e => (e.currentTarget.style.background = "#f8fafc")} onMouseLeave={e => (e.currentTarget.style.background = "white")}>
+                  {r.display_name}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div style={{ padding:"14px 22px" }}>
+          <div ref={mapContainerRef} style={{ width:"100%", height:"340px", borderRadius:"16px", overflow:"hidden", border:"1px solid #e2e8f0", background:"#f1f5f9" }} />
+          {!ready && <div style={{ textAlign:"center", fontSize:"12px", color:"#94a3b8", marginTop:"8px" }}>جاري تحميل الخريطة...</div>}
+          {coords && (
+            <div style={{ marginTop:"10px", fontSize:"12px", color:"#475569", background:"#f8fafc", borderRadius:"10px", padding:"9px 12px", display:"flex", justifyContent:"space-between", flexWrap:"wrap", gap:"8px" }}>
+              <span>📍 {coords.lat.toFixed(6)}, {coords.lng.toFixed(6)}</span>
+              <button onClick={copyGoogleMapsLink} style={{ border:"none", background:"transparent", color:"#4f46e5", fontWeight:800, cursor:"pointer", fontFamily:"inherit", fontSize:"12px" }}>نسخ رابط Google Maps</button>
+            </div>
+          )}
+        </div>
+
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"10px", padding:"0 22px 22px" }}>
+          <button onClick={shareAsImage} disabled={!coords} style={{ padding:"13px", background: coords ? "linear-gradient(135deg, #0ea5e9, #0284c7)" : "#f1f5f9", color: coords ? "white" : "#94a3b8", border:"none", borderRadius:"12px", fontWeight:800, cursor: coords ? "pointer" : "not-allowed", fontFamily:"inherit" }}>
+            📤 مشاركة الموقع كصورة
+          </button>
+          <button onClick={handleSave} disabled={!coords || saving} style={{ padding:"13px", background: coords ? "linear-gradient(135deg, #4f46e5, #7c3aed)" : "#f1f5f9", color: coords ? "white" : "#94a3b8", border:"none", borderRadius:"12px", fontWeight:900, cursor: coords ? "pointer" : "not-allowed", fontFamily:"inherit" }}>
+            {saving ? "جاري الحفظ..." : "💾 حفظ الموقع"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const MultiSelectDropdown = ({
   options, selected, onChange, label = "الأقسام", minWidth = "220px",
 }: {
@@ -945,6 +1146,7 @@ const VacationManagementSystem = () => {
   const [showAddBranch, setShowAddBranch] = useState(false);
   const [editingBranch, setEditingBranch] = useState<any>(null);
   const [newBranch, setNewBranch] = useState({ name:"", code:"", address:"", timezone:"Africa/Cairo" });
+  const [mapBranch, setMapBranch] = useState<any>(null);
   const [showAddHoliday, setShowAddHoliday] = useState(false);
   const [showAuditLog, setShowAuditLog] = useState(false);
   const [auditActionFilter, setAuditActionFilter] = useState("all");
@@ -3672,6 +3874,14 @@ const VacationManagementSystem = () => {
     setNewBranch({ name:branch.name || "", code:branch.code || "", address:branch.address || "", timezone:branch.timezone || "Africa/Cairo" });
     setShowAddBranch(true);
   };
+  const saveBranchLocation = async (branch: any, lat: number, lng: number) => {
+    const { error } = await supabase.from("branches").update({ latitude: lat, longitude: lng }).eq("id", branch.id);
+    if (error) return alert("تعذر حفظ موقع الفرع: " + error.message);
+    await logAction("update_location", "branches", branch.id, { latitude: branch.latitude, longitude: branch.longitude }, { latitude: lat, longitude: lng });
+    setMapBranch(null);
+    await fetchData();
+    showSuccess(`✅ تم حفظ موقع "${branch.name}" على الخريطة`);
+  };
   // مفتاح تخزين محلي لتفضيلات المالك؛ حساب المالك غير موجود كصف في القاعدة (لا يوجد له id حقيقي)
   // وجدول notification_preferences مقيّد بمفتاح خارجي (foreign key) على user_id، فلا يمكن إدراج قيمة وهمية له.
   const OWNER_NOTIFICATION_PREFS_KEY = "vms_owner_notification_prefs";
@@ -5417,9 +5627,37 @@ const VacationManagementSystem = () => {
               {activeTab === "branches" && isOwner && (
                 <div style={{ width:"100%", boxSizing:"border-box" }} className="space-y-6">
                   <div className="flex justify-between items-center flex-wrap gap-3"><div><h2 className="text-2xl font-black">الفروع والمواقع</h2><p className="text-sm text-slate-500 mt-1">إدارة مواقع العمل والمناطق الزمنية وربطها بالأقسام والموظفين.</p></div><button onClick={() => setShowAddBranch(true)} className="bg-indigo-600 text-white px-6 py-3 rounded-2xl font-bold">+ إضافة فرع</button></div>
-                  <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))", gap:"16px" }}>{branches.map((branch: any) => <div key={branch.id} style={{ background:"white", border:"1px solid #e2e8f0", borderRadius:"20px", padding:"20px", boxShadow:"0 6px 18px rgba(15,23,42,0.05)" }}><div style={{ display:"flex", justifyContent:"space-between", gap:"10px" }}><div><div style={{ fontWeight:"900", fontSize:"17px" }}>{branch.name}</div><div style={{ color:"#64748b", fontSize:"12px", marginTop:"4px" }}>{branch.code || "بدون كود"}</div></div><div style={{ display:"flex", gap:"6px" }}><button onClick={() => openBranchEdit(branch)} style={{ border:"none", background:"#eff6ff", color:"#2563eb", borderRadius:"9px", padding:"7px", cursor:"pointer" }}><Edit3 size={16}/></button><button onClick={() => deleteBranch(branch)} style={{ border:"none", background:"#fff1f2", color:"#dc2626", borderRadius:"9px", padding:"7px", cursor:"pointer" }}><Trash2 size={16}/></button></div></div><div style={{ marginTop:"14px", background:"#f8fafc", borderRadius:"12px", padding:"10px", fontSize:"12px", color:"#475569" }}>📍 {branch.address || "لم يحدد العنوان"}<br/>🕒 {branch.timezone || "Africa/Cairo"}</div><div style={{ marginTop:"10px", display:"flex", justifyContent:"space-between", fontSize:"12px", fontWeight:"800", color:"#4f46e5" }}><span>{employees.filter(emp => String(emp.branch_id) === String(branch.id)).length} موظف</span><span>{departments.filter(dept => String(dept.branch_id) === String(branch.id)).length} قسم</span></div></div>)}</div>
+                  <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))", gap:"16px" }}>
+                    {branches.map((branch: any) => {
+                      const hasLocation = branch.latitude != null && branch.longitude != null;
+                      return (
+                        <div key={branch.id} style={{ background:"white", border:"1px solid #e2e8f0", borderRadius:"20px", padding:"20px", boxShadow:"0 6px 18px rgba(15,23,42,0.05)" }}>
+                          <div style={{ display:"flex", justifyContent:"space-between", gap:"10px" }}>
+                            <div><div style={{ fontWeight:"900", fontSize:"17px" }}>{branch.name}</div><div style={{ color:"#64748b", fontSize:"12px", marginTop:"4px" }}>{branch.code || "بدون كود"}</div></div>
+                            <div style={{ display:"flex", gap:"6px" }}>
+                              <button onClick={() => openBranchEdit(branch)} style={{ border:"none", background:"#eff6ff", color:"#2563eb", borderRadius:"9px", padding:"7px", cursor:"pointer" }}><Edit3 size={16}/></button>
+                              <button onClick={() => deleteBranch(branch)} style={{ border:"none", background:"#fff1f2", color:"#dc2626", borderRadius:"9px", padding:"7px", cursor:"pointer" }}><Trash2 size={16}/></button>
+                            </div>
+                          </div>
+                          <div style={{ marginTop:"14px", background:"#f8fafc", borderRadius:"12px", padding:"10px", fontSize:"12px", color:"#475569" }}>📍 {branch.address || "لم يحدد العنوان"}<br/>🕒 {branch.timezone || "Africa/Cairo"}</div>
+                          {hasLocation ? (
+                            <div onClick={() => setMapBranch(branch)} style={{ marginTop:"10px", borderRadius:"12px", overflow:"hidden", border:"1px solid #e2e8f0", cursor:"pointer", position:"relative" }}>
+                              <img src={buildStaticMapUrl(Number(branch.latitude), Number(branch.longitude), 14, "500x160")} alt="موقع الفرع" style={{ width:"100%", height:"110px", objectFit:"cover", display:"block" }} loading="lazy" />
+                              <div style={{ position:"absolute", bottom:"6px", left:"8px", background:"rgba(15,23,42,0.7)", color:"white", fontSize:"10px", fontWeight:800, padding:"3px 8px", borderRadius:"7px" }}>تعديل الموقع</div>
+                            </div>
+                          ) : (
+                            <button onClick={() => setMapBranch(branch)} style={{ marginTop:"10px", width:"100%", padding:"9px", border:"1px dashed #c7d2fe", background:"#f5f3ff", color:"#4f46e5", borderRadius:"12px", fontWeight:800, fontSize:"12px", cursor:"pointer", fontFamily:"inherit" }}>
+                              📍 تحديد الموقع على الخريطة
+                            </button>
+                          )}
+                          <div style={{ marginTop:"10px", display:"flex", justifyContent:"space-between", fontSize:"12px", fontWeight:"800", color:"#4f46e5" }}><span>{employees.filter(emp => String(emp.branch_id) === String(branch.id)).length} موظف</span><span>{departments.filter(dept => String(dept.branch_id) === String(branch.id)).length} قسم</span></div>
+                        </div>
+                      );
+                    })}
+                  </div>
                   {branches.length === 0 && <div style={{ padding:"50px", textAlign:"center", background:"white", borderRadius:"20px", color:"#94a3b8" }}>لم تتم إضافة فروع بعد.</div>}
                   {showAddBranch && <div style={{ position:"fixed", inset:0, zIndex:1000, background:"rgba(15,23,42,0.6)", display:"flex", alignItems:"center", justifyContent:"center", padding:"20px" }} onClick={() => { setShowAddBranch(false); setEditingBranch(null); }}><div style={{ background:"white", borderRadius:"24px", padding:"28px", width:"100%", maxWidth:"480px" }} onClick={e => e.stopPropagation()}><div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"18px" }}><h3 style={{ margin:0, fontWeight:"900" }}>{editingBranch ? "تعديل الفرع" : "إضافة فرع"}</h3><button onClick={() => { setShowAddBranch(false); setEditingBranch(null); }} style={{ border:"none", background:"#f1f5f9", borderRadius:"8px", padding:"6px 10px", cursor:"pointer" }}>✕</button></div>{[{key:"name",label:"اسم الفرع"},{key:"code",label:"كود الفرع"},{key:"address",label:"العنوان"}].map(field => <input key={field.key} placeholder={field.label} value={(newBranch as any)[field.key]} onChange={e => setNewBranch({...newBranch, [field.key]:e.target.value})} style={{ width:"100%", boxSizing:"border-box", padding:"12px", border:"1px solid #e2e8f0", borderRadius:"12px", marginBottom:"10px", fontFamily:"inherit" }} />)}<select value={newBranch.timezone} onChange={e => setNewBranch({...newBranch, timezone:e.target.value})} style={{ width:"100%", padding:"12px", border:"1px solid #e2e8f0", borderRadius:"12px", marginBottom:"14px", fontFamily:"inherit" }}><option value="Africa/Cairo">القاهرة</option><option value="Asia/Riyadh">الرياض</option><option value="Asia/Dubai">دبي</option><option value="UTC">UTC</option></select><button onClick={saveBranch} style={{ width:"100%", border:"none", background:"#4f46e5", color:"white", borderRadius:"12px", padding:"13px", fontWeight:"900", cursor:"pointer", fontFamily:"inherit" }}>{editingBranch ? "حفظ التعديل" : "حفظ الفرع"}</button></div></div>}
+                  {mapBranch && <BranchLocationMap branch={mapBranch} onClose={() => setMapBranch(null)} onSave={(lat, lng) => saveBranchLocation(mapBranch, lat, lng)} />}
                 </div>
               )}
 
