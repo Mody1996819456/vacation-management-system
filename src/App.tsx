@@ -377,7 +377,7 @@ const buildLinahTemplateHTML = (selectedRows: any[]) => {
 <style>
   @page { size:A4 portrait; margin:8mm; }
   * { box-sizing:border-box; margin:0; padding:0; }
-  body { font-family:'Segoe UI', Arial, sans-serif; direction:rtl; background:#fff; padding:0; margin:0; }
+  body { font-family:'Segoe UI', Arial, sans-serif; direction:rtl; background:#fff; width:793px; padding:30px; margin:0; }
   
   .container { width:100%; padding:0; }
   
@@ -418,7 +418,7 @@ const buildLinahTemplateHTML = (selectedRows: any[]) => {
   tfoot td { padding:22px 6px 55px; font-weight:bold; font-size:12.5px; border:none; }
   
   @media print {
-    body { margin:0; padding:0; }
+    body { width:auto; margin:0; padding:0; }
   }
 </style>
 </head>
@@ -6095,16 +6095,41 @@ const VacationManagementSystem = () => {
                   );
                 };
 
-                // ===== مشاركة القالب =====
+                // ===== مشاركة القالب (كصورة بنفس تنسيق البيان، مش نص) =====
                 const shareLinahTemplate = async () => {
-                  const todayStr = new Date().toLocaleDateString("ar-EG", { year:"numeric", month:"2-digit", day:"2-digit" });
-                  const shareText = `📋 بيان اجازات يومي - ${todayStr}\n\n` +
-                    filtered.map((row, i) => `${i+1}. ${row.emp.name} | ${(row.vacType as any)?.name||"إجازة"} | ${row.lastReq?.start_date||""} ← ${row.end||""} | ${row.lastReq?.days||""} يوم`).join("\n") +
-                    `\n\nإجمالي: ${filtered.length} موظف في إجازة`;
-                  if (navigator.share) {
-                    try { await navigator.share({ title:"بيان اجازات يومي", text:shareText }); } catch {}
-                  } else {
-                    navigator.clipboard.writeText(shareText).then(() => showSuccess("✅ تم نسخ البيان — الصقه في أي تطبيق مشاركة"));
+                  const selectedRows = selectedPrintIds.size > 0
+                    ? filtered.filter(f => selectedPrintIds.has(f.selectionId))
+                    : filtered;
+
+                  if (selectedRows.length === 0) {
+                    alert("⚠️ اختر موظفين للمشاركة أولاً");
+                    return;
+                  }
+
+                  const wrap = document.createElement("div");
+                  wrap.style.cssText = "position:fixed;top:-9999px;left:-9999px;background:#fff;";
+                  wrap.innerHTML = buildLinahTemplateHTML(selectedRows);
+                  document.body.appendChild(wrap);
+                  const target = (wrap.querySelector("body") as HTMLElement) || wrap;
+
+                  try {
+                    const canvas = await html2canvas(target, { scale: 2, useCORS: true, backgroundColor: "#ffffff" });
+                    document.body.removeChild(wrap);
+                    canvas.toBlob(async (blob) => {
+                      if (!blob) return;
+                      const file = new File([blob], `بيان-اجازات-يومي-${new Date().toISOString().split("T")[0]}.png`, { type: "image/png" });
+                      if (navigator.canShare?.({ files: [file] })) {
+                        try { await navigator.share({ files: [file], title: "بيان اجازات يومي" }); } catch {}
+                      } else {
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement("a");
+                        a.href = url; a.download = file.name; a.click();
+                        URL.revokeObjectURL(url);
+                      }
+                    }, "image/png");
+                  } catch (e: any) {
+                    document.body.removeChild(wrap);
+                    alert("تعذر تجهيز صورة البيان للمشاركة: " + (e?.message || ""));
                   }
                 };
 
