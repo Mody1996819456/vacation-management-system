@@ -128,25 +128,29 @@ const formatDateTime = (dateStr: string) => {
   });
 };
 
+// ملحوظة مهمة: كل حسابات التاريخ هنا تتم بتوقيت UTC صراحةً (setUTCDate/getUTCDate) وليس بالتوقيت المحلي
+// للمتصفح. التاريخ هنا "تاريخ تقويمي" (مفيهوش وقت يوم محدد) ولازم يُحسب بنفس الطريقة بغض النظر عن
+// المنطقة الزمنية لجهاز اللي فاتح النظام - فلو استخدمنا setDate/getDate (محلي) هنا، أي مستخدم جهازه
+// مظبوط على منطقة زمنية غير منطقة مصر ممكن ياخد نتيجة تزيح يوم كامل.
 const getCalculatedDates = (startDate: string, days: number) => {
   if (!startDate || !days) return { end: "", back: "" };
-  const start = new Date(startDate);
+  const start = new Date(startDate + "T00:00:00Z");
   const end = new Date(start);
-  end.setDate(start.getDate() + (Number(days) - 1));
+  end.setUTCDate(start.getUTCDate() + (Number(days) - 1));
   const back = new Date(end);
-  back.setDate(end.getDate() + 1);
+  back.setUTCDate(end.getUTCDate() + 1);
   return {
     end: end.toISOString().split("T")[0],
     back: back.toISOString().split("T")[0],
   };
 };
 
-// حساب أول يوم إجازة فعلي بناءً على موعد النزول
+// حساب أول يوم إجازة فعلي بناءً على موعد النزول (بتوقيت UTC صراحةً - انظر الملحوظة أعلاه)
 const getActualStartDate = (startDate: string, departureTime: string): string => {
   if (!startDate) return "";
-  const d = new Date(startDate);
-  if (departureTime === "after_work") d.setDate(d.getDate() + 2); // عمل + سفر + إجازة
-  else if (departureTime === "morning") d.setDate(d.getDate() + 1); // سفر + إجازة
+  const d = new Date(startDate + "T00:00:00Z");
+  if (departureTime === "after_work") d.setUTCDate(d.getUTCDate() + 2); // عمل + سفر + إجازة
+  else if (departureTime === "morning") d.setUTCDate(d.getUTCDate() + 1); // سفر + إجازة
   // 'actual' = نفس اليوم
   return d.toISOString().split("T")[0];
 };
@@ -1650,8 +1654,10 @@ const VacationManagementSystem = () => {
   // ========== تذكير العودة التلقائي ==========
   useEffect(() => {
     if (currentView !== "admin" || requests.length === 0) return;
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
+    // نبدأ من "اليوم" بالتوقيت المحلي الصحيح (نفس المرجع المستخدم في باقي النظام)، ثم نضيف يومًا بحساب UTC
+    // صريح حتى لا تتغير النتيجة حسب المنطقة الزمنية لجهاز المستخدم.
+    const tomorrow = new Date(getLocalISODate() + "T00:00:00Z");
+    tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
     const tomorrowStr = tomorrow.toISOString().split("T")[0];
 
     requests.forEach(req => {
