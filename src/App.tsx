@@ -1071,6 +1071,254 @@ const DailyFollowupPanel = ({ isOwner, employees, requests, departments, vacatio
   );
 };
 
+// ==================== PHONE FIELD (اختيار رقم من جهات الاتصال / ملف) ====================
+// الصق هذا الكود في App.tsx فوق الـ component الرئيسي (قبل function App / export default).
+// لا يحتاج أي import جديد: يستخدم React, ReactDOM, XLSX, Users, Upload, X الموجودة بالفعل.
+
+type PhoneCandidate = { name: string; phone: string };
+
+const toLatinDigits = (s: string) =>
+  s
+    .replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d)))
+    .replace(/[۰-۹]/g, (d) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(d)));
+
+// تنظيف الرقم: أرقام عربية → إنجليزية، حذف المسافات والشرطات، 00 → +، وأرقام مصر 01x → +201x
+const normalizePhone = (raw: any): string => {
+  let p = toLatinDigits(String(raw ?? "")).trim().replace(/[\s\-().]/g, "");
+  if (p.startsWith("00")) p = "+" + p.slice(2);
+  if (/^01[0125]\d{8}$/.test(p)) p = "+20" + p.slice(1);
+  else if (/^1[0125]\d{8}$/.test(p)) p = "+20" + p; // إكسل بيشيل الصفر الأول أحياناً
+  return p;
+};
+const looksLikePhone = (s: string) => /^\+?\d{8,15}$/.test(s);
+
+const dedupe = (list: PhoneCandidate[]) => {
+  const seen = new Set<string>();
+  return list.filter((c) => (seen.has(c.phone) ? false : (seen.add(c.phone), true))).slice(0, 5000);
+};
+
+// Excel / CSV
+const parseSheetFile = async (file: File): Promise<PhoneCandidate[]> => {
+  const wb = XLSX.read(await file.arrayBuffer(), { type: "array" });
+  const out: PhoneCandidate[] = [];
+  wb.SheetNames.forEach((sn) => {
+    const rows: any[][] = XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1, raw: false, defval: "" });
+    rows.forEach((row) => {
+      const cells = row.map((c) => String(c ?? "").trim()).filter(Boolean);
+      const phones = cells.map(normalizePhone).filter(looksLikePhone);
+      const name = cells.find((c) => !looksLikePhone(normalizePhone(c))) || "";
+      phones.forEach((phone) => out.push({ name, phone }));
+    });
+  });
+  return dedupe(out);
+};
+
+// ملف نصي: كل سطر فيه رقم (ويمكن أن يسبقه أو يليه اسم)
+const parseTextFile = async (file: File): Promise<PhoneCandidate[]> => {
+  const text = toLatinDigits(await file.text());
+  const out: PhoneCandidate[] = [];
+  text.split(/\r?\n/).forEach((line) => {
+    const m = line.match(/\+?\d[\d\s\-().]{6,}\d/g);
+    if (!m) return;
+    const name = line.replace(/\+?\d[\d\s\-().]{6,}\d/g, " ").replace(/[,;:|\t]+/g, " ").trim();
+    m.forEach((raw) => {
+      const phone = normalizePhone(raw);
+      if (looksLikePhone(phone)) out.push({ name, phone });
+    });
+  });
+  return dedupe(out);
+};
+
+// vCard (.vcf) — الصيغة اللي بتطلع من تصدير جهات الاتصال في أي موبايل أو Google Contacts
+const parseVcfFile = async (file: File): Promise<PhoneCandidate[]> => {
+  const text = (await file.text()).replace(/\r?\n[ \t]/g, ""); // دمج الأسطر المطوية
+  const out: PhoneCandidate[] = [];
+  text.split(/BEGIN:VCARD/i).forEach((card) => {
+    const name = (card.match(/^FN[^:]*:(.*)$/im)?.[1] || "").trim();
+    const tels = card.match(/^TEL[^:]*:(.*)$/gim) || [];
+    tels.forEach((t) => {
+      const phone = normalizePhone(t.split(":").slice(1).join(":"));
+      if (looksLikePhone(phone)) out.push({ name, phone });
+    });
+  });
+  return dedupe(out);
+};
+
+const PhoneField = ({
+  value,
+  onChange,
+  className = "",
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  className?: string;
+}) => {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [candidates, setCandidates] = useState<PhoneCandidate[] | null>(null);
+  const [search, setSearch] = useState("");
+  const [err, setErr] = useState("");
+  const sheetRef = useRef<HTMLInputElement>(null);
+  const textRef = useRef<HTMLInputElement>(null);
+  const vcfRef = useRef<HTMLInputElement>(null);
+
+  // Contact Picker API: متاح في كروم/إيدج على أندرويد فقط (وبشرط HTTPS)
+  const contactsSupported =
+    typeof navigator !== "undefined" && typeof window !== "undefined" &&
+    "contacts" in navigator && "ContactsManager" in window;
+
+  const close = () => { setMenuOpen(false); setCandidates(null); setSearch(""); setErr(""); };
+
+  const choose = (phone: string) => { onChange(phone); close(); };
+
+  const pickFromDeviceContacts = async () => {
+    try {
+      const res = await (navigator as any).contacts.select(["name", "tel"], { multiple: false });
+      if (!res || !res.length) return;
+      const c = res[0];
+      const list: PhoneCandidate[] = dedupe(
+        (c.tel || []).map((t: string) => ({ name: (c.name && c.name[0]) || "", phone: normalizePhone(t) }))
+          .filter((x: PhoneCandidate) => looksLikePhone(x.phone))
+      );
+      if (list.length === 1) onChange(list[0].phone);
+      else if (list.length > 1) { setCandidates(list); setMenuOpen(true); }
+      else setErr("جهة الاتصال دي مفيهاش رقم صالح");
+    } catch (e) {
+      /* المستخدم لغى الاختيار */
+    }
+  };
+
+  const handleButton = () => {
+    if (contactsSupported) pickFromDeviceContacts();
+    else setMenuOpen(true);
+  };
+
+  const handleFile = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+    parser: (f: File) => Promise<PhoneCandidate[]>
+  ) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    try {
+      const list = await parser(file);
+      if (!list.length) { setErr("مفيش أرقام تليفون واضحة في الملف ده"); return; }
+      setErr(""); setCandidates(list);
+    } catch {
+      setErr("تعذّرت قراءة الملف، تأكد من نوعه وحاول تاني");
+    }
+  };
+
+  const pasteFromClipboard = async () => {
+    try {
+      const txt = await navigator.clipboard.readText();
+      const file = new File([txt], "clipboard.txt", { type: "text/plain" });
+      const list = await parseTextFile(file);
+      if (!list.length) { setErr("الحافظة مفيهاش أرقام واضحة"); return; }
+      setErr(""); setCandidates(list);
+    } catch {
+      setErr("المتصفح منع قراءة الحافظة");
+    }
+  };
+
+  const filtered = (candidates || []).filter(
+    (c) => !search.trim() || c.name.includes(search.trim()) || c.phone.includes(search.trim())
+  );
+
+  const optionBtn = "w-full p-4 border rounded-2xl text-right font-bold hover:bg-indigo-50 hover:border-indigo-400 transition";
+
+  return (
+    <div className="relative">
+      <input
+        className={`w-full ${className}`}
+        style={{ paddingLeft: 52 }}
+        type="tel"
+        inputMode="tel"
+        placeholder="رقم الهاتف — مثال +2010..."
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      />
+      <button
+        type="button"
+        title="اختيار من جهات الاتصال / ملف"
+        onClick={handleButton}
+        className="absolute left-2 top-1/2 -translate-y-1/2 p-2 rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100"
+      >
+        <Users size={20} />
+      </button>
+
+      <input ref={sheetRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={(e) => handleFile(e, parseSheetFile)} />
+      <input ref={textRef} type="file" accept=".txt,text/plain" className="hidden" onChange={(e) => handleFile(e, parseTextFile)} />
+      <input ref={vcfRef} type="file" accept=".vcf,text/vcard,text/x-vcard" className="hidden" onChange={(e) => handleFile(e, parseVcfFile)} />
+
+      {menuOpen && ReactDOM.createPortal(
+        <div
+          className="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4"
+          style={{ zIndex: 300 }}
+          onClick={close}
+        >
+          <div
+            dir="rtl"
+            className="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl"
+            style={{ maxHeight: "85vh", display: "flex", flexDirection: "column" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-black">
+                {candidates ? `اختر الرقم (${filtered.length})` : "اختيار رقم الهاتف من"}
+              </h3>
+              <button type="button" onClick={close}><X size={24} /></button>
+            </div>
+
+            {err && <div className="mb-3 p-3 rounded-xl bg-red-50 text-red-600 text-sm font-bold">{err}</div>}
+
+            {!candidates ? (
+              <div className="space-y-3">
+                <button type="button" className={optionBtn} onClick={() => sheetRef.current?.click()}>📊 ملف Excel / CSV</button>
+                <button type="button" className={optionBtn} onClick={() => textRef.current?.click()}>📄 ملف نصي (TXT)</button>
+                <button type="button" className={optionBtn} onClick={() => vcfRef.current?.click()}>📇 ملف جهات اتصال (VCF)</button>
+                <button type="button" className={optionBtn} onClick={pasteFromClipboard}>📋 لصق من الحافظة</button>
+                <p className="text-xs text-slate-400 pt-1">
+                  الملف بيتقرأ على جهازك فقط ومبيترفعش لأي سيرفر. أي رقم هتختاره بيتحط في الخانة وتقدر تعدله.
+                </p>
+              </div>
+            ) : (
+              <>
+                <input
+                  className="w-full p-3 border rounded-xl mb-3 outline-none focus:border-indigo-500"
+                  placeholder="بحث بالاسم أو الرقم..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+                <div style={{ overflowY: "auto", flex: 1 }} className="space-y-2">
+                  {filtered.slice(0, 200).map((c, i) => (
+                    <button
+                      type="button"
+                      key={c.phone + i}
+                      className="w-full p-3 border rounded-xl flex justify-between items-center hover:bg-indigo-50 hover:border-indigo-400"
+                      onClick={() => choose(c.phone)}
+                    >
+                      <span className="font-bold text-slate-700 truncate">{c.name || "—"}</span>
+                      <span style={{ direction: "ltr" }} className="text-slate-500 font-mono text-sm">{c.phone}</span>
+                    </button>
+                  ))}
+                  {filtered.length > 200 && (
+                    <p className="text-xs text-center text-slate-400">اتعرض أول 200 نتيجة، استخدم البحث لتضييق القائمة</p>
+                  )}
+                  {!filtered.length && <p className="text-center text-slate-400 py-6">مفيش نتائج</p>}
+                </div>
+                <button type="button" className="mt-3 text-sm text-indigo-600 font-bold" onClick={() => { setCandidates(null); setSearch(""); }}>
+                  ← رجوع لاختيار مصدر تاني
+                </button>
+              </>
+            )}
+          </div>
+        </div>,
+        document.body
+      )}
+    </div>
+  );
+};
+
 const VacationManagementSystem = () => {
   // ========== STATES ==========
   const [employees, setEmployees] = useState<any[]>([]);
@@ -7109,7 +7357,7 @@ const VacationManagementSystem = () => {
                   <input className="p-4 border rounded-2xl outline-none" placeholder="الكود الوظيفي *" value={newEmp.code} onChange={(e) => setNewEmp({...newEmp, code: e.target.value})} />
                   <input className="p-4 border rounded-2xl outline-none" placeholder="المنصب" value={newEmp.position} onChange={(e) => setNewEmp({...newEmp, position: e.target.value})} />
                   <input className="p-4 border rounded-2xl outline-none" placeholder="مكان السكن" value={newEmp.residence} onChange={(e) => setNewEmp({...newEmp, residence: e.target.value})} />
-                  <input className="p-4 border rounded-2xl outline-none" type="tel" inputMode="tel" placeholder="رقم الهاتف — مثال +2010..." value={newEmp.phone} onChange={(e) => setNewEmp({...newEmp, phone: e.target.value})} />
+                  <PhoneField className="p-4 border rounded-2xl outline-none" value={newEmp.phone} onChange={(v) => setNewEmp({...newEmp, phone: v})} />
                 </div>
                 <input type="email" className="w-full p-4 border rounded-2xl outline-none focus:border-indigo-500" placeholder="البريد الإلكتروني" value={newEmp.email} onChange={(e) => setNewEmp({...newEmp, email: e.target.value})} />
                 {branches.length > 0 && <select className="w-full p-4 border rounded-2xl outline-none" value={newEmp.branch_id} onChange={(e) => setNewEmp({...newEmp, branch_id: e.target.value})}><option value="">اختر الفرع / الموقع</option>{branches.filter((b:any) => b.is_active !== false).map((branch:any) => <option key={branch.id} value={branch.id}>{branch.name}{branch.code ? ` — ${branch.code}` : ""}</option>)}</select>}
@@ -7154,7 +7402,7 @@ const VacationManagementSystem = () => {
                   <input className="p-4 border rounded-2xl" placeholder="الكود" value={editingEmp.code || ''} onChange={(e) => setEditingEmp({...editingEmp, code: e.target.value})} />
                   <input className="p-4 border rounded-2xl" placeholder="المنصب" value={editingEmp.position || ''} onChange={(e) => setEditingEmp({...editingEmp, position: e.target.value})} />
                   <input className="p-4 border rounded-2xl" placeholder="مكان السكن" value={editingEmp.residence || ''} onChange={(e) => setEditingEmp({...editingEmp, residence: e.target.value})} />
-                  <input className="p-4 border rounded-2xl" type="tel" inputMode="tel" placeholder="رقم الهاتف — مثال +2010..." value={editingEmp.phone || ''} onChange={(e) => setEditingEmp({...editingEmp, phone: e.target.value})} />
+                  <PhoneField className="p-4 border rounded-2xl" value={editingEmp.phone || ''} onChange={(v) => setEditingEmp({...editingEmp, phone: v})} />
                 </div>
                 <input type="email" className="w-full p-4 border rounded-2xl" placeholder="البريد الإلكتروني" value={editingEmp.email || ''} onChange={(e) => setEditingEmp({...editingEmp, email: e.target.value})} />
                 {branches.length > 0 && <select className="w-full p-4 border rounded-2xl" value={editingEmp.branch_id || ''} onChange={(e) => setEditingEmp({...editingEmp, branch_id: e.target.value})}><option value="">بدون فرع</option>{branches.filter((b:any) => b.is_active !== false).map((branch:any) => <option key={branch.id} value={branch.id}>{branch.name}{branch.code ? ` — ${branch.code}` : ""}</option>)}</select>}
