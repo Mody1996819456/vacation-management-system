@@ -1334,6 +1334,7 @@ const VacationManagementSystem = () => {
   const [attendanceForm, setAttendanceForm] = useState({ employee_id:"", attendance_date:getLocalISODate(), status:"present", check_in:"", check_out:"", notes:"" });
   const [attendanceSaving, setAttendanceSaving] = useState(false);
   const [attendanceAutoSyncing, setAttendanceAutoSyncing] = useState(false);
+  const [showMyRequests, setShowMyRequests] = useState(false);
   const [loading, setLoading] = useState(true);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -1742,6 +1743,7 @@ const VacationManagementSystem = () => {
 
   // ========== FETCH DATA ==========
   const scrollRef = React.useRef(0);
+  const hasLoadedRef = React.useRef(false); // أول تحميل فقط يعرض السبينر، التحديثات اللاحقة بتتم في الخلفية
 
   // إشعارات الموظفين الذين انتهت إجازاتهم وحان موعد عودتهم.
   // الطلب المقبول والإجازة المباشرة يعالجان معًا، مع منع تكرار نفس الموظف/الطلب.
@@ -1816,8 +1818,8 @@ const VacationManagementSystem = () => {
   };
 
   const fetchData = useCallback(async () => {
-    scrollRef.current = window.scrollY;
-    setLoading(true);
+    // تحديث البيانات في الخلفية بدون إخفاء الصفحة (عشان مكان السكرول والحقول المفتوحة ميضيعوش)
+    if (!hasLoadedRef.current) setLoading(true);
     try {
       const [
         { data: emps }, { data: reqs }, { data: types },
@@ -1865,9 +1867,8 @@ const VacationManagementSystem = () => {
     } catch (err) {
       console.error("Fetch Error:", err);
     }
+    hasLoadedRef.current = true;
     setLoading(false);
-    // استعادة موضع التمرير بعد التحديث
-    requestAnimationFrame(() => { window.scrollTo({ top: scrollRef.current, behavior: "auto" }); });
   }, [currentUser, currentView]);
   useEffect(() => {
     fetchData();
@@ -4065,12 +4066,6 @@ const VacationManagementSystem = () => {
       setAttendanceAutoSyncing(false);
     }
   };
-  useEffect(() => {
-    if (currentView !== "admin" || !currentUser) return;
-    void syncAutomaticAttendance();
-    const timer = window.setInterval(() => { void syncAutomaticAttendance(); }, 5 * 60 * 1000);
-    return () => window.clearInterval(timer);
-  }, [currentView, currentUser?.id, currentUser?.role, employees.length, requests.length, vacationTypes.length, publicHolidays.length]);
 
   // ==================== GOOGLE SHEETS BACKUP ====================
   const saveAttendance = async () => {
@@ -4657,7 +4652,6 @@ const VacationManagementSystem = () => {
               { id: "calendar",    label: "التقويم",          icon: Calendar,        ownerOnly: false, managerAllowed: false },
               { id: "reports",     label: "التقارير",         icon: BarChart3,       ownerOnly: false, managerAllowed: false },
               { id: "branches",    label: "الفروع والمواقع", icon: Building2,       ownerOnly: true,  managerAllowed: false },
-              { id: "attendance",  label: "الحضور والانصراف", icon: Clock,           ownerOnly: true,  managerAllowed: false },
               { id: "departments", label: "الأقسام",          icon: Building2,       ownerOnly: true,  managerAllowed: false },
               { id: "managers",    label: "مديرو الأقسام",   icon: ShieldCheck,     ownerOnly: true,  managerAllowed: false },
               { id: "admins",      label: "الادمن",          icon: Users,           ownerOnly: true,  managerAllowed: false },
@@ -5915,15 +5909,6 @@ const VacationManagementSystem = () => {
                 </div>
               )}
 
-              {/* ===== ATTENDANCE ===== */}
-              {activeTab === "attendance" && isOwner && (
-                <div style={{ width:"100%", boxSizing:"border-box" }}>
-                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:"12px", marginBottom:"18px" }}><div><h2 style={{ margin:0, fontSize:"22px", fontWeight:"900" }}>الحضور والانصراف</h2><p style={{ margin:"5px 0 0", color:"#64748b", fontSize:"13px" }}>يُنشئ النظام سجلًا تلقائيًا للموظف الذي حالته «عمل»، ويضع «إجازة» أو «راحة/عطلة» حسب البيانات المعتمدة. السجل اليدوي يظل له الأولوية.</p></div><div style={{ display:"flex", gap:"8px", alignItems:"center" }}><div style={{ background:"#eef2ff", color:"#4338ca", borderRadius:"12px", padding:"10px 14px", fontWeight:"900" }}>{attendanceRows.length} سجل</div>{attendanceAutoSyncing && <span style={{ color:"#059669", fontSize:"11px", fontWeight:"800" }}>جاري المزامنة التلقائية...</span>}</div></div>
-                  <div style={{ background:"white", border:"1px solid #e2e8f0", borderRadius:"20px", padding:"18px", marginBottom:"16px" }}><h3 style={{ margin:"0 0 12px", fontSize:"16px", fontWeight:"900", color:"#172554" }}>فئات ساعات العمل</h3><p style={{ margin:"0 0 12px", color:"#64748b", fontSize:"12px" }}>أدخل عدد الساعات اليومية لكل فئة فقط. وقت الدخول والخروج اختياري وليس مطلوبًا.</p><div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))", gap:"9px", marginBottom:"12px" }}><input placeholder="اسم الفئة مثل: دوام كامل" value={workTimeCategoryForm.name} onChange={e => setWorkTimeCategoryForm({...workTimeCategoryForm, name:e.target.value})} style={{ padding:"10px", border:"1px solid #cbd5e1", borderRadius:"9px", fontFamily:"inherit" }} /><input type="number" min="0" max="24" step="0.5" placeholder="عدد الساعات" value={workTimeCategoryForm.hours} onChange={e => setWorkTimeCategoryForm({...workTimeCategoryForm, hours:e.target.value})} style={{ padding:"10px", border:"1px solid #cbd5e1", borderRadius:"9px" }} /><input placeholder="وصف اختياري" value={workTimeCategoryForm.description} onChange={e => setWorkTimeCategoryForm({...workTimeCategoryForm, description:e.target.value})} style={{ padding:"10px", border:"1px solid #cbd5e1", borderRadius:"9px", fontFamily:"inherit" }} /><button onClick={saveWorkTimeCategory} style={{ border:"none", background:"#4f46e5", color:"white", borderRadius:"9px", padding:"10px", fontWeight:"900", cursor:"pointer", fontFamily:"inherit" }}>{workTimeCategoryForm.id ? "تحديث الفئة" : "إضافة الفئة"}</button></div><div style={{ display:"grid", gap:"8px" }}>{workTimeCategories.map(category => <div key={category.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:"10px", flexWrap:"wrap", border:"1px solid #eef2f7", borderRadius:"10px", padding:"9px 11px" }}><div><strong>{category.name}</strong><span style={{ color:"#4f46e5", fontWeight:"900", marginRight:"10px" }}>{category.hours} ساعة يوميًا</span>{category.description && <small style={{ color:"#64748b", marginRight:"10px" }}>{category.description}</small>}</div><div style={{ display:"flex", gap:"6px" }}><button onClick={() => setWorkTimeCategoryForm({ id:category.id, name:category.name, hours:String(category.hours), description:category.description || "" })} style={{ border:"1px solid #c7d2fe", background:"#eef2ff", color:"#4338ca", borderRadius:"7px", padding:"5px 8px", cursor:"pointer", fontFamily:"inherit" }}>تعديل</button><button onClick={() => deleteWorkTimeCategory(category)} style={{ border:"none", background:"#fff1f2", color:"#dc2626", borderRadius:"7px", padding:"5px 8px", cursor:"pointer", fontFamily:"inherit" }}>حذف</button></div></div>)}</div></div>
-                  <div style={{ background:"white", border:"1px solid #e2e8f0", borderRadius:"20px", padding:"18px", marginBottom:"16px", display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))", gap:"10px" }}><select value={attendanceForm.employee_id} onChange={e => setAttendanceForm({...attendanceForm, employee_id:e.target.value})} style={{ padding:"11px", border:"1px solid #e2e8f0", borderRadius:"10px", fontFamily:"inherit" }}><option value="">اختر الموظف</option>{employees.map((e:any) => <option key={e.id} value={e.id}>{e.name} — {e.code}</option>)}</select><input type="date" value={attendanceForm.attendance_date} onChange={e => setAttendanceForm({...attendanceForm, attendance_date:e.target.value})} style={{ padding:"11px", border:"1px solid #e2e8f0", borderRadius:"10px" }}/><select value={attendanceForm.status} onChange={e => setAttendanceForm({...attendanceForm, status:e.target.value})} style={{ padding:"11px", border:"1px solid #e2e8f0", borderRadius:"10px", fontFamily:"inherit" }}><option value="present">حاضر</option><option value="absent">غائب</option><option value="late">متأخر</option><option value="remote">عن بُعد</option><option value="leave">إجازة</option><option value="rest">راحة / عطلة</option></select><input type="time" value={attendanceForm.check_in} onChange={e => setAttendanceForm({...attendanceForm, check_in:e.target.value})} style={{ padding:"11px", border:"1px solid #e2e8f0", borderRadius:"10px" }}/><input type="time" value={attendanceForm.check_out} onChange={e => setAttendanceForm({...attendanceForm, check_out:e.target.value})} style={{ padding:"11px", border:"1px solid #e2e8f0", borderRadius:"10px" }}/><input placeholder="ملاحظات" value={attendanceForm.notes} onChange={e => setAttendanceForm({...attendanceForm, notes:e.target.value})} style={{ padding:"11px", border:"1px solid #e2e8f0", borderRadius:"10px", fontFamily:"inherit" }}/><button onClick={saveAttendance} disabled={attendanceSaving} style={{ border:"none", background:"#4f46e5", color:"white", borderRadius:"10px", padding:"11px", fontWeight:"900", cursor:"pointer", fontFamily:"inherit" }}>{attendanceSaving ? "جاري الحفظ..." : "حفظ السجل"}</button></div>
-                  <div style={{ background:"white", border:"1px solid #e2e8f0", borderRadius:"20px", overflow:"auto" }}><table style={{ width:"100%", borderCollapse:"collapse", minWidth:"760px" }}><thead><tr style={{ background:"#f8fafc" }}>{["التاريخ","الموظف","الحالة","الدخول","الخروج","الملاحظات","إجراء"].map(h => <th key={h} style={{ padding:"12px", textAlign:"right", fontSize:"12px", color:"#64748b", borderBottom:"1px solid #e2e8f0" }}>{h}</th>)}</tr></thead><tbody>{attendanceRows.map((row:any) => <tr key={row.id} style={{ borderBottom:"1px solid #f1f5f9" }}><td style={{ padding:"12px", fontSize:"12px" }}>{formatDate(row.attendance_date)}</td><td style={{ padding:"12px", fontWeight:"800" }}>{row.employees?.name || employees.find((e:any) => e.id === row.employee_id)?.name || "-"}</td><td style={{ padding:"12px" }}><span style={{ background:row.status === "present" ? "#dcfce7" : row.status === "absent" ? "#fee2e2" : row.status === "rest" ? "#e0f2fe" : "#fef3c7", color:row.status === "present" ? "#15803d" : row.status === "absent" ? "#b91c1c" : row.status === "rest" ? "#0369a1" : "#92400e", borderRadius:"8px", padding:"4px 8px", fontSize:"11px", fontWeight:"800" }}>{({present:"حاضر", absent:"غائب", late:"متأخر", remote:"عن بُعد", leave:"إجازة", rest:"راحة / عطلة"} as any)[row.status] || row.status}</span></td><td style={{ padding:"12px" }}>{row.check_in || "-"}</td><td style={{ padding:"12px" }}>{row.check_out || "-"}</td><td style={{ padding:"12px", color:"#64748b" }}>{row.notes || "-"}</td><td style={{ padding:"12px" }}><button onClick={() => deleteAttendance(row)} style={{ border:"none", background:"#fff1f2", color:"#dc2626", borderRadius:"8px", padding:"6px", cursor:"pointer" }}><Trash2 size={14}/></button></td></tr>)}</tbody></table>{attendanceRows.length === 0 && <div style={{ padding:"45px", textAlign:"center", color:"#94a3b8" }}>لا توجد سجلات حضور حتى الآن.</div>}</div>
-                </div>
-              )}
 
               {/* ===== DEPARTMENTS ===== */}
               {activeTab === "departments" && isOwner && (
@@ -8161,6 +8146,12 @@ const VacationManagementSystem = () => {
                 <p style={{ margin: "4px 0 0", fontSize: "13px", color: "rgba(255,255,255,0.55)", fontWeight: "600" }}>
                   {currentUser.position || "نظرة عامة على حالة إجازاتك"}
                 </p>
+                {(currentUser.email || currentUser.phone) && (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 14px", marginTop: "8px", fontSize: "12.5px", color: "rgba(255,255,255,0.8)", fontWeight: "600" }}>
+                    {currentUser.email && <span style={{ direction: "ltr", unicodeBidi: "plaintext" }}>✉️ {currentUser.email}</span>}
+                    {currentUser.phone && <span style={{ direction: "ltr", unicodeBidi: "plaintext" }}>📞 {currentUser.phone}</span>}
+                  </div>
+                )}
               </div>
             </div>
             <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
@@ -8426,12 +8417,19 @@ const VacationManagementSystem = () => {
             </div>
           </section>
 
-          <section style={{ animation: "fadeIn 1.1s ease", marginBottom:"28px" }}><h3 style={{ fontSize:"20px", fontWeight:"900", marginBottom:"18px", display:"flex", alignItems:"center", gap:"12px", color:"#1e293b" }}><CheckCircle className="text-emerald-500" /> ملخص حضوري</h3>{(() => { const mine = attendanceRows.filter((row:any) => String(row.employee_id) === String(currentUser.id)); const present = mine.filter((row:any) => row.status === "present" || row.status === "remote").length; const rate = mine.length ? Math.round((present / mine.length) * 100) : 0; return <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(145px,1fr))", gap:"12px" }}><div style={{ background:"white", borderRadius:"18px", padding:"18px", border:"1px solid #dcfce7" }}><div style={{ color:"#64748b", fontSize:"11px" }}>نسبة الحضور المسجلة</div><strong style={{ display:"block", color:"#059669", fontSize:"26px", marginTop:"6px" }}>{rate}%</strong></div><div style={{ background:"white", borderRadius:"18px", padding:"18px", border:"1px solid #e0e7ff" }}><div style={{ color:"#64748b", fontSize:"11px" }}>السجلات المسجلة</div><strong style={{ display:"block", color:"#4f46e5", fontSize:"26px", marginTop:"6px" }}>{mine.length}</strong></div><div style={{ background:"white", borderRadius:"18px", padding:"14px", border:"1px solid #e2e8f0" }}><div style={{ color:"#64748b", fontSize:"11px", marginBottom:"8px" }}>آخر سجل</div><strong style={{ fontSize:"13px" }}>{mine[0] ? `${formatDate(mine[0].attendance_date)} — ${{present:"حاضر", absent:"غائب", late:"متأخر", remote:"عن بُعد", leave:"إجازة"} as any}[mine[0].status] || mine[0].status}` : "لا توجد سجلات"}</strong></div></div>; })()}</section>
 
           <section style={{ animation: "fadeIn 1.2s ease" }}>
-            <h3 style={{ fontSize: "20px", fontWeight: "900", marginBottom: "24px", display: "flex", alignItems: "center", gap: "12px", color: "#1e293b" }}>
-              <Clock className="text-amber-500" /> طلباتي
-            </h3>
+            <button type="button" onClick={() => setShowMyRequests(v => !v)} aria-expanded={showMyRequests}
+              style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", background: "white", border: "1px solid #eef0f6", borderRadius: "18px", padding: "16px 20px", marginBottom: "16px", cursor: "pointer", boxShadow: "0 10px 28px rgba(30, 41, 59, 0.06)", fontFamily: "inherit" }}>
+              <span style={{ fontSize: "18px", fontWeight: 900, color: "#1e293b", display: "flex", alignItems: "center", gap: "10px" }}>
+                <Clock className="text-amber-500" /> طلباتي
+                <span style={{ background: "#eef2ff", color: "#4f46e5", borderRadius: "999px", padding: "2px 10px", fontSize: "12px", fontWeight: 900 }}>
+                  {requests.filter(r => r.employee_id === currentUser.id).length}
+                </span>
+              </span>
+              <span style={{ fontSize: "14px", color: "#64748b", transition: "transform 0.25s ease", transform: showMyRequests ? "rotate(180deg)" : "rotate(0deg)" }}>▼</span>
+            </button>
+            {showMyRequests && (<div>
             {requests.filter(r => r.employee_id === currentUser.id).map((req, idx) => {
               const vacType = vacationTypes.find(vt => vt.id === req.vacation_type_id);
               return (
@@ -8490,6 +8488,7 @@ const VacationManagementSystem = () => {
                 <p className="text-slate-400 font-bold">لم تقدم أي طلبات بعد</p>
               </div>
             )}
+            </div>)}
           </section>
         </div>
       </div>
@@ -8677,7 +8676,7 @@ const ManagersTab = ({ departments, branches, supabase, logAction, currentUser }
   };
 
   const fetchManagers = async () => {
-    setLoading(true);
+    if (managers.length === 0) setLoading(true);
     const { data } = await supabase.from("department_managers").select("*, departments(name)").order("name");
     if (data) setManagers(data);
     setLoading(false);
@@ -8922,7 +8921,7 @@ const AdminsTab = ({ supabase, logAction, currentUser }: {
   const permissionActions = ["can_view", "can_create", "can_edit", "can_approve", "can_delete", "can_export"];
   const permissionActionLabels: Record<string, string> = { can_view:"عرض", can_create:"إضافة", can_edit:"تعديل", can_approve:"موافقة", can_delete:"حذف", can_export:"تصدير" };
   const fetch = async () => {
-    setLoading(true);
+    if (admins.length === 0) setLoading(true);
     const { data } = await supabase.from("users").select("id, name, email, role").eq("role", "admin").order("name");
     if (data) {
       setAdmins(data);
